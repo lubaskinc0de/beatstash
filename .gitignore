@@ -1,0 +1,4 @@
+.env
+.vscode/
+*.exe
+test_data/
