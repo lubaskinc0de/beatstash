@@ -131,7 +131,7 @@ func (i *SaveTrack) Execute(
 		}
 		downloadFile(ctx, data.DownloadUrl, path)
 
-		slog.Info("track_saved", "file_unique_id", track.TelegramFileUniqueID)
+		slog.Info("track_saved", "file_unique_id", track.TelegramFileUniqueID, "uid", user.TelegramID)
 		return nil
 	})
 }

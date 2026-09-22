@@ -78,7 +78,7 @@ func main() {
 	}
 
 	b, err := bot.New(config.Token, bot.WithMiddlewares(
-		telegram.UserMiddleware(deps.users),
+		telegram.UserMiddleware(deps.users, config.AllowedUserIds),
 	))
 	if err != nil {
 		slog.Error("bot_initialization_failed", "error", err)

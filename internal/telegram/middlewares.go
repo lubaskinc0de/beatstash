@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/go-telegram/bot"
@@ -18,7 +19,7 @@ func withUser(ctx context.Context, user *entities.User) context.Context {
 	return context.WithValue(ctx, application.UserContextKey{}, user)
 }
 
-func UserMiddleware(users *database.UserRepository) bot.Middleware {
+func UserMiddleware(users *database.UserRepository, allowedUserIds []uint64) bot.Middleware {
 	return func(next bot.HandlerFunc) bot.HandlerFunc {
 		return func(
 			ctx context.Context,
@@ -31,6 +32,10 @@ func UserMiddleware(users *database.UserRepository) bot.Middleware {
 			}
 
 			telegramID := uint64(update.Message.From.ID)
+			if !slices.Contains(allowedUserIds, telegramID) {
+				slog.Info("access_denied", "uid", telegramID)
+				return
+			}
 
 			user, err := users.GetById(ctx, telegramID)
 			if err != nil && !errors.Is(err, application.ErrUserNotFound) {
@@ -40,7 +45,7 @@ func UserMiddleware(users *database.UserRepository) bot.Middleware {
 
 			if errors.Is(err, application.ErrUserNotFound) {
 				user = &entities.User{
-					TelegramID: update.Message.From.ID,
+					TelegramID: uint64(update.Message.From.ID),
 					Username:   update.Message.From.Username,
 					CreatedAt:  time.Now(),
 				}
