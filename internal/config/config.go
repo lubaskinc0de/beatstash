@@ -8,16 +8,23 @@ import (
 )
 
 type Config struct {
-	Token          string
-	DbDsn          string
-	MusicDir       string
-	AllowedUserIds []uint64
+	Token             string
+	DbDsn             string
+	MusicDir          string
+	AllowedUserIds    []uint64
+	NavidromeUser     string
+	NavidromePassword string
+	NavidromeUrl      string
 }
 
 func LoadConfig() Config {
 	token := os.Getenv("BOT_TOKEN")
 	dbDsn := os.Getenv("DB_DSN")
 	musicDir := os.Getenv("MUSIC_DIR")
+	navidromeUser := os.Getenv("NAVIDROME_USER")
+	navidomePass := os.Getenv("NAVIDROME_PASSWORD")
+	navidromeUrl := os.Getenv("NAVIDROME_URL")
+
 	allowedUserIdsStrings := strings.Split(os.Getenv("ALLOWED_USER_IDS"), ",")
 
 	allowedUserIds := []uint64{}
@@ -45,13 +52,24 @@ func LoadConfig() Config {
 	case musicDir == "":
 		slog.Error("missing_config_value", "field", "MUSIC_DIR")
 		os.Exit(1)
-
+	case navidromeUrl == "":
+		slog.Error("missing_config_value", "field", "NAVIDROME_URL")
+		os.Exit(1)
+	case navidromeUser == "":
+		slog.Error("missing_config_value", "field", "NAVIDROME_USER")
+		os.Exit(1)
+	case navidomePass == "":
+		slog.Error("missing_config_value", "field", "NAVIDROME_PASS")
+		os.Exit(1)
 	}
 
 	return Config{
-		Token:          token,
-		DbDsn:          dbDsn,
-		MusicDir:       musicDir,
-		AllowedUserIds: allowedUserIds,
+		Token:             token,
+		DbDsn:             dbDsn,
+		MusicDir:          musicDir,
+		AllowedUserIds:    allowedUserIds,
+		NavidromeUser:     navidromeUser,
+		NavidromePassword: navidomePass,
+		NavidromeUrl:      navidromeUrl,
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application"
 	"github.com/lubaskinc0de/navidrome-tg/internal/config"
@@ -34,13 +35,20 @@ func setupDeps(config config.Config) (*Dependencies, error) {
 	txManager := database.NewTxManager(db)
 	trackRepo := database.NewTrackRepository(db)
 	userRepo := database.NewUserRepository(db)
+	navidromeClient := application.NewNavidromeClient(
+		config.NavidromeUrl,
+		config.NavidromePassword,
+		config.NavidromeUser,
+	)
 
 	// application
 	saveTrack := application.NewSaveTrack(trackRepo, txManager)
+	nowPlaying := application.NewGetNowPlaying(navidromeClient)
 
 	// delivery
 	handler := telegram.NewHandler(
 		saveTrack,
+		nowPlaying,
 		userRepo,
 		config,
 	)
@@ -77,9 +85,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	b, err := bot.New(config.Token, bot.WithMiddlewares(
-		telegram.UserMiddleware(deps.users, config.AllowedUserIds),
-	))
+	b, err := bot.New(
+		config.Token,
+		bot.WithAllowedUpdates(bot.AllowedUpdates{
+			"message",
+			"inline_query",
+			"callback_query",
+		}),
+		bot.WithMiddlewares(
+			telegram.UserMiddleware(deps.users, config.AllowedUserIds),
+		),
+	)
 	if err != nil {
 		slog.Error("bot_initialization_failed", "error", err)
 		os.Exit(1)
@@ -90,6 +106,12 @@ func main() {
 		"",
 		bot.MatchTypePrefix,
 		deps.Handler.HandleTrack,
+	)
+	b.RegisterHandlerMatchFunc(
+		func(update *models.Update) bool {
+			return update.InlineQuery != nil
+		},
+		deps.Handler.HandleInlineQuery,
 	)
 
 	slog.Info("bot_started")

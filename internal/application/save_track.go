@@ -41,49 +41,11 @@ type SaveTrack struct {
 	Tx   TxManager
 }
 
-func downloadFile(ctx context.Context, url, path string) error {
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodGet,
-		url,
-		nil,
-	)
-	if err != nil {
-		return err
+func NewSaveTrack(repo TrackRepository, tx TxManager) *SaveTrack {
+	return &SaveTrack{
+		Repo: repo,
+		Tx:   tx,
 	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("download_failed: %s, %d", url, resp.StatusCode)
-	}
-
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-
-	file, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	_, err = io.Copy(file, resp.Body)
-	return err
-}
-
-func trackFileName(fileUniqueID, originalName string) string {
-	sum := sha256.Sum256([]byte(fileUniqueID))
-	name := hex.EncodeToString(sum[:])
-
-	ext := filepath.Ext(originalName)
-
-	return name + ext
 }
 
 func (i *SaveTrack) Execute(
@@ -136,9 +98,47 @@ func (i *SaveTrack) Execute(
 	})
 }
 
-func NewSaveTrack(repo TrackRepository, tx TxManager) *SaveTrack {
-	return &SaveTrack{
-		Repo: repo,
-		Tx:   tx,
+func downloadFile(ctx context.Context, url, path string) error {
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		url,
+		nil,
+	)
+	if err != nil {
+		return err
 	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("download_failed: %s, %d", url, resp.StatusCode)
+	}
+
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = io.Copy(file, resp.Body)
+	return err
+}
+
+func trackFileName(fileUniqueID, originalName string) string {
+	sum := sha256.Sum256([]byte(fileUniqueID))
+	name := hex.EncodeToString(sum[:])
+
+	ext := filepath.Ext(originalName)
+
+	return name + ext
 }
