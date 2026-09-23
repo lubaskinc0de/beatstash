@@ -27,7 +27,11 @@ func getTelegramId(update *models.Update) (*uint64, bool) {
 	case update.InlineQuery != nil && update.InlineQuery.From != nil:
 		id := uint64(update.InlineQuery.From.ID)
 		return &id, true
+	case update.CallbackQuery != nil:
+		id := uint64(update.CallbackQuery.From.ID)
+		return &id, true
 	}
+
 	return nil, false
 }
 
