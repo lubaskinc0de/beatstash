@@ -8,10 +8,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application"
@@ -28,19 +30,12 @@ type SessionRepository interface {
 
 type Client struct {
 	BaseURL  string
-	Password string
-	Username string
 	Sessions SessionRepository
 }
 
-func NewClient(
-	baseUrl, password, username string,
-	sessions SessionRepository,
-) *Client {
+func NewClient(baseUrl string, sessions SessionRepository) *Client {
 	return &Client{
 		BaseURL:  baseUrl,
-		Password: password,
-		Username: username,
 		Sessions: sessions,
 	}
 }
@@ -79,13 +74,13 @@ type nowPlayingResponse struct {
 	} `json:"subsonic-response"`
 }
 
-func (c *Client) addAuth(q url.Values) {
+func addAuth(q url.Values, creds application.NavidromeCredentials) {
 	salt := randomSalt()
 
-	hash := md5.Sum([]byte(c.Password + salt))
+	hash := md5.Sum([]byte(creds.Password + salt))
 	token := hex.EncodeToString(hash[:])
 
-	q.Set("u", c.Username)
+	q.Set("u", creds.Login)
 	q.Set("s", salt)
 	q.Set("t", token)
 	q.Set("v", "1.16.1")
@@ -93,22 +88,22 @@ func (c *Client) addAuth(q url.Values) {
 	q.Set("f", "json")
 }
 
-func (c *Client) NowPlaying(ctx context.Context) (*application.PlayingTrack, error) {
-	resp, err := c.getNowPlaying(ctx)
+func (c *Client) NowPlaying(ctx context.Context, creds application.NavidromeCredentials) (*application.PlayingTrack, error) {
+	resp, err := c.getNowPlaying(ctx, creds)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, entry := range resp.SubsonicResponse.NowPlaying.Entry {
-		if entry.Username != c.Username {
+		if !strings.EqualFold(entry.Username, creds.Login) {
 			continue
 		}
 		return &application.PlayingTrack{
-				ID:       entry.ID,
-				Artist:   entry.Artist,
-				Title:    entry.Title,
-				Album:    entry.Album,
-				Duration: entry.Duration,
+			ID:         entry.ID,
+			Artist:     entry.Artist,
+			Title:      entry.Title,
+			Album:      entry.Album,
+			Duration:   entry.Duration,
 			PositionMs: entry.PositionMs,
 			State:      entry.State,
 			CoverArt:   entry.CoverArt,
@@ -117,14 +112,14 @@ func (c *Client) NowPlaying(ctx context.Context) (*application.PlayingTrack, err
 	return nil, nil
 }
 
-func (c *Client) getNowPlaying(ctx context.Context) (*nowPlayingResponse, error) {
+func (c *Client) getNowPlaying(ctx context.Context, creds application.NavidromeCredentials) (*nowPlayingResponse, error) {
 	u, err := url.Parse(c.BaseURL + "/rest/getNowPlaying")
 	if err != nil {
 		return nil, err
 	}
 
 	q := u.Query()
-	c.addAuth(q)
+	addAuth(q, creds)
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -156,7 +151,7 @@ func (c *Client) getNowPlaying(ctx context.Context) (*nowPlayingResponse, error)
 }
 
 // Subsonic API has no play history, so it goes through Navidrome's native API.
-func (c *Client) RecentlyPlayed(ctx context.Context, limit int) ([]application.PlayedTrack, error) {
+func (c *Client) RecentlyPlayed(ctx context.Context, creds application.NavidromeCredentials, limit int) ([]application.PlayedTrack, error) {
 	q := url.Values{}
 	q.Set("_sort", "playDate")
 	q.Set("_order", "DESC")
@@ -164,7 +159,7 @@ func (c *Client) RecentlyPlayed(ctx context.Context, limit int) ([]application.P
 	q.Set("_end", strconv.Itoa(limit))
 
 	var tracks []recentTrack
-	if err := c.getNative(ctx, "/api/song", q, &tracks); err != nil {
+	if err := c.native(ctx, creds, nativeRequest{method: http.MethodGet, path: "/api/song", query: q}, &tracks); err != nil {
 		return nil, err
 	}
 
@@ -174,11 +169,11 @@ func (c *Client) RecentlyPlayed(ctx context.Context, limit int) ([]application.P
 			continue
 		}
 		played = append(played, application.PlayedTrack{
-				ID:       track.ID,
-				Artist:   track.Artist,
-				Title:    track.Title,
-				Album:    track.Album,
-				Duration: int(track.Duration),
+			ID:       track.ID,
+			Artist:   track.Artist,
+			Title:    track.Title,
+			Album:    track.Album,
+			Duration: int(track.Duration),
 			PlayedAt: *track.PlayDate,
 		})
 	}
@@ -188,39 +183,67 @@ func (c *Client) RecentlyPlayed(ctx context.Context, limit int) ([]application.P
 
 var errUnauthorized = errors.New("navidrome: unauthorized")
 
-func (c *Client) getNative(ctx context.Context, path string, q url.Values, out any) error {
-	token, err := c.Sessions.GetToken(ctx, c.Username)
+type nativeRequest struct {
+	method string
+	path   string
+	query  url.Values
+	body   any
+}
+
+// validationError is Navidrome's 400 answer: field name to message key.
+type validationError struct {
+	Errors map[string]string `json:"errors"`
+}
+
+func (e *validationError) Error() string {
+	return fmt.Sprintf("navidrome validation failed: %v", e.Errors)
+}
+
+func (c *Client) native(ctx context.Context, creds application.NavidromeCredentials, r nativeRequest, out any) error {
+	token, err := c.Sessions.GetToken(ctx, creds.Login)
 	if errors.Is(err, ErrSessionNotFound) {
-		token, err = c.login(ctx)
+		token, err = c.login(ctx, creds)
 	}
 	if err != nil {
 		return err
 	}
 
-	err = c.doNative(ctx, path, q, token, out)
+	err = c.doNative(ctx, creds, r, token, out)
 	if !errors.Is(err, errUnauthorized) {
 		return err
 	}
 
-	token, err = c.login(ctx)
+	token, err = c.login(ctx, creds)
 	if err != nil {
 		return err
 	}
-	return c.doNative(ctx, path, q, token, out)
+	return c.doNative(ctx, creds, r, token, out)
 }
 
-func (c *Client) doNative(ctx context.Context, path string, q url.Values, token string, out any) error {
-	u, err := url.Parse(c.BaseURL + path)
+func (c *Client) doNative(ctx context.Context, creds application.NavidromeCredentials, r nativeRequest, token string, out any) error {
+	u, err := url.Parse(c.BaseURL + r.path)
 	if err != nil {
 		return err
 	}
-	u.RawQuery = q.Encode()
+	u.RawQuery = r.query.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	var body io.Reader
+	if r.body != nil {
+		data, err := json.Marshal(r.body)
+		if err != nil {
+			return err
+		}
+		body = bytes.NewReader(data)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, r.method, u.String(), body)
 	if err != nil {
 		return err
 	}
 	req.Header.Set(nativeAuthHeader, "Bearer "+token)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -231,13 +254,20 @@ func (c *Client) doNative(ctx context.Context, path string, q url.Values, token 
 	if resp.StatusCode == http.StatusUnauthorized {
 		return errUnauthorized
 	}
+	if resp.StatusCode == http.StatusBadRequest {
+		var invalid validationError
+		if err := json.NewDecoder(resp.Body).Decode(&invalid); err != nil {
+			return fmt.Errorf("navidrome returned status %s", resp.Status)
+		}
+		return &invalid
+	}
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("navidrome returned status %s", resp.Status)
 	}
 
 	// Navidrome sends a renewed JWT with every response, keep it so the session never expires.
 	if refreshed := resp.Header.Get(nativeAuthHeader); refreshed != "" && refreshed != token {
-		if err := c.Sessions.SaveToken(ctx, c.Username, refreshed); err != nil {
+		if err := c.Sessions.SaveToken(ctx, creds.Login, refreshed); err != nil {
 			return err
 		}
 	}
@@ -245,10 +275,37 @@ func (c *Client) doNative(ctx context.Context, path string, q url.Values, token 
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
-func (c *Client) login(ctx context.Context) (string, error) {
+func (c *Client) CreateAccount(ctx context.Context, admin, account application.NavidromeCredentials) error {
+	var created struct {
+		ID string `json:"id"`
+	}
+	err := c.native(ctx, admin, nativeRequest{
+		method: http.MethodPost,
+		path:   "/api/user",
+		body: map[string]any{
+			"userName": account.Login,
+			"name":     account.Login,
+			"password": account.Password,
+			"isAdmin":  false,
+		},
+	}, &created)
+
+	var invalid *validationError
+	if errors.As(err, &invalid) && invalid.Errors["userName"] == "ra.validation.unique" {
+		return application.ErrNavidromeLoginTaken
+	}
+	return err
+}
+
+func (c *Client) Authenticate(ctx context.Context, creds application.NavidromeCredentials) error {
+	_, err := c.login(ctx, creds)
+	return err
+}
+
+func (c *Client) login(ctx context.Context, creds application.NavidromeCredentials) (string, error) {
 	body, err := json.Marshal(map[string]string{
-		"username": c.Username,
-		"password": c.Password,
+		"username": creds.Login,
+		"password": creds.Password,
 	})
 	if err != nil {
 		return "", err
@@ -266,6 +323,9 @@ func (c *Client) login(ctx context.Context) (string, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusUnauthorized {
+		return "", application.ErrNavidromeInvalidCredentials
+	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("navidrome login returned status %s", resp.Status)
 	}
@@ -280,7 +340,7 @@ func (c *Client) login(ctx context.Context) (string, error) {
 		return "", errors.New("navidrome login returned empty token")
 	}
 
-	if err := c.Sessions.SaveToken(ctx, c.Username, result.Token); err != nil {
+	if err := c.Sessions.SaveToken(ctx, creds.Login, result.Token); err != nil {
 		return "", err
 	}
 

@@ -73,3 +73,21 @@ func setReaction(ctx context.Context, b *bot.Bot, msg application.MessageRef, em
 		slog.Error("set_reaction", "error", err)
 	}
 }
+
+func sendText(ctx context.Context, b *bot.Bot, chatID int64, text string) {
+	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:    chatID,
+		Text:      text,
+		ParseMode: models.ParseModeHTML,
+	})
+	if err != nil {
+		slog.Error("send_message", "error", err)
+	}
+}
+
+func deleteMessage(ctx context.Context, b *bot.Bot, chatID int64, messageID int) {
+	_, err := b.DeleteMessage(ctx, &bot.DeleteMessageParams{ChatID: chatID, MessageID: messageID})
+	if err != nil {
+		slog.Error("delete_message", "error", err)
+	}
+}

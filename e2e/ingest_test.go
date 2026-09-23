@@ -11,7 +11,7 @@ func TestIngest(t *testing.T) {
 		s := newScenario(t)
 		audio := s.uploadAudio("track.mp3")
 
-		s.send(s.audioMessage(allowedUser, audio))
+		s.send(s.audioMessage(alice, audio))
 		s.waitIngest()
 
 		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
@@ -22,7 +22,7 @@ func TestIngest(t *testing.T) {
 		s := newScenario(t, withoutWorkers())
 		audio := s.uploadAudio("track.mp3")
 
-		s.send(s.audioMessage(allowedUser, audio))
+		s.send(s.audioMessage(alice, audio))
 
 		assert.Equal(t, []string{"👀"}, s.botAPI.Reactions(t))
 		assert.Empty(t, s.botAPI.callsTo("getFile"))
@@ -33,11 +33,11 @@ func TestIngest(t *testing.T) {
 		s := newScenario(t)
 		audio := s.uploadAudio("track.mp3")
 		s.botAPI.failGetFile(audio.FileID, alwaysFail)
-		first := s.audioMessage(allowedUser, audio)
+		first := s.audioMessage(alice, audio)
 		s.send(first)
 		s.waitIngest()
 		s.botAPI.failGetFile(audio.FileID, 0)
-		second := s.audioMessage(allowedUser, audio)
+		second := s.audioMessage(alice, audio)
 
 		s.send(second)
 		s.waitIngest()

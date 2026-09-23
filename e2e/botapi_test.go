@@ -13,10 +13,14 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/go-telegram/bot/models"
 	"github.com/stretchr/testify/require"
 )
 
-const botToken = "123456:test-token"
+const (
+	botToken    = "123456:test-token"
+	botUsername = "navidrome_tg_bot"
+)
 
 const alwaysFail = -1
 
@@ -139,6 +143,8 @@ func (a *botAPI) handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		a.getFile(w, params["file_id"])
+	case "getMe":
+		writeResult(w, map[string]any{"id": 123456, "is_bot": true, "first_name": "Navidrome", "username": botUsername})
 	case "sendMessage":
 		writeResult(w, map[string]any{"message_id": 1, "date": 0, "chat": map[string]any{"id": 1, "type": "private"}})
 	default:
@@ -214,6 +220,13 @@ func writeError(w http.ResponseWriter, code int, description string) {
 		"error_code":  code,
 		"description": description,
 	})
+}
+
+// forget drops the calls recorded so far, so a scenario sees only its own.
+func (a *botAPI) forget() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.calls = nil
 }
 
 func (a *botAPI) Calls() []apiCall {
@@ -293,6 +306,26 @@ func (a *botAPI) InlineAnswers(t *testing.T) []inlineAnswer {
 		answers = append(answers, answer)
 	}
 	return answers
+}
+
+func (a *botAPI) InlineAnswerTo(t *testing.T, query *models.Update) inlineAnswer {
+	t.Helper()
+
+	for _, answer := range a.InlineAnswers(t) {
+		if answer.QueryID == query.InlineQuery.ID {
+			return answer
+		}
+	}
+	t.Fatalf("inline query %s is not answered", query.InlineQuery.ID)
+	return inlineAnswer{}
+}
+
+func (a *botAPI) DeletedMessages() []string {
+	var ids []string
+	for _, call := range a.callsTo("deleteMessage") {
+		ids = append(ids, call.Params["message_id"])
+	}
+	return ids
 }
 
 // AnsweredCallbacks returns ids of the callback queries the bot answered.

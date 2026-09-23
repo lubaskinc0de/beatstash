@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html"
 	"log/slog"
@@ -11,8 +12,6 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application"
-	"github.com/lubaskinc0de/navidrome-tg/internal/config"
-	"github.com/lubaskinc0de/navidrome-tg/internal/database"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 	tgprovider "github.com/lubaskinc0de/navidrome-tg/internal/providers/telegram"
 )
@@ -20,26 +19,32 @@ import (
 const recentTracksLimit = 10
 
 type Handler struct {
-	enqueueIngest     *application.EnqueueIngest
-	getNowPlaying     *application.GetNowPlaying
-	getRecentlyPlayed *application.GetRecentlyPlayed
-	users             *database.UserRepository
-	config            config.Config
+	enqueueIngest        *application.EnqueueIngest
+	getNowPlaying        *application.GetNowPlaying
+	getRecentlyPlayed    *application.GetRecentlyPlayed
+	linkNavidromeAccount *application.LinkNavidromeAccount
+	createInvite         *application.CreateInvite
+	acceptInvite         *application.AcceptInvite
+	registerAccount      *application.RegisterNavidromeAccount
 }
 
 func NewHandler(
 	enqueueIngest *application.EnqueueIngest,
 	nowPlaying *application.GetNowPlaying,
 	recentlyPlayed *application.GetRecentlyPlayed,
-	users *database.UserRepository,
-	config config.Config,
+	linkNavidromeAccount *application.LinkNavidromeAccount,
+	createInvite *application.CreateInvite,
+	acceptInvite *application.AcceptInvite,
+	registerAccount *application.RegisterNavidromeAccount,
 ) *Handler {
 	return &Handler{
-		enqueueIngest:     enqueueIngest,
-		users:             users,
-		config:            config,
-		getNowPlaying:     nowPlaying,
-		getRecentlyPlayed: recentlyPlayed,
+		enqueueIngest:        enqueueIngest,
+		getNowPlaying:        nowPlaying,
+		getRecentlyPlayed:    recentlyPlayed,
+		linkNavidromeAccount: linkNavidromeAccount,
+		createInvite:         createInvite,
+		acceptInvite:         acceptInvite,
+		registerAccount:      registerAccount,
 	}
 }
 
@@ -165,6 +170,10 @@ func (h *Handler) handleNowPlaying(
 	}
 
 	track, err := h.getNowPlaying.Execute(ctx)
+	if errors.Is(err, application.ErrNavidromeAccountNotFound) {
+		answerNoNavidromeAccount(ctx, b, update.InlineQuery.ID)
+		return
+	}
 	if err != nil {
 		slog.Error("get_now_playing", "error", err)
 
@@ -230,6 +239,10 @@ func (h *Handler) handleRecentlyPlayed(
 	}
 
 	tracks, err := h.getRecentlyPlayed.Execute(ctx, recentTracksLimit)
+	if errors.Is(err, application.ErrNavidromeAccountNotFound) {
+		answerNoNavidromeAccount(ctx, b, update.InlineQuery.ID)
+		return
+	}
 	if err != nil {
 		slog.Error("get_recently_played", "error", err)
 

@@ -10,11 +10,13 @@ import (
 func TestNowPlaying(t *testing.T) {
 	t.Run("np returns the track playing in Navidrome", func(t *testing.T) {
 		s := newScenario(t)
+		account := env.navidrome.createAccount(t, "alice")
+		s.link(alice, account)
 		audio := s.uploadAudio("track.mp3")
-		s.send(s.audioMessage(allowedUser, audio))
+		s.send(s.audioMessage(alice, audio))
 		track := env.navidrome.indexedTrack(t, s.library, fixtureTitle)
-		env.navidrome.startPlaying(t, track.ID)
-		query := s.inlineQuery(allowedUser, "np")
+		env.navidrome.startPlaying(t, account, track.ID)
+		query := s.inlineQuery(alice, "np")
 
 		s.send(query)
 

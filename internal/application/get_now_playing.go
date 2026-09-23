@@ -14,21 +14,28 @@ type NowPlaying struct {
 }
 
 type GetNowPlaying struct {
-	Client Navidrome
-	Repo   TrackRepository
+	Client   Navidrome
+	Repo     TrackRepository
+	Accounts *NavidromeAccounts
 }
 
-func NewGetNowPlaying(client Navidrome, repo TrackRepository) *GetNowPlaying {
+func NewGetNowPlaying(client Navidrome, repo TrackRepository, accounts *NavidromeAccounts) *GetNowPlaying {
 	return &GetNowPlaying{
-		Client: client,
-		Repo:   repo,
+		Client:   client,
+		Repo:     repo,
+		Accounts: accounts,
 	}
 }
 
 func (i *GetNowPlaying) Execute(
 	ctx context.Context,
 ) (*NowPlaying, error) {
-	track, err := i.Client.NowPlaying(ctx)
+	creds, err := i.Accounts.Credentials(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	track, err := i.Client.NowPlaying(ctx, creds)
 	if err != nil {
 		slog.Error("Cannot get now playing", "error", err)
 		return nil, err

@@ -14,6 +14,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/database"
 	"github.com/lubaskinc0de/navidrome-tg/internal/navidrome"
 	tgprovider "github.com/lubaskinc0de/navidrome-tg/internal/providers/telegram"
+	"github.com/lubaskinc0de/navidrome-tg/internal/secrets"
 	"github.com/lubaskinc0de/navidrome-tg/internal/telegram"
 )
 
@@ -50,16 +51,21 @@ func build(config config.Config, db *gorm.DB, opts []bot.Option) (*App, error) {
 	txManager := database.NewTxManager(db)
 	trackRepo := database.NewTrackRepository(db)
 	userRepo := database.NewUserRepository(db)
+	inviteRepo := database.NewInviteRepository(db)
 	sessionRepo := database.NewNavidromeSessionRepository(db)
 	uploadRepo := database.NewUploadRepository(db)
 	libraryLock := database.NewLibraryLock(db)
 	ingestQueue := database.NewIngestQueue(db)
-	navidromeClient := navidrome.NewClient(
-		config.NavidromeUrl,
-		config.NavidromePassword,
-		config.NavidromeUser,
-		sessionRepo,
-	)
+	navidromeClient := navidrome.NewClient(config.NavidromeUrl, sessionRepo)
+	box, err := secrets.NewBox(config.SecretKey)
+	if err != nil {
+		return nil, err
+	}
+	navidromeAccounts := application.NewNavidromeAccounts(database.NewNavidromeAccountRepository(db), box)
+
+	if err := userRepo.EnsureExist(context.Background(), config.AdminIds); err != nil {
+		return nil, err
+	}
 
 	options := []bot.Option{
 		bot.WithAllowedUpdates(bot.AllowedUpdates{
@@ -68,7 +74,7 @@ func build(config config.Config, db *gorm.DB, opts []bot.Option) (*App, error) {
 			"callback_query",
 		}),
 		bot.WithMiddlewares(
-			telegram.UserMiddleware(userRepo, config.AllowedUserIds),
+			telegram.UserMiddleware(userRepo),
 		),
 	}
 	if config.BotApiUrl != "" {
@@ -92,18 +98,29 @@ func build(config config.Config, db *gorm.DB, opts []bot.Option) (*App, error) {
 		config.IngestPollInterval,
 	)
 	enqueueIngest := application.NewEnqueueIngest(ingestQueue, workers)
-	nowPlaying := application.NewGetNowPlaying(navidromeClient, trackRepo)
-	recentlyPlayed := application.NewGetRecentlyPlayed(navidromeClient, trackRepo)
+	nowPlaying := application.NewGetNowPlaying(navidromeClient, trackRepo, navidromeAccounts)
+	recentlyPlayed := application.NewGetRecentlyPlayed(navidromeClient, trackRepo, navidromeAccounts)
 
 	handler := telegram.NewHandler(
 		enqueueIngest,
 		nowPlaying,
 		recentlyPlayed,
-		userRepo,
-		config,
+		application.NewLinkNavidromeAccount(navidromeClient, navidromeAccounts, userRepo),
+		application.NewCreateInvite(inviteRepo, config.AdminIds, config.InviteTTL, config.Clock),
+		application.NewAcceptInvite(txManager, inviteRepo, userRepo, config.Clock),
+		application.NewRegisterNavidromeAccount(
+			navidromeClient,
+			navidromeAccounts,
+			userRepo,
+			application.NavidromeCredentials{Login: config.NavidromeUser, Password: config.NavidromePassword},
+		),
 	)
 
 	b.RegisterHandlerMatchFunc(telegram.HasAudio, handler.HandleAudio)
+	b.RegisterHandlerMatchFunc(telegram.IsCommand("link"), handler.HandleLink)
+	b.RegisterHandlerMatchFunc(telegram.IsCommand("invite"), handler.HandleInvite)
+	b.RegisterHandlerMatchFunc(telegram.IsCommand("start"), handler.HandleStart)
+	b.RegisterHandlerMatchFunc(telegram.IsText, handler.HandleText)
 	b.RegisterHandlerMatchFunc(
 		func(update *models.Update) bool {
 			return update.InlineQuery != nil

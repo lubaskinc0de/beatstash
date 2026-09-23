@@ -46,6 +46,8 @@ func Migrate(db *gorm.DB) error {
 		&domain.Upload{},
 		&domain.IngestJob{},
 		&domain.NavidromeSession{},
+		&domain.NavidromeAccount{},
+		&domain.Invite{},
 	)
 }
 

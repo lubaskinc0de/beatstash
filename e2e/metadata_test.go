@@ -14,7 +14,7 @@ func TestMetadata(t *testing.T) {
 		audio.Performer = "Telegram Artist"
 		audio.Title = "Telegram Song"
 
-		s.send(s.audioMessage(allowedUser, audio))
+		s.send(s.audioMessage(alice, audio))
 		s.waitIngest()
 
 		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
@@ -28,7 +28,7 @@ func TestMetadata(t *testing.T) {
 		s := newScenario(t)
 		audio := s.uploadAudioFile(makeAudio(t, "Name Artist - Name Song.mp3", audioSpec{}))
 
-		s.send(s.audioMessage(allowedUser, audio))
+		s.send(s.audioMessage(alice, audio))
 		s.waitIngest()
 
 		assert.Equal(t, []string{"Name Artist/Singles/Name Song.mp3"}, s.libraryFiles())
@@ -39,7 +39,7 @@ func TestMetadata(t *testing.T) {
 
 	t.Run("unrecognized track goes to Inbox", func(t *testing.T) {
 		s := newScenario(t)
-		msg := s.audioMessage(allowedUser, s.uploadAudioFile(makeAudio(t, "audio_123.mp3", audioSpec{})))
+		msg := s.audioMessage(alice, s.uploadAudioFile(makeAudio(t, "audio_123.mp3", audioSpec{})))
 
 		s.send(msg)
 		s.waitIngest()
@@ -58,7 +58,7 @@ func TestMetadata(t *testing.T) {
 		audio.Performer = "Telegram Artist"
 		audio.Title = "Telegram Song"
 
-		s.send(s.audioMessage(allowedUser, audio))
+		s.send(s.audioMessage(alice, audio))
 		s.waitIngest()
 
 		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.libraryFiles())
@@ -72,7 +72,7 @@ func TestMetadata(t *testing.T) {
 		audio.Performer = "Telegram Artist"
 		audio.Title = "Telegram Song"
 
-		s.send(s.audioMessage(allowedUser, audio))
+		s.send(s.audioMessage(alice, audio))
 		s.waitIngest()
 
 		assert.Equal(t, []string{"Telegram Artist/Tagged Album/Tagged Title.mp3"}, s.libraryFiles())

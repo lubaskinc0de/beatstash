@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -26,18 +27,19 @@ type navidrome struct {
 
 func startNavidrome(ctx context.Context, libraryRoot string) (*navidrome, testcontainers.Container, error) {
 	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-			Image:        navidromeImage,
-			ExposedPorts: []string{"4533/tcp"},
-			Env: map[string]string{
-				"ND_LOGLEVEL":                       "warn",
-				"ND_ENABLEINSIGHTSCOLLECTOR":        "false",
-				"ND_SUBSONIC_DEFAULTREPORTREALPATH": "true",
-			},
-			HostConfigModifier: func(hc *container.HostConfig) {
-				hc.Binds = append(hc.Binds, libraryRoot+":/music:ro")
-			},
-			WaitingFor: wait.ForHTTP("/ping").WithPort("4533/tcp"),
-		Started: true,
+		Image:        navidromeImage,
+		ExposedPorts: []string{"4533/tcp"},
+		Env: map[string]string{
+			"ND_LOGLEVEL":                       "warn",
+			"ND_ENABLEINSIGHTSCOLLECTOR":        "false",
+			"ND_SUBSONIC_DEFAULTREPORTREALPATH": "true",
+			"ND_AUTHREQUESTLIMIT":               "0",
+		},
+		HostConfigModifier: func(hc *container.HostConfig) {
+			hc.Binds = append(hc.Binds, libraryRoot+":/music:ro")
+		},
+		WaitingFor: wait.ForHTTP("/ping").WithPort("4533/tcp"),
+		Started:    true,
 	})
 	if err != nil {
 		return nil, c, err
@@ -85,12 +87,16 @@ type subsonicTrack struct {
 }
 
 func (n *navidrome) subsonic(endpoint string, params url.Values, out any) error {
+	return n.subsonicAs(navidromeAdminAccount, endpoint, params, out)
+}
+
+func (n *navidrome) subsonicAs(user navidromeAccount, endpoint string, params url.Values, out any) error {
 	q := url.Values{}
 	for key, values := range params {
 		q[key] = values
 	}
-	q.Set("u", navidromeAdmin)
-	q.Set("p", navidromePassword)
+	q.Set("u", user.Login)
+	q.Set("p", user.Password)
 	q.Set("v", "1.16.1")
 	q.Set("c", "e2e")
 	q.Set("f", "json")
@@ -170,11 +176,84 @@ func isUnder(songPath, libraryDir string) bool {
 	return strings.Contains(songPath, filepath.Base(libraryDir)+"/")
 }
 
-func (n *navidrome) startPlaying(t *testing.T, songID string) {
+func (n *navidrome) startPlaying(t *testing.T, user navidromeAccount, songID string) {
 	t.Helper()
-	err := n.subsonic("scrobble", url.Values{
+	err := n.subsonicAs(user, "scrobble", url.Values{
 		"id":         {songID},
 		"submission": {"false"},
 	}, nil)
 	require.NoError(t, err)
+}
+
+func (n *navidrome) play(t *testing.T, user navidromeAccount, songID string) {
+	t.Helper()
+	err := n.subsonicAs(user, "scrobble", url.Values{
+		"id":         {songID},
+		"submission": {"true"},
+	}, nil)
+	require.NoError(t, err)
+}
+
+type navidromeAccount struct {
+	Login    string
+	Password string
+}
+
+var navidromeAdminAccount = navidromeAccount{Login: navidromeAdmin, Password: navidromePassword}
+
+var navidromeLoginSeq atomic.Int64
+
+// uniqueLogin keeps logins apart: all scenarios share one Navidrome.
+func uniqueLogin(prefix string) string {
+	return fmt.Sprintf("%s%d", prefix, navidromeLoginSeq.Add(1))
+}
+
+func (n *navidrome) createAccount(t *testing.T, prefix string) navidromeAccount {
+	t.Helper()
+
+	user := navidromeAccount{Login: uniqueLogin(prefix), Password: "secret-" + prefix}
+	token, err := n.login(navidromeAdminAccount)
+	require.NoError(t, err)
+
+	body, _ := json.Marshal(map[string]any{
+		"userName": user.Login,
+		"name":     user.Login,
+		"password": user.Password,
+		"isAdmin":  false,
+	})
+	req, err := http.NewRequest(http.MethodPost, n.url+"/api/user", bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Nd-Authorization", "Bearer "+token)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode, "create navidrome user %s", user.Login)
+	return user
+}
+
+func (n *navidrome) canLogin(user navidromeAccount) bool {
+	_, err := n.login(user)
+	return err == nil
+}
+
+func (n *navidrome) login(user navidromeAccount) (string, error) {
+	body, _ := json.Marshal(map[string]string{"username": user.Login, "password": user.Password})
+	resp, err := http.Post(n.url+"/auth/login", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("login %s: %s", user.Login, resp.Status)
+	}
+
+	var result struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+	return result.Token, nil
 }

@@ -13,9 +13,9 @@ func TestDuplicates(t *testing.T) {
 	t.Run("same MP3 sent twice is stored once", func(t *testing.T) {
 		s := newScenario(t)
 		mp3 := makeAudio(t, "song.mp3", audioSpec{Tags: songTags})
-		s.send(s.audioMessage(allowedUser, s.uploadAudioFile(mp3)))
+		s.send(s.audioMessage(alice, s.uploadAudioFile(mp3)))
 		s.waitIngest()
-		second := s.audioMessage(allowedUser, s.uploadAudioFile(mp3))
+		second := s.audioMessage(alice, s.uploadAudioFile(mp3))
 
 		s.send(second)
 		s.waitIngest()
@@ -28,9 +28,9 @@ func TestDuplicates(t *testing.T) {
 	t.Run("forwarded audio is stored once", func(t *testing.T) {
 		s := newScenario(t)
 		audio := s.uploadAudio("track.mp3")
-		s.send(s.audioMessage(allowedUser, audio))
+		s.send(s.audioMessage(alice, audio))
 		s.waitIngest()
-		forward := s.audioMessage(allowedUser, audio)
+		forward := s.audioMessage(alice, audio)
 
 		s.send(forward)
 		s.waitIngest()
@@ -42,18 +42,20 @@ func TestDuplicates(t *testing.T) {
 	t.Run("FLAC replaces MP3 and inline still sends the track", func(t *testing.T) {
 		s := newScenario(t)
 		mp3 := s.uploadAudioFile(makeAudio(t, "song.mp3", audioSpec{Bitrate: "128k", Tags: songTags}))
-		s.send(s.audioMessage(allowedUser, mp3))
+		s.send(s.audioMessage(alice, mp3))
 		s.waitIngest()
 		flac := s.uploadDocument(makeAudio(t, "song.flac", audioSpec{Tags: songTags}), "audio/flac")
 
-		s.send(s.documentMessage(allowedUser, flac))
+		s.send(s.documentMessage(alice, flac))
 		s.waitIngest()
 
 		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.flac"}, s.libraryFiles())
 		assert.Empty(t, s.botAPI.Replies(t))
+		account := env.navidrome.createAccount(t, "alice")
+		s.link(alice, account)
 		track := env.navidrome.indexedTrack(t, s.library, "Dup Song")
-		env.navidrome.startPlaying(t, track.ID)
-		query := s.inlineQuery(allowedUser, "np")
+		env.navidrome.startPlaying(t, account, track.ID)
+		query := s.inlineQuery(alice, "np")
 		s.send(query)
 		answers := s.botAPI.InlineAnswers(t)
 		require.Len(t, answers, 1)
@@ -66,10 +68,10 @@ func TestDuplicates(t *testing.T) {
 		s := newScenario(t)
 		low := makeAudio(t, "low.mp3", audioSpec{Bitrate: "128k", Tags: songTags})
 		high := makeAudio(t, "high.mp3", audioSpec{Bitrate: "320k", Tags: songTags})
-		s.send(s.audioMessage(allowedUser, s.uploadAudioFile(low)))
+		s.send(s.audioMessage(alice, s.uploadAudioFile(low)))
 		s.waitIngest()
 
-		s.send(s.audioMessage(allowedUser, s.uploadAudioFile(high)))
+		s.send(s.audioMessage(alice, s.uploadAudioFile(high)))
 		s.waitIngest()
 
 		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3"}, s.libraryFiles())
@@ -79,9 +81,9 @@ func TestDuplicates(t *testing.T) {
 	t.Run("MP3 after FLAC keeps FLAC", func(t *testing.T) {
 		s := newScenario(t)
 		flac := s.uploadDocument(makeAudio(t, "song.flac", audioSpec{Tags: songTags}), "audio/flac")
-		s.send(s.documentMessage(allowedUser, flac))
+		s.send(s.documentMessage(alice, flac))
 		s.waitIngest()
-		mp3 := s.audioMessage(allowedUser, s.uploadAudioFile(makeAudio(t, "song.mp3", audioSpec{Bitrate: "320k", Tags: songTags})))
+		mp3 := s.audioMessage(alice, s.uploadAudioFile(makeAudio(t, "song.mp3", audioSpec{Bitrate: "320k", Tags: songTags})))
 
 		s.send(mp3)
 		s.waitIngest()
@@ -93,10 +95,10 @@ func TestDuplicates(t *testing.T) {
 	t.Run("same song from another album is kept", func(t *testing.T) {
 		s := newScenario(t)
 		compilation := map[string]string{"artist": "Artist", "album": "Best Of", "track": "5", "title": "Dup Song"}
-		s.send(s.audioMessage(allowedUser, s.uploadAudioFile(makeAudio(t, "a.mp3", audioSpec{Tags: songTags}))))
+		s.send(s.audioMessage(alice, s.uploadAudioFile(makeAudio(t, "a.mp3", audioSpec{Tags: songTags}))))
 		s.waitIngest()
 
-		s.send(s.audioMessage(allowedUser, s.uploadAudioFile(makeAudio(t, "b.mp3", audioSpec{Tags: compilation}))))
+		s.send(s.audioMessage(alice, s.uploadAudioFile(makeAudio(t, "b.mp3", audioSpec{Tags: compilation}))))
 		s.waitIngest()
 
 		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3", "Artist/Best Of/05 - Dup Song.mp3"}, s.libraryFiles())
@@ -105,10 +107,10 @@ func TestDuplicates(t *testing.T) {
 
 	t.Run("duration off by more than 2 s is another track", func(t *testing.T) {
 		s := newScenario(t)
-		s.send(s.audioMessage(allowedUser, s.uploadAudioFile(makeAudio(t, "a.mp3", audioSpec{Seconds: 1.5, Tags: songTags}))))
+		s.send(s.audioMessage(alice, s.uploadAudioFile(makeAudio(t, "a.mp3", audioSpec{Seconds: 1.5, Tags: songTags}))))
 		s.waitIngest()
 
-		s.send(s.audioMessage(allowedUser, s.uploadAudioFile(makeAudio(t, "b.mp3", audioSpec{Seconds: 4.5, Tags: songTags}))))
+		s.send(s.audioMessage(alice, s.uploadAudioFile(makeAudio(t, "b.mp3", audioSpec{Seconds: 4.5, Tags: songTags}))))
 		s.waitIngest()
 
 		assert.Len(t, s.libraryFiles(), 2)
@@ -117,9 +119,9 @@ func TestDuplicates(t *testing.T) {
 
 	t.Run("duration off by less than 2 s is a duplicate", func(t *testing.T) {
 		s := newScenario(t)
-		s.send(s.audioMessage(allowedUser, s.uploadAudioFile(makeAudio(t, "a.mp3", audioSpec{Seconds: 1.5, Tags: songTags}))))
+		s.send(s.audioMessage(alice, s.uploadAudioFile(makeAudio(t, "a.mp3", audioSpec{Seconds: 1.5, Tags: songTags}))))
 		s.waitIngest()
-		second := s.audioMessage(allowedUser, s.uploadAudioFile(makeAudio(t, "b.mp3", audioSpec{Seconds: 3, Tags: songTags})))
+		second := s.audioMessage(alice, s.uploadAudioFile(makeAudio(t, "b.mp3", audioSpec{Seconds: 3, Tags: songTags})))
 
 		s.send(second)
 		s.waitIngest()
@@ -130,10 +132,10 @@ func TestDuplicates(t *testing.T) {
 
 	t.Run("case and spacing do not make another track", func(t *testing.T) {
 		s := newScenario(t)
-		s.send(s.audioMessage(allowedUser, s.uploadAudioFile(makeAudio(t, "a.mp3", audioSpec{Tags: songTags}))))
+		s.send(s.audioMessage(alice, s.uploadAudioFile(makeAudio(t, "a.mp3", audioSpec{Tags: songTags}))))
 		s.waitIngest()
 		shouting := map[string]string{"artist": "ARTIST", "album": "album", "track": "1", "title": " Dup   SONG "}
-		second := s.audioMessage(allowedUser, s.uploadAudioFile(makeAudio(t, "b.mp3", audioSpec{Tags: shouting})))
+		second := s.audioMessage(alice, s.uploadAudioFile(makeAudio(t, "b.mp3", audioSpec{Tags: shouting})))
 
 		s.send(second)
 		s.waitIngest()
@@ -145,10 +147,10 @@ func TestDuplicates(t *testing.T) {
 	t.Run("track from two users is stored once", func(t *testing.T) {
 		s := newScenario(t)
 		mp3 := makeAudio(t, "song.mp3", audioSpec{Tags: songTags})
-		first := s.audioMessage(allowedUser, s.uploadAudioFile(mp3))
+		first := s.audioMessage(alice, s.uploadAudioFile(mp3))
 		s.send(first)
 		s.waitIngest()
-		second := s.audioMessage(otherUser, s.uploadAudioFile(mp3))
+		second := s.audioMessage(bob, s.uploadAudioFile(mp3))
 
 		s.send(second)
 		s.waitIngest()

@@ -29,16 +29,42 @@ type telegramUser struct {
 	Username string
 }
 
+const secretKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+
 var (
-	allowedUser = telegramUser{ID: 1001, Username: "alice"}
-	otherUser   = telegramUser{ID: 1002, Username: "bob"}
-	stranger    = telegramUser{ID: 6666, Username: "mallory"}
+	adminUser = telegramUser{ID: 1000, Username: "boss"}
+	alice     = telegramUser{ID: 1001, Username: "alice"}
+	bob       = telegramUser{ID: 1002, Username: "bob"}
+	stranger  = telegramUser{ID: 6666, Username: "mallory"}
 )
 
 var databaseSeq atomic.Int64
 
+// newcomer is a Telegram user unknown to the bot, with a username free in Navidrome.
+func newcomer(name string) telegramUser {
+	return telegramUser{ID: 2000 + navidromeLoginSeq.Add(1), Username: uniqueLogin(name)}
+}
+
+type clock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (c *clock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *clock) advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
+}
+
 type scenario struct {
 	t       *testing.T
+	clock   *clock
 	config  config.Config
 	app     *app.App
 	stop    func()
@@ -65,12 +91,16 @@ func newScenario(t *testing.T, opts ...scenarioOption) *scenario {
 	require.NoError(t, err)
 	require.NoError(t, os.Chmod(library, 0o755))
 
+	clk := &clock{now: time.Now()}
 	cfg := config.Config{
+		Clock:              clk.Now,
+		InviteTTL:          7 * 24 * time.Hour,
 		Token:              botToken,
 		BotApiUrl:          api.URL(),
 		DbDsn:              postgresDSN(createDatabase(t)),
 		MusicDir:           library,
-		AllowedUserIds:     []uint64{uint64(allowedUser.ID), uint64(otherUser.ID)},
+		AdminIds:           []uint64{uint64(adminUser.ID)},
+		SecretKey:          secretKey,
 		NavidromeUser:      navidromeAdmin,
 		NavidromePassword:  navidromePassword,
 		NavidromeUrl:       env.navidrome.url,
@@ -82,8 +112,11 @@ func newScenario(t *testing.T, opts ...scenarioOption) *scenario {
 		opt(&cfg)
 	}
 
-	s := &scenario{t: t, config: cfg, botAPI: api, library: library}
+	s := &scenario{t: t, clock: clk, config: cfg, botAPI: api, library: library}
 	s.start()
+	s.join(alice)
+	s.join(bob)
+	api.forget()
 	return s
 }
 
@@ -109,11 +142,14 @@ func (s *scenario) start() {
 
 // restart stops the bot, even mid-Ingest, and starts it again on the same
 // database and Library, this time with Ingest workers.
-func (s *scenario) restart() {
+func (s *scenario) restart(opts ...scenarioOption) {
 	s.t.Helper()
 
 	s.stop()
 	s.config.IngestWorkers = 2
+	for _, opt := range opts {
+		opt(&s.config)
+	}
 	s.start()
 }
 
@@ -211,6 +247,21 @@ func (s *scenario) message(from telegramUser, fill func(*models.Message)) *model
 	}
 	fill(msg)
 	return &models.Update{ID: s.nextUpdateID(), Message: msg}
+}
+
+func (s *scenario) join(user telegramUser) {
+	s.t.Helper()
+	s.send(s.textMessage(user, "/start "+s.invite()))
+}
+
+func (s *scenario) textMessage(from telegramUser, text string) *models.Update {
+	return s.message(from, func(m *models.Message) { m.Text = text })
+}
+
+func (s *scenario) link(from telegramUser, account navidromeAccount) *models.Update {
+	msg := s.textMessage(from, "/link "+account.Login+" "+account.Password)
+	s.send(msg)
+	return msg
 }
 
 func (s *scenario) inlineQuery(from telegramUser, query string) *models.Update {

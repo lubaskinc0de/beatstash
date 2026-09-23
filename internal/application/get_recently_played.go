@@ -14,14 +14,16 @@ type RecentTrack struct {
 }
 
 type GetRecentlyPlayed struct {
-	Client Navidrome
-	Repo   TrackRepository
+	Client   Navidrome
+	Repo     TrackRepository
+	Accounts *NavidromeAccounts
 }
 
-func NewGetRecentlyPlayed(client Navidrome, repo TrackRepository) *GetRecentlyPlayed {
+func NewGetRecentlyPlayed(client Navidrome, repo TrackRepository, accounts *NavidromeAccounts) *GetRecentlyPlayed {
 	return &GetRecentlyPlayed{
-		Client: client,
-		Repo:   repo,
+		Client:   client,
+		Repo:     repo,
+		Accounts: accounts,
 	}
 }
 
@@ -29,7 +31,12 @@ func (i *GetRecentlyPlayed) Execute(
 	ctx context.Context,
 	limit int,
 ) ([]RecentTrack, error) {
-	played, err := i.Client.RecentlyPlayed(ctx, limit)
+	creds, err := i.Accounts.Credentials(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	played, err := i.Client.RecentlyPlayed(ctx, creds, limit)
 	if err != nil {
 		slog.Error("Cannot get recently played", "error", err)
 		return nil, err

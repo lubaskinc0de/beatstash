@@ -22,7 +22,7 @@ func TestFormats(t *testing.T) {
 		require.Greater(t, info.Size(), int64(30<<20))
 		doc := s.uploadDocument(flac, "audio/flac")
 
-		s.send(s.documentMessage(allowedUser, doc))
+		s.send(s.documentMessage(alice, doc))
 		s.waitIngest()
 
 		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
@@ -35,7 +35,7 @@ func TestFormats(t *testing.T) {
 				s := newScenario(t)
 				doc := s.uploadDocument(fixturePath(fixture), "")
 
-				s.send(s.documentMessage(allowedUser, doc))
+				s.send(s.documentMessage(alice, doc))
 				s.waitIngest()
 
 				assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
@@ -47,7 +47,7 @@ func TestFormats(t *testing.T) {
 	t.Run("PDF is rejected as unsupported", func(t *testing.T) {
 		s := newScenario(t)
 		pdf := writeFile(t, "scan.pdf", []byte("%PDF-1.4 not music"))
-		msg := s.documentMessage(allowedUser, s.uploadDocument(pdf, "application/pdf"))
+		msg := s.documentMessage(alice, s.uploadDocument(pdf, "application/pdf"))
 
 		s.send(msg)
 		s.waitIngest()
@@ -64,7 +64,7 @@ func TestFormats(t *testing.T) {
 		s := newScenario(t)
 		fileID, _ := s.upload(fixturePath("track.ogg"))
 
-		s.send(s.message(allowedUser, func(m *models.Message) {
+		s.send(s.message(alice, func(m *models.Message) {
 			m.Voice = &models.Voice{FileID: fileID, FileUniqueID: fileID + "-unique", Duration: 1}
 		}))
 		s.waitIngest()
@@ -76,7 +76,7 @@ func TestFormats(t *testing.T) {
 	t.Run("video note is ignored", func(t *testing.T) {
 		s := newScenario(t)
 
-		s.send(s.message(allowedUser, func(m *models.Message) {
+		s.send(s.message(alice, func(m *models.Message) {
 			m.VideoNote = &models.VideoNote{FileID: "note", FileUniqueID: "note-unique", Duration: 1}
 		}))
 		s.waitIngest()
@@ -90,7 +90,7 @@ func TestFormats(t *testing.T) {
 		audio := s.uploadAudio("track.mp3")
 		working := s.botAPI.pathOf(audio.FileID)
 
-		s.send(s.audioMessage(allowedUser, audio))
+		s.send(s.audioMessage(alice, audio))
 		s.waitIngest()
 
 		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
@@ -105,7 +105,7 @@ func TestWavToFlac(t *testing.T) {
 		wav.Performer = "Wave Artist"
 		wav.Title = "Wave Song"
 
-		s.send(s.audioMessage(allowedUser, wav))
+		s.send(s.audioMessage(alice, wav))
 		s.waitIngest()
 
 		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
@@ -123,7 +123,7 @@ func TestWavToFlac(t *testing.T) {
 		s := newScenario(t)
 		wav := makeAudio(t, "Doc Artist - Doc Song.wav", audioSpec{})
 
-		s.send(s.documentMessage(allowedUser, s.uploadDocument(wav, "audio/x-wav")))
+		s.send(s.documentMessage(alice, s.uploadDocument(wav, "audio/x-wav")))
 		s.waitIngest()
 
 		assert.Equal(t, []string{"Doc Artist/Singles/Doc Song.flac"}, s.libraryFiles())

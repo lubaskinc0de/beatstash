@@ -16,7 +16,7 @@ func TestQueue(t *testing.T) {
 		audio := s.uploadAudio("track.mp3")
 		s.botAPI.failGetFile(audio.FileID, 2)
 
-		s.send(s.audioMessage(allowedUser, audio))
+		s.send(s.audioMessage(alice, audio))
 		s.waitIngest()
 
 		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
@@ -28,7 +28,7 @@ func TestQueue(t *testing.T) {
 		s := newScenario(t)
 		audio := s.uploadAudio("track.mp3")
 		s.botAPI.failGetFile(audio.FileID, alwaysFail)
-		msg := s.audioMessage(allowedUser, audio)
+		msg := s.audioMessage(alice, audio)
 
 		s.send(msg)
 		s.waitIngest()
@@ -45,7 +45,7 @@ func TestQueue(t *testing.T) {
 	t.Run("corrupt file fails at once", func(t *testing.T) {
 		s := newScenario(t)
 		garbage := writeFile(t, "broken.mp3", []byte(strings.Repeat("not an mp3 at all ", 1000)))
-		msg := s.audioMessage(allowedUser, s.uploadAudioFile(garbage))
+		msg := s.audioMessage(alice, s.uploadAudioFile(garbage))
 
 		s.send(msg)
 		s.waitIngest()
@@ -61,7 +61,7 @@ func TestQueue(t *testing.T) {
 	t.Run("queued tracks survive restart", func(t *testing.T) {
 		s := newScenario(t, withoutWorkers())
 		for i := 1; i <= 5; i++ {
-			s.send(s.audioMessage(allowedUser, s.uploadAudioFile(numberedTrack(t, i))))
+			s.send(s.audioMessage(alice, s.uploadAudioFile(numberedTrack(t, i))))
 		}
 
 		s.restart()
@@ -75,7 +75,7 @@ func TestQueue(t *testing.T) {
 		held := s.botAPI.holdGetFile()
 		var msgs []*models.Update
 		for i := 1; i <= 5; i++ {
-			msg := s.audioMessage(allowedUser, s.uploadAudioFile(numberedTrack(t, i)))
+			msg := s.audioMessage(alice, s.uploadAudioFile(numberedTrack(t, i)))
 			msgs = append(msgs, msg)
 			s.send(msg)
 		}
@@ -95,7 +95,7 @@ func TestQueue(t *testing.T) {
 		s := newScenario(t)
 		var msgs []*models.Update
 		for i := 1; i <= 10; i++ {
-			msgs = append(msgs, s.audioMessage(allowedUser, s.uploadAudioFile(numberedTrack(t, i))))
+			msgs = append(msgs, s.audioMessage(alice, s.uploadAudioFile(numberedTrack(t, i))))
 		}
 
 		for _, msg := range msgs {

@@ -69,7 +69,7 @@ func TestLayout(t *testing.T) {
 			s := newScenario(t)
 			audio := s.uploadAudioFile(makeAudio(t, "in.mp3", audioSpec{Tags: tc.tags}))
 
-			s.send(s.audioMessage(allowedUser, audio))
+			s.send(s.audioMessage(alice, audio))
 			s.waitIngest()
 
 			assert.Equal(t, []string{tc.path}, s.libraryFiles())
@@ -81,10 +81,10 @@ func TestLayout(t *testing.T) {
 		tags := map[string]string{"artist": "Artist", "album": "Album", "track": "1", "title": "Song"}
 		short := s.uploadAudioFile(makeAudio(t, "short.mp3", audioSpec{Seconds: 1.5, Tags: tags}))
 		long := s.uploadAudioFile(makeAudio(t, "long.mp3", audioSpec{Seconds: 8, Tags: tags}))
-		s.send(s.audioMessage(allowedUser, short))
+		s.send(s.audioMessage(alice, short))
 		s.waitIngest()
 
-		s.send(s.audioMessage(allowedUser, long))
+		s.send(s.audioMessage(alice, long))
 		s.waitIngest()
 
 		assert.Equal(t, []string{"Artist/Album/01 - Song (2).mp3", "Artist/Album/01 - Song.mp3"}, s.libraryFiles())
@@ -96,7 +96,7 @@ func TestLayout(t *testing.T) {
 			audio := s.uploadAudioFile(makeAudio(t, title+".mp3", audioSpec{Tags: map[string]string{
 				"artist": "Band", "album": "Record", "date": "2001", "track": string(rune('1' + i)), "title": title,
 			}}))
-			s.send(s.audioMessage(allowedUser, audio))
+			s.send(s.audioMessage(alice, audio))
 		}
 
 		s.waitIngest()

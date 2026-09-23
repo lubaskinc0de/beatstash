@@ -2,15 +2,30 @@ package application
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 )
 
+var (
+	ErrNavidromeInvalidCredentials = errors.New("navidrome: invalid credentials")
+	ErrNavidromeLoginTaken         = errors.New("navidrome: login taken")
+)
+
+type NavidromeCredentials struct {
+	Login    string
+	Password string
+}
+
 type Navidrome interface {
-	// NowPlaying returns what the bot's account is playing, or nil.
-	NowPlaying(ctx context.Context) (*PlayingTrack, error)
-	RecentlyPlayed(ctx context.Context, limit int) ([]PlayedTrack, error)
+	// Authenticate returns ErrNavidromeInvalidCredentials for a wrong login or password.
+	Authenticate(ctx context.Context, creds NavidromeCredentials) error
+	// NowPlaying returns what the account is playing, or nil.
+	NowPlaying(ctx context.Context, creds NavidromeCredentials) (*PlayingTrack, error)
+	RecentlyPlayed(ctx context.Context, creds NavidromeCredentials, limit int) ([]PlayedTrack, error)
+	// CreateAccount returns ErrNavidromeLoginTaken if the login is in use, whatever its case.
+	CreateAccount(ctx context.Context, admin, account NavidromeCredentials) error
 }
 
 type NavidromeTrack struct {

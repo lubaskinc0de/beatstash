@@ -8,9 +8,9 @@ import (
 )
 
 func TestFirstContact(t *testing.T) {
-	t.Run("new allowed user starting with inline np gets an answer", func(t *testing.T) {
+	t.Run("new user starting with inline np gets an answer", func(t *testing.T) {
 		s := newScenario(t)
-		query := s.inlineQuery(allowedUser, "np")
+		query := s.inlineQuery(alice, "np")
 
 		s.send(query)
 
@@ -19,9 +19,9 @@ func TestFirstContact(t *testing.T) {
 		assert.Equal(t, query.InlineQuery.ID, answers[0].QueryID)
 	})
 
-	t.Run("new allowed user pressing a button gets an answer", func(t *testing.T) {
+	t.Run("new user pressing a button gets an answer", func(t *testing.T) {
 		s := newScenario(t)
-		press := s.callbackQuery(allowedUser, "any")
+		press := s.callbackQuery(alice, "any")
 
 		s.send(press)
 

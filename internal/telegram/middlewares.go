@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"slices"
-	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -32,7 +30,7 @@ func sender(update *models.Update) *models.User {
 	return nil
 }
 
-func UserMiddleware(users *database.UserRepository, allowedUserIds []uint64) bot.Middleware {
+func UserMiddleware(users *database.UserRepository) bot.Middleware {
 	return func(next bot.HandlerFunc) bot.HandlerFunc {
 		return func(
 			ctx context.Context,
@@ -46,33 +44,26 @@ func UserMiddleware(users *database.UserRepository, allowedUserIds []uint64) bot
 			}
 			telegramID := uint64(from.ID)
 
-			if !slices.Contains(allowedUserIds, telegramID) {
+			user, err := users.GetById(ctx, telegramID)
+			if errors.Is(err, application.ErrUserNotFound) {
+				if isInviteAcceptance(update) {
+					next(ctx, b, update)
+					return
+				}
 				slog.Info("access_denied", "uid", telegramID)
 				return
 			}
-
-			user, err := users.GetById(ctx, telegramID)
-			if err != nil && !errors.Is(err, application.ErrUserNotFound) {
+			if err != nil {
 				slog.Error("get_user", "error", err)
 				return
 			}
 
-			if errors.Is(err, application.ErrUserNotFound) {
-				user = &domain.User{
-					TelegramID: telegramID,
-					Username:   from.Username,
-					CreatedAt:  time.Now(),
-				}
-
-				if err := users.Save(ctx, user); err != nil {
-					slog.Error("create_user", "error", err)
-					return
-				}
-			}
-
-			ctx = withUser(ctx, user)
-
-			next(ctx, b, update)
+			next(withUser(ctx, user), b, update)
 		}
 	}
+}
+
+func isInviteAcceptance(update *models.Update) bool {
+	name, args, ok := command(update)
+	return ok && name == "start" && args != ""
 }
