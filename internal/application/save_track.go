@@ -15,11 +15,6 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/entities"
 )
 
-type TrackRepository interface {
-	Save(ctx context.Context, track *entities.Track) error
-	GetByUniqueId(ctx context.Context, uniqueId string) (*entities.Track, error)
-}
-
 type TrackData struct {
 	TelegramFileID       string
 	TelegramFileUniqueID string

@@ -43,7 +43,7 @@ func setupDeps(config config.Config) (*Dependencies, error) {
 
 	// application
 	saveTrack := application.NewSaveTrack(trackRepo, txManager)
-	nowPlaying := application.NewGetNowPlaying(navidromeClient)
+	nowPlaying := application.NewGetNowPlaying(navidromeClient, trackRepo)
 
 	// delivery
 	handler := telegram.NewHandler(

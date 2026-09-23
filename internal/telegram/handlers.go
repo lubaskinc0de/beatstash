@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"html"
 	"log/slog"
 	"strings"
 
@@ -96,36 +97,18 @@ func (h *Handler) HandleInlineQuery(
 	)
 
 	switch query {
-	case "":
-		h.handleInlineMenu(ctx, b, update)
-	case "np":
+	case "", "np":
 		h.handleNowPlaying(ctx, b, update)
-	}
-}
-
-func (h *Handler) handleInlineMenu(
-	ctx context.Context,
-	b *bot.Bot,
-	update *models.Update,
-) {
-	_, err := b.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
-		InlineQueryID: update.InlineQuery.ID,
-		Results: []models.InlineQueryResult{
-			&models.InlineQueryResultArticle{
-				ID:          "menu-now-playing",
-				Title:       "🎧 Now playing",
-				Description: "Показать текущий трек",
-				InputMessageContent: &models.InputTextMessageContent{
-					MessageText: "Используй: @mybot np",
-				},
-			},
-		},
-		CacheTime:  1,
-		IsPersonal: true,
-	})
-
-	if err != nil {
-		slog.Error("answer_inline_menu", "error", err)
+	default:
+		answerInlineArticle(
+			ctx,
+			b,
+			update.InlineQuery.ID,
+			"unknown-command",
+			"❓ Неизвестная команда",
+			"Доступно: np — отправить текущий трек",
+			"❓ Неизвестная команда. Доступно: np",
+		)
 	}
 }
 
@@ -169,15 +152,7 @@ func (h *Handler) handleNowPlaying(
 
 	position := formatSeconds(track.PositionMs / 1000)
 	duration := formatSeconds(track.Duration)
-
-	text := fmt.Sprintf(
-		"Играет:\n🎧 %s — %s\n💿 %s\n⏱ %s / %s",
-		track.Artist,
-		track.Title,
-		track.Album,
-		position,
-		duration,
-	)
+	text := nowPlayingText(track)
 
 	description := fmt.Sprintf(
 		"%s · %s / %s",
@@ -185,6 +160,18 @@ func (h *Handler) handleNowPlaying(
 		position,
 		duration,
 	)
+
+	if track.TelegramFileID != "" {
+		answerInlineAudio(
+			ctx,
+			b,
+			update.InlineQuery.ID,
+			track.ID,
+			track.TelegramFileID,
+			text,
+		)
+		return
+	}
 
 	answerInlineArticle(
 		ctx,
@@ -195,6 +182,48 @@ func (h *Handler) handleNowPlaying(
 		description,
 		text,
 	)
+}
+
+func nowPlayingText(track *application.NowPlaying) string {
+	position := track.PositionMs / 1000
+	icon := "▶️"
+	header := "Сейчас играет"
+	if strings.EqualFold(track.State, "paused") {
+		icon = "⏸"
+		header = "На паузе"
+	}
+
+	var b strings.Builder
+
+	fmt.Fprintf(&b, "%s <b>%s:</b>\n\n", icon, header)
+	fmt.Fprintf(&b, "🎧 <b>%s</b>\n", html.EscapeString(track.Title))
+	fmt.Fprintf(&b, "👤 %s\n", html.EscapeString(track.Artist))
+
+	if track.Album != "" {
+		fmt.Fprintf(&b, "💿 <i>%s</i>\n", html.EscapeString(track.Album))
+	}
+
+	fmt.Fprintf(
+		&b,
+		"\n<code>%s</code>  %s / %s",
+		progressBar(position, track.Duration),
+		formatSeconds(position),
+		formatSeconds(track.Duration),
+	)
+
+	return b.String()
+}
+
+func progressBar(position, duration int) string {
+	const segments = 12
+
+	filled := 0
+	if duration > 0 {
+		filled = position * segments / duration
+	}
+	filled = min(max(filled, 0), segments)
+
+	return strings.Repeat("━", filled) + "●" + strings.Repeat("─", segments-filled)
 }
 
 func clearReaction(
@@ -249,6 +278,7 @@ func answerInlineArticle(
 				Description: description,
 				InputMessageContent: &models.InputTextMessageContent{
 					MessageText: message,
+					ParseMode:   models.ParseModeHTML,
 				},
 			},
 		},
@@ -258,6 +288,33 @@ func answerInlineArticle(
 
 	if err != nil {
 		slog.Error("answer_inline_query", "error", err)
+	}
+}
+
+func answerInlineAudio(
+	ctx context.Context,
+	b *bot.Bot,
+	inlineQueryID string,
+	id string,
+	audioFileID string,
+	caption string,
+) {
+	_, err := b.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
+		InlineQueryID: inlineQueryID,
+		Results: []models.InlineQueryResult{
+			&models.InlineQueryResultCachedAudio{
+				ID:          id,
+				AudioFileID: audioFileID,
+				Caption:     caption,
+				ParseMode:   models.ParseModeHTML,
+			},
+		},
+		CacheTime:  1,
+		IsPersonal: true,
+	})
+
+	if err != nil {
+		slog.Error("answer_inline_audio", "error", err)
 	}
 }
 
