@@ -9,6 +9,7 @@ import (
 
 type Config struct {
 	Token             string
+	BotApiUrl         string
 	DbDsn             string
 	MusicDir          string
 	AllowedUserIds    []uint64
@@ -19,6 +20,7 @@ type Config struct {
 
 func LoadConfig() Config {
 	token := os.Getenv("BOT_TOKEN")
+	botApiUrl := os.Getenv("BOT_API_URL")
 	dbDsn := os.Getenv("DB_DSN")
 	musicDir := os.Getenv("MUSIC_DIR")
 	navidromeUser := os.Getenv("NAVIDROME_USER")
@@ -65,6 +67,7 @@ func LoadConfig() Config {
 
 	return Config{
 		Token:             token,
+		BotApiUrl:         botApiUrl,
 		DbDsn:             dbDsn,
 		MusicDir:          musicDir,
 		AllowedUserIds:    allowedUserIds,

@@ -120,6 +120,23 @@ func (h *Handler) HandleInlineQuery(
 	}
 }
 
+func (h *Handler) HandleCallbackQuery(
+	ctx context.Context,
+	b *bot.Bot,
+	update *models.Update,
+) {
+	if update.CallbackQuery == nil {
+		return
+	}
+
+	_, err := b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+		CallbackQueryID: update.CallbackQuery.ID,
+	})
+	if err != nil {
+		slog.Error("answer_callback_query", "error", err)
+	}
+}
+
 func (h *Handler) handleNowPlaying(
 	ctx context.Context,
 	b *bot.Bot,
