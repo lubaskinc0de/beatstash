@@ -4,26 +4,21 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"time"
+
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 )
 
 type RecentTrack struct {
-	ID       string
-	Artist   string
-	Title    string
-	Album    string
-	Duration int
-	PlayedAt time.Time
-
-	TelegramFileID string
+	PlayedTrack
+	TelegramFile *domain.TelegramFile
 }
 
 type GetRecentlyPlayed struct {
-	Client *NavidromeClient
+	Client Navidrome
 	Repo   TrackRepository
 }
 
-func NewGetRecentlyPlayed(client *NavidromeClient, repo TrackRepository) *GetRecentlyPlayed {
+func NewGetRecentlyPlayed(client Navidrome, repo TrackRepository) *GetRecentlyPlayed {
 	return &GetRecentlyPlayed{
 		Client: client,
 		Repo:   repo,
@@ -34,27 +29,20 @@ func (i *GetRecentlyPlayed) Execute(
 	ctx context.Context,
 	limit int,
 ) ([]RecentTrack, error) {
-	songs, err := i.Client.GetRecentlyPlayed(ctx, limit)
+	played, err := i.Client.RecentlyPlayed(ctx, limit)
 	if err != nil {
 		slog.Error("Cannot get recently played", "error", err)
 		return nil, err
 	}
 
-	tracks := make([]RecentTrack, 0, len(songs))
-	for _, song := range songs {
-		track := RecentTrack{
-			ID:       song.ID,
-			Artist:   song.Artist,
-			Title:    song.Title,
-			Album:    song.Album,
-			Duration: int(song.Duration),
-			PlayedAt: *song.PlayDate,
-		}
+	tracks := make([]RecentTrack, 0, len(played))
+	for _, p := range played {
+		track := RecentTrack{PlayedTrack: p}
 
-		saved, err := i.Repo.FindByTitleAndPerformer(ctx, song.Title, song.Artist)
+		file, err := i.Repo.FindTelegramFile(ctx, p.Metadata())
 		switch {
 		case err == nil:
-			track.TelegramFileID = saved.TelegramFileID
+			track.TelegramFile = file
 		case errors.Is(err, ErrTrackNotFound):
 		default:
 			slog.Error("find_track", "error", err)

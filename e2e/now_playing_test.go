@@ -12,8 +12,8 @@ func TestNowPlaying(t *testing.T) {
 		s := newScenario(t)
 		audio := s.uploadAudio("track.mp3")
 		s.send(s.audioMessage(allowedUser, audio))
-		song := env.navidrome.indexedSong(t, s.library, fixtureTitle)
-		env.navidrome.startPlaying(t, song.ID)
+		track := env.navidrome.indexedTrack(t, s.library, fixtureTitle)
+		env.navidrome.startPlaying(t, track.ID)
 		query := s.inlineQuery(allowedUser, "np")
 
 		s.send(query)

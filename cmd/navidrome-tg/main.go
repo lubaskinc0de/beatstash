@@ -38,5 +38,6 @@ func main() {
 	}
 
 	slog.Info("bot_started")
-	b.Start(ctx)
+	b.Run(ctx)
+	_ = b.Close()
 }

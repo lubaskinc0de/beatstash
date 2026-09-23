@@ -13,12 +13,14 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application"
 	"github.com/lubaskinc0de/navidrome-tg/internal/config"
 	"github.com/lubaskinc0de/navidrome-tg/internal/database"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	tgprovider "github.com/lubaskinc0de/navidrome-tg/internal/providers/telegram"
 )
 
 const recentTracksLimit = 10
 
 type Handler struct {
-	saveTrack         *application.SaveTrack
+	enqueueIngest     *application.EnqueueIngest
 	getNowPlaying     *application.GetNowPlaying
 	getRecentlyPlayed *application.GetRecentlyPlayed
 	users             *database.UserRepository
@@ -26,14 +28,14 @@ type Handler struct {
 }
 
 func NewHandler(
-	saveTrack *application.SaveTrack,
+	enqueueIngest *application.EnqueueIngest,
 	nowPlaying *application.GetNowPlaying,
 	recentlyPlayed *application.GetRecentlyPlayed,
 	users *database.UserRepository,
 	config config.Config,
 ) *Handler {
 	return &Handler{
-		saveTrack:         saveTrack,
+		enqueueIngest:     enqueueIngest,
 		users:             users,
 		config:            config,
 		getNowPlaying:     nowPlaying,
@@ -41,52 +43,68 @@ func NewHandler(
 	}
 }
 
-func (h *Handler) HandleTrack(
+func (h *Handler) HandleAudio(
 	ctx context.Context,
 	b *bot.Bot,
 	update *models.Update,
 ) {
-	if update.Message == nil || update.Message.Audio == nil {
+	file, mime, ok := audioFile(update.Message)
+	if !ok {
 		return
 	}
-	audio := update.Message.Audio
-	file, err := b.GetFile(ctx, &bot.GetFileParams{
-		FileID: audio.FileID,
-	})
+	msg := application.MessageRef{ChatID: update.Message.Chat.ID, MessageID: update.Message.ID}
+
+	format, ok := domain.FormatOf(file.Name, mime)
+	if !ok {
+		slog.Info("unsupported_format", "file_name", file.Name, "mime_type", mime)
+		reject(ctx, b, msg, application.ReasonUnsupportedFormat)
+		return
+	}
+	file.Format = format
+
+	ref, err := tgprovider.Ref(file)
 	if err != nil {
-		slog.Error("get_file", "error", err)
+		slog.Error("track_ref", "error", err)
+		reject(ctx, b, msg, application.ReasonInternal)
 		return
 	}
-	url := b.FileDownloadLink(file)
 
-	setReaction(ctx, b, update, "👀")
-	err = h.saveTrack.Execute(
-		ctx,
-		application.TrackData{
-			TelegramFileID:       audio.FileID,
-			TelegramFileUniqueID: audio.FileUniqueID,
-
-			FileName: audio.FileName,
-			MimeType: audio.MimeType,
-			FileSize: audio.FileSize,
-			Duration: audio.Duration,
-
-			Title:     audio.Title,
-			Performer: audio.Performer,
-
-			MessageId:   update.Message.ID,
-			DownloadUrl: url,
-		},
-		h.config.MusicDir,
-	)
-
+	// 👀 goes first: a worker may finish and set 👍 before Execute returns.
+	setReaction(ctx, b, msg, "👀")
+	err = h.enqueueIngest.Execute(ctx, application.IngestRequest{Ref: ref, Message: msg})
 	if err != nil {
-		slog.Error("save_track", "error", err)
-		setReaction(ctx, b, update, "👎")
-		return
-	} else {
-		setReaction(ctx, b, update, "👍")
+		slog.Error("enqueue_ingest", "error", err)
+		reject(ctx, b, msg, application.ReasonInternal)
 	}
+}
+
+func HasAudio(update *models.Update) bool {
+	_, _, ok := audioFile(update.Message)
+	return ok
+}
+
+func audioFile(msg *models.Message) (file tgprovider.File, mimeType string, ok bool) {
+	switch {
+	case msg == nil:
+		return tgprovider.File{}, "", false
+	case msg.Audio != nil:
+		return tgprovider.File{
+			ID:        msg.Audio.FileID,
+			UniqueID:  msg.Audio.FileUniqueID,
+			Kind:      domain.TelegramFileAudio,
+			Name:      msg.Audio.FileName,
+			Performer: msg.Audio.Performer,
+			Title:     msg.Audio.Title,
+		}, msg.Audio.MimeType, true
+	case msg.Document != nil:
+		return tgprovider.File{
+			ID:       msg.Document.FileID,
+			UniqueID: msg.Document.FileUniqueID,
+			Kind:     domain.TelegramFileDocument,
+			Name:     msg.Document.FileName,
+		}, msg.Document.MimeType, true
+	}
+	return tgprovider.File{}, "", false
 }
 
 func (h *Handler) HandleInlineQuery(
@@ -186,15 +204,8 @@ func (h *Handler) handleNowPlaying(
 		duration,
 	)
 
-	if track.TelegramFileID != "" {
-		answerInlineAudio(
-			ctx,
-			b,
-			update.InlineQuery.ID,
-			track.ID,
-			track.TelegramFileID,
-			text,
-		)
+	if track.TelegramFile != nil {
+		answerInline(ctx, b, update.InlineQuery.ID, cachedFileResult(track.ID, track.TelegramFile, text))
 		return
 	}
 
@@ -267,13 +278,8 @@ func (h *Handler) handleRecentlyPlayed(
 			html.EscapeString(track.Title),
 		)
 
-		if track.TelegramFileID != "" {
-			results = append(results, &models.InlineQueryResultCachedAudio{
-				ID:          "recent-" + track.ID,
-				AudioFileID: track.TelegramFileID,
-				Caption:     caption,
-				ParseMode:   models.ParseModeHTML,
-			})
+		if track.TelegramFile != nil {
+			results = append(results, cachedFileResult("recent-"+track.ID, track.TelegramFile, caption))
 			continue
 		}
 
@@ -368,40 +374,6 @@ func progressBar(position, duration int) string {
 	return strings.Repeat("━", filled) + "●" + strings.Repeat("─", segments-filled)
 }
 
-func clearReaction(
-	ctx context.Context,
-	b *bot.Bot,
-	update *models.Update,
-) {
-	_, err := b.SetMessageReaction(ctx, &bot.SetMessageReactionParams{
-		ChatID:    update.Message.Chat.ID,
-		MessageID: update.Message.ID,
-		Reaction:  []models.ReactionType{},
-	})
-	if err != nil {
-		slog.Error("clear_reaction", "error", err)
-	}
-}
-
-func setReaction(ctx context.Context, b *bot.Bot, update *models.Update, emoji string) {
-	clearReaction(ctx, b, update)
-	_, err := b.SetMessageReaction(ctx, &bot.SetMessageReactionParams{
-		ChatID:    update.Message.Chat.ID,
-		MessageID: update.Message.ID,
-		Reaction: []models.ReactionType{
-			{
-				Type: models.ReactionTypeTypeEmoji,
-				ReactionTypeEmoji: &models.ReactionTypeEmoji{
-					Emoji: emoji,
-				},
-			},
-		},
-	})
-	if err != nil {
-		slog.Error("set_reaction", "error", err)
-	}
-}
-
 func answerInlineArticle(
 	ctx context.Context,
 	b *bot.Bot,
@@ -422,20 +394,22 @@ func answerInlineArticle(
 	})
 }
 
-func answerInlineAudio(
-	ctx context.Context,
-	b *bot.Bot,
-	inlineQueryID string,
-	id string,
-	audioFileID string,
-	caption string,
-) {
-	answerInline(ctx, b, inlineQueryID, &models.InlineQueryResultCachedAudio{
+func cachedFileResult(id string, file *domain.TelegramFile, caption string) models.InlineQueryResult {
+	if file.Kind == domain.TelegramFileDocument {
+		return &models.InlineQueryResultCachedDocument{
+			ID:             id,
+			Title:          "🎧",
+			DocumentFileID: file.ID,
+			Caption:        caption,
+			ParseMode:      models.ParseModeHTML,
+		}
+	}
+	return &models.InlineQueryResultCachedAudio{
 		ID:          id,
-		AudioFileID: audioFileID,
+		AudioFileID: file.ID,
 		Caption:     caption,
 		ParseMode:   models.ParseModeHTML,
-	})
+	}
 }
 
 func answerInline(

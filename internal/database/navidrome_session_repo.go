@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application"
-	"github.com/lubaskinc0de/navidrome-tg/internal/entities"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/navidrome"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -21,12 +21,12 @@ func NewNavidromeSessionRepository(db *gorm.DB) *NavidromeSessionRepository {
 }
 
 func (r *NavidromeSessionRepository) GetToken(ctx context.Context, username string) (string, error) {
-	var session entities.NavidromeSession
+	var session domain.NavidromeSession
 
 	err := dbForContext(ctx, r.db).Where("username = ?", username).First(&session).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", application.ErrSessionNotFound
+			return "", navidrome.ErrSessionNotFound
 		}
 		return "", err
 	}
@@ -34,7 +34,7 @@ func (r *NavidromeSessionRepository) GetToken(ctx context.Context, username stri
 }
 
 func (r *NavidromeSessionRepository) SaveToken(ctx context.Context, username string, token string) error {
-	session := entities.NavidromeSession{
+	session := domain.NavidromeSession{
 		Username: username,
 		Token:    token,
 	}

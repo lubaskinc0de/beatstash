@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -16,6 +17,11 @@ type Config struct {
 	NavidromeUser     string
 	NavidromePassword string
 	NavidromeUrl      string
+
+	IngestWorkers int
+	// IngestRetryDelays are waits before each retry of a failed Ingest Job.
+	IngestRetryDelays  []time.Duration
+	IngestPollInterval time.Duration
 }
 
 func LoadConfig() Config {
@@ -74,5 +80,9 @@ func LoadConfig() Config {
 		NavidromeUser:     navidromeUser,
 		NavidromePassword: navidomePass,
 		NavidromeUrl:      navidromeUrl,
+
+		IngestWorkers:      2,
+		IngestRetryDelays:  []time.Duration{10 * time.Second, time.Minute, 5 * time.Minute},
+		IngestPollInterval: time.Second,
 	}
 }

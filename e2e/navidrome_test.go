@@ -77,7 +77,7 @@ func (n *navidrome) createAdmin(ctx context.Context) error {
 	return nil
 }
 
-type subsonicSong struct {
+type subsonicTrack struct {
 	ID     string `json:"id"`
 	Title  string `json:"title"`
 	Artist string `json:"artist"`
@@ -130,18 +130,18 @@ func (n *navidrome) subsonic(endpoint string, params url.Values, out any) error 
 	return json.Unmarshal(envelope.Response, out)
 }
 
-// indexedSong rescans the Library until Navidrome indexes a song
+// indexedTrack rescans the Library until Navidrome indexes a song
 // whose file lies in libraryDir, and returns it.
-func (n *navidrome) indexedSong(t *testing.T, libraryDir string, title string) subsonicSong {
+func (n *navidrome) indexedTrack(t *testing.T, libraryDir string, title string) subsonicTrack {
 	t.Helper()
 
-	var found subsonicSong
+	var found subsonicTrack
 	require.Eventually(t, func() bool {
 		_ = n.subsonic("startScan", nil, nil)
 
 		var result struct {
 			SearchResult3 struct {
-				Song []subsonicSong `json:"song"`
+				Song []subsonicTrack `json:"song"`
 			} `json:"searchResult3"`
 		}
 		err := n.subsonic("search3", url.Values{

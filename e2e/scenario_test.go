@@ -2,14 +2,16 @@ package e2e
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -20,10 +22,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/config"
 )
 
-const (
-	fixtureArtist = "Fixture Artist"
-	fixtureTitle  = "Fixture Song"
-)
+const fixtureTitle = "Fixture Song"
 
 type telegramUser struct {
 	ID       int64
@@ -32,6 +31,7 @@ type telegramUser struct {
 
 var (
 	allowedUser = telegramUser{ID: 1001, Username: "alice"}
+	otherUser   = telegramUser{ID: 1002, Username: "bob"}
 	stranger    = telegramUser{ID: 6666, Username: "mallory"}
 )
 
@@ -39,7 +39,9 @@ var databaseSeq atomic.Int64
 
 type scenario struct {
 	t       *testing.T
-	bot     *bot.Bot
+	config  config.Config
+	app     *app.App
+	stop    func()
 	botAPI  *botAPI
 	library string
 
@@ -48,7 +50,13 @@ type scenario struct {
 	uploads  int
 }
 
-func newScenario(t *testing.T) *scenario {
+type scenarioOption func(*config.Config)
+
+func withoutWorkers() scenarioOption {
+	return func(c *config.Config) { c.IngestWorkers = 0 }
+}
+
+func newScenario(t *testing.T, opts ...scenarioOption) *scenario {
 	t.Helper()
 
 	api := newBotAPI(t)
@@ -57,23 +65,56 @@ func newScenario(t *testing.T) *scenario {
 	require.NoError(t, err)
 	require.NoError(t, os.Chmod(library, 0o755))
 
-	b, err := app.New(
-		config.Config{
-			Token:             botToken,
-			BotApiUrl:         api.URL(),
-			DbDsn:             postgresDSN(createDatabase(t)),
-			MusicDir:          library,
-			AllowedUserIds:    []uint64{uint64(allowedUser.ID)},
-			NavidromeUser:     navidromeAdmin,
-			NavidromePassword: navidromePassword,
-			NavidromeUrl:      env.navidrome.url,
-		},
-		bot.WithSkipGetMe(),
-		bot.WithNotAsyncHandlers(),
-	)
-	require.NoError(t, err)
+	cfg := config.Config{
+		Token:              botToken,
+		BotApiUrl:          api.URL(),
+		DbDsn:              postgresDSN(createDatabase(t)),
+		MusicDir:           library,
+		AllowedUserIds:     []uint64{uint64(allowedUser.ID), uint64(otherUser.ID)},
+		NavidromeUser:      navidromeAdmin,
+		NavidromePassword:  navidromePassword,
+		NavidromeUrl:       env.navidrome.url,
+		IngestWorkers:      2,
+		IngestRetryDelays:  []time.Duration{10 * time.Millisecond, 10 * time.Millisecond, 10 * time.Millisecond},
+		IngestPollInterval: 10 * time.Millisecond,
+	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 
-	return &scenario{t: t, bot: b, botAPI: api, library: library}
+	s := &scenario{t: t, config: cfg, botAPI: api, library: library}
+	s.start()
+	return s
+}
+
+func (s *scenario) start() {
+	s.t.Helper()
+
+	a, err := app.New(s.config, bot.WithSkipGetMe(), bot.WithNotAsyncHandlers())
+	require.NoError(s.t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	stopped := a.StartWorkers(ctx)
+	var once sync.Once
+	s.app = a
+	s.stop = func() {
+		once.Do(func() {
+			cancel()
+			<-stopped
+			_ = a.Close()
+		})
+	}
+	s.t.Cleanup(s.stop)
+}
+
+// restart stops the bot, even mid-Ingest, and starts it again on the same
+// database and Library, this time with Ingest workers.
+func (s *scenario) restart() {
+	s.t.Helper()
+
+	s.stop()
+	s.config.IngestWorkers = 2
+	s.start()
 }
 
 func createDatabase(t *testing.T) string {
@@ -91,7 +132,15 @@ func createDatabase(t *testing.T) string {
 }
 
 func (s *scenario) send(update *models.Update) {
-	s.bot.ProcessUpdate(s.t.Context(), update)
+	s.app.Bot().ProcessUpdate(s.t.Context(), update)
+}
+
+func (s *scenario) waitIngest() {
+	s.t.Helper()
+
+	ctx, cancel := context.WithTimeout(s.t.Context(), time.Minute)
+	defer cancel()
+	require.NoError(s.t, s.app.WaitIngest(ctx))
 }
 
 func (s *scenario) nextUpdateID() int64 {
@@ -104,36 +153,64 @@ func (s *scenario) nextUpdateID() int64 {
 func (s *scenario) uploadAudio(fixture string) models.Audio {
 	s.t.Helper()
 
-	path := fixturePath(fixture)
-	info, err := os.Stat(path)
-	require.NoError(s.t, err)
+	return s.uploadAudioFile(fixturePath(fixture))
+}
 
-	s.uploads++
-	fileID := fileIDFor(fixture, s.uploads)
-	s.botAPI.addFile(fileID, path)
+func (s *scenario) uploadAudioFile(path string) models.Audio {
+	s.t.Helper()
 
+	fileID, size := s.upload(path)
 	return models.Audio{
 		FileID:       fileID,
 		FileUniqueID: fileID + "-unique",
 		Duration:     1,
-		Performer:    fixtureArtist,
-		Title:        fixtureTitle,
-		FileName:     fixture,
-		FileSize:     info.Size(),
+		FileName:     filepath.Base(path),
+		FileSize:     size,
 	}
 }
 
-func (s *scenario) audioMessage(from telegramUser, audio models.Audio) *models.Update {
-	s.messages++
-	return &models.Update{
-		ID: s.nextUpdateID(),
-		Message: &models.Message{
-			ID:    s.messages,
-			From:  &models.User{ID: from.ID, Username: from.Username},
-			Chat:  models.Chat{ID: from.ID, Type: models.ChatTypePrivate},
-			Audio: &audio,
-		},
+func (s *scenario) uploadDocument(path, mimeType string) models.Document {
+	s.t.Helper()
+
+	fileID, size := s.upload(path)
+	return models.Document{
+		FileID:       fileID,
+		FileUniqueID: fileID + "-unique",
+		FileName:     filepath.Base(path),
+		MimeType:     mimeType,
+		FileSize:     size,
 	}
+}
+
+func (s *scenario) upload(path string) (fileID string, size int64) {
+	s.t.Helper()
+
+	s.uploads++
+	fileID = fileIDFor(path, s.uploads)
+	stored := s.botAPI.addFile(s.t, fileID, path)
+
+	info, err := os.Stat(stored)
+	require.NoError(s.t, err)
+	return fileID, info.Size()
+}
+
+func (s *scenario) audioMessage(from telegramUser, audio models.Audio) *models.Update {
+	return s.message(from, func(m *models.Message) { m.Audio = &audio })
+}
+
+func (s *scenario) documentMessage(from telegramUser, document models.Document) *models.Update {
+	return s.message(from, func(m *models.Message) { m.Document = &document })
+}
+
+func (s *scenario) message(from telegramUser, fill func(*models.Message)) *models.Update {
+	s.messages++
+	msg := &models.Message{
+		ID:   s.messages,
+		From: &models.User{ID: from.ID, Username: from.Username},
+		Chat: models.Chat{ID: from.ID, Type: models.ChatTypePrivate},
+	}
+	fill(msg)
+	return &models.Update{ID: s.nextUpdateID(), Message: msg}
 }
 
 func (s *scenario) inlineQuery(from telegramUser, query string) *models.Update {
@@ -160,30 +237,40 @@ func (s *scenario) callbackQuery(from telegramUser, data string) *models.Update 
 	}
 }
 
-// libraryChecksums returns sha256 of every file in the scenario's Library.
-func (s *scenario) libraryChecksums() []string {
+// Hidden entries are the bot's scratch space.
+func (s *scenario) libraryFiles() []string {
 	s.t.Helper()
 
-	var sums []string
+	var files []string
 	err := filepath.WalkDir(s.library, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+		if err != nil {
 			return err
 		}
-		sums = append(sums, checksum(s.t, path))
+		if strings.HasPrefix(d.Name(), ".") && path != s.library {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(s.library, path)
+		if err != nil {
+			return err
+		}
+		files = append(files, rel)
 		return nil
 	})
 	require.NoError(s.t, err)
-	return sums
+	slices.Sort(files)
+	return files
+}
+
+func (s *scenario) libraryPath(rel string) string {
+	return filepath.Join(s.library, rel)
 }
 
 func fixturePath(name string) string {
 	return filepath.Join("testdata", "audio", name)
-}
-
-func checksum(t *testing.T, path string) string {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	require.NoError(t, err)
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:])
 }

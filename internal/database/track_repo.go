@@ -3,11 +3,11 @@ package database
 import (
 	"context"
 	"errors"
-	"strings"
+
+	"gorm.io/gorm"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application"
-	"github.com/lubaskinc0de/navidrome-tg/internal/entities"
-	"gorm.io/gorm"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 )
 
 type TrackRepository struct {
@@ -20,47 +20,33 @@ func NewTrackRepository(db *gorm.DB) *TrackRepository {
 	}
 }
 
-func (r *TrackRepository) Save(ctx context.Context, track *entities.Track) error {
-	return dbForContext(ctx, r.db).Create(track).Error
-}
+func (r *TrackRepository) FindSource(ctx context.Context, provider domain.ProviderName, ref string) (*domain.TrackSource, error) {
+	var source domain.TrackSource
 
-func (r *TrackRepository) GetByUniqueId(ctx context.Context, uniqueId string) (*entities.Track, error) {
-	var track entities.Track
-
-	err := dbForContext(ctx, r.db).Where("telegram_file_unique_id = ?", uniqueId).First(&track).Error
+	err := dbForContext(ctx, r.db).Where("provider = ? AND ref = ?", provider, ref).First(&source).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, application.ErrTrackNotFound
 		}
 		return nil, err
 	}
-	return &track, nil
+	return &source, nil
 }
-func (r *TrackRepository) FindByTitleAndPerformer(
+
+func (r *TrackRepository) FindDuplicate(
 	ctx context.Context,
-	title string,
-	performer string,
-) (*entities.Track, error) {
-	if strings.TrimSpace(title) == "" {
-		return nil, application.ErrTrackNotFound
-	}
+	m domain.Metadata,
+	durationMs, toleranceMs int,
+) (*domain.Track, error) {
+	var track domain.Track
 
-	db := dbForContext(ctx, r.db)
-	var track entities.Track
-
-	err := db.
-		Where("LOWER(TRIM(title)) = LOWER(TRIM(?))", title).
-		Where("LOWER(TRIM(performer)) = LOWER(TRIM(?))", performer).
-		Order("created_at DESC").
+	err := dbForContext(ctx, r.db).
+		Where("LOWER(artist) = LOWER(?)", m.Artist).
+		Where("LOWER(title) = LOWER(?)", m.Title).
+		Where("LOWER(album) = LOWER(?)", m.Album).
+		Where("ABS(duration_ms - ?) <= ?", durationMs, toleranceMs).
+		Order("id").
 		First(&track).Error
-
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		err = db.
-			Where("LOWER(TRIM(title)) = LOWER(TRIM(?))", title).
-			Order("created_at DESC").
-			First(&track).Error
-	}
-
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, application.ErrTrackNotFound
@@ -68,4 +54,34 @@ func (r *TrackRepository) FindByTitleAndPerformer(
 		return nil, err
 	}
 	return &track, nil
+}
+
+func (r *TrackRepository) SaveTrack(ctx context.Context, track *domain.Track) error {
+	return dbForContext(ctx, r.db).Save(track).Error
+}
+
+func (r *TrackRepository) SaveSource(ctx context.Context, source *domain.TrackSource) error {
+	return dbForContext(ctx, r.db).Omit("Track").Create(source).Error
+}
+
+func (r *TrackRepository) FindTelegramFile(ctx context.Context, m domain.Metadata) (*domain.TelegramFile, error) {
+	var source domain.TrackSource
+
+	// Prefer the same album, then files sendable as audio, then the oldest.
+	err := dbForContext(ctx, r.db).
+		Joins("JOIN tracks ON tracks.id = track_sources.track_id").
+		Where("track_sources.telegram_file_id <> ''").
+		Where("LOWER(tracks.artist) = LOWER(TRIM(?))", m.Artist).
+		Where("LOWER(tracks.title) = LOWER(TRIM(?))", m.Title).
+		Order(gorm.Expr("LOWER(tracks.album) = LOWER(TRIM(?)) DESC", m.Album)).
+		Order(gorm.Expr("track_sources.telegram_file_kind = ? DESC", domain.TelegramFileAudio)).
+		Order("track_sources.id").
+		First(&source).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, application.ErrTrackNotFound
+		}
+		return nil, err
+	}
+	return source.TelegramFile(), nil
 }

@@ -13,6 +13,16 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  telegram-bot-api:
+    image: aiogram/telegram-bot-api:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TELEGRAM_LOCAL: "1"
+    volumes:
+      - telegram_bot_api_data:/var/lib/telegram-bot-api
+
   bot:
     build:
       context: .
@@ -22,13 +32,17 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      telegram-bot-api:
+        condition: service_started
+    env_file:
+      - .env
     environment:
       DB_DSN: "host=postgres user=postgres password=postgres dbname=postgres port=5432 sslmode=disable"
       MUSIC_DIR: "/music"
-    env_file:
-      - .env
+      BOT_API_URL: "http://telegram-bot-api:8081"
     volumes:
       - ./test_data:/music
+      - telegram_bot_api_data:/var/lib/telegram-bot-api
 
   navidrome:
     image: deluan/navidrome:latest
@@ -45,5 +59,6 @@ services:
       - navidrome_data:/data
 
 volumes:
+  telegram_bot_api_data:
   postgres_data:
   navidrome_data:

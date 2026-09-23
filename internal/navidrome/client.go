@@ -1,4 +1,4 @@
-package application
+package navidrome
 
 import (
 	"bytes"
@@ -13,22 +13,31 @@ import (
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/lubaskinc0de/navidrome-tg/internal/application"
 )
 
 const nativeAuthHeader = "X-Nd-Authorization"
 
-type NavidromeClient struct {
+var ErrSessionNotFound = errors.New("navidrome session not found")
+
+type SessionRepository interface {
+	GetToken(ctx context.Context, username string) (string, error)
+	SaveToken(ctx context.Context, username string, token string) error
+}
+
+type Client struct {
 	BaseURL  string
 	Password string
 	Username string
-	Sessions NavidromeSessionRepository
+	Sessions SessionRepository
 }
 
-func NewNavidromeClient(
+func NewClient(
 	baseUrl, password, username string,
-	sessions NavidromeSessionRepository,
-) *NavidromeClient {
-	return &NavidromeClient{
+	sessions SessionRepository,
+) *Client {
+	return &Client{
 		BaseURL:  baseUrl,
 		Password: password,
 		Username: username,
@@ -36,7 +45,7 @@ func NewNavidromeClient(
 	}
 }
 
-type RecentSong struct {
+type recentTrack struct {
 	ID        string     `json:"id"`
 	Title     string     `json:"title"`
 	Artist    string     `json:"artist"`
@@ -46,9 +55,12 @@ type RecentSong struct {
 	PlayCount int        `json:"playCount"`
 }
 
-type NowPlayingResponse struct {
+type nowPlayingResponse struct {
 	SubsonicResponse struct {
 		Status string `json:"status"`
+		Error  struct {
+			Message string `json:"message"`
+		} `json:"error"`
 
 		NowPlaying struct {
 			Entry []struct {
@@ -67,7 +79,7 @@ type NowPlayingResponse struct {
 	} `json:"subsonic-response"`
 }
 
-func (c *NavidromeClient) addAuth(q url.Values) {
+func (c *Client) addAuth(q url.Values) {
 	salt := randomSalt()
 
 	hash := md5.Sum([]byte(c.Password + salt))
@@ -81,7 +93,31 @@ func (c *NavidromeClient) addAuth(q url.Values) {
 	q.Set("f", "json")
 }
 
-func (c *NavidromeClient) GetNowPlaying(ctx context.Context) (*NowPlayingResponse, error) {
+func (c *Client) NowPlaying(ctx context.Context) (*application.PlayingTrack, error) {
+	resp, err := c.getNowPlaying(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range resp.SubsonicResponse.NowPlaying.Entry {
+		if entry.Username != c.Username {
+			continue
+		}
+		return &application.PlayingTrack{
+				ID:       entry.ID,
+				Artist:   entry.Artist,
+				Title:    entry.Title,
+				Album:    entry.Album,
+				Duration: entry.Duration,
+			PositionMs: entry.PositionMs,
+			State:      entry.State,
+			CoverArt:   entry.CoverArt,
+		}, nil
+	}
+	return nil, nil
+}
+
+func (c *Client) getNowPlaying(ctx context.Context) (*nowPlayingResponse, error) {
 	u, err := url.Parse(c.BaseURL + "/rest/getNowPlaying")
 	if err != nil {
 		return nil, err
@@ -106,38 +142,45 @@ func (c *NavidromeClient) GetNowPlaying(ctx context.Context) (*NowPlayingRespons
 		return nil, fmt.Errorf("navidrome returned status %s", resp.Status)
 	}
 
-	var result NowPlayingResponse
+	var result nowPlayingResponse
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
 
 	if result.SubsonicResponse.Status != "ok" {
-		return nil, fmt.Errorf("navidrome response status: %s", result.SubsonicResponse.Status)
+		return nil, fmt.Errorf("navidrome response status %s: %s", result.SubsonicResponse.Status, result.SubsonicResponse.Error.Message)
 	}
 
 	return &result, nil
 }
 
-// GetRecentlyPlayed returns the songs the user listened to most recently.
 // Subsonic API has no play history, so it goes through Navidrome's native API.
-func (c *NavidromeClient) GetRecentlyPlayed(ctx context.Context, limit int) ([]RecentSong, error) {
+func (c *Client) RecentlyPlayed(ctx context.Context, limit int) ([]application.PlayedTrack, error) {
 	q := url.Values{}
 	q.Set("_sort", "playDate")
 	q.Set("_order", "DESC")
 	q.Set("_start", "0")
 	q.Set("_end", strconv.Itoa(limit))
 
-	var songs []RecentSong
-	if err := c.getNative(ctx, "/api/song", q, &songs); err != nil {
+	var tracks []recentTrack
+	if err := c.getNative(ctx, "/api/song", q, &tracks); err != nil {
 		return nil, err
 	}
 
-	played := songs[:0]
-	for _, song := range songs {
-		if song.PlayDate != nil {
-			played = append(played, song)
+	played := make([]application.PlayedTrack, 0, len(tracks))
+	for _, track := range tracks {
+		if track.PlayDate == nil {
+			continue
 		}
+		played = append(played, application.PlayedTrack{
+				ID:       track.ID,
+				Artist:   track.Artist,
+				Title:    track.Title,
+				Album:    track.Album,
+				Duration: int(track.Duration),
+			PlayedAt: *track.PlayDate,
+		})
 	}
 
 	return played, nil
@@ -145,7 +188,7 @@ func (c *NavidromeClient) GetRecentlyPlayed(ctx context.Context, limit int) ([]R
 
 var errUnauthorized = errors.New("navidrome: unauthorized")
 
-func (c *NavidromeClient) getNative(ctx context.Context, path string, q url.Values, out any) error {
+func (c *Client) getNative(ctx context.Context, path string, q url.Values, out any) error {
 	token, err := c.Sessions.GetToken(ctx, c.Username)
 	if errors.Is(err, ErrSessionNotFound) {
 		token, err = c.login(ctx)
@@ -166,7 +209,7 @@ func (c *NavidromeClient) getNative(ctx context.Context, path string, q url.Valu
 	return c.doNative(ctx, path, q, token, out)
 }
 
-func (c *NavidromeClient) doNative(ctx context.Context, path string, q url.Values, token string, out any) error {
+func (c *Client) doNative(ctx context.Context, path string, q url.Values, token string, out any) error {
 	u, err := url.Parse(c.BaseURL + path)
 	if err != nil {
 		return err
@@ -202,7 +245,7 @@ func (c *NavidromeClient) doNative(ctx context.Context, path string, q url.Value
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
-func (c *NavidromeClient) login(ctx context.Context) (string, error) {
+func (c *Client) login(ctx context.Context) (string, error) {
 	body, err := json.Marshal(map[string]string{
 		"username": c.Username,
 		"password": c.Password,

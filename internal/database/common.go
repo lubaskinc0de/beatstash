@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/entities"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -40,17 +40,34 @@ func New(dsn string) (*gorm.DB, error) {
 
 func Migrate(db *gorm.DB) error {
 	return db.AutoMigrate(
-		&entities.User{},
-		&entities.Track{},
-		&entities.NavidromeSession{},
+		&domain.User{},
+		&domain.Track{},
+		&domain.TrackSource{},
+		&domain.Upload{},
+		&domain.IngestJob{},
+		&domain.NavidromeSession{},
 	)
+}
+
+func Close(db *gorm.DB) error {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Close()
 }
 
 func (m *TxManager) WithinTx(
 	ctx context.Context,
 	fn func(context.Context) error,
 ) error {
-	return m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	db := m.db.WithContext(ctx)
+	if tx, ok := txFromContext(ctx); ok {
+		db = tx
+	}
+
+	// gorm turns a transaction inside a transaction into a savepoint.
+	return db.Transaction(func(tx *gorm.DB) error {
 		txCtx := withTx(ctx, tx)
 
 		return fn(txCtx)

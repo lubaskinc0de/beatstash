@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application"
-	"github.com/lubaskinc0de/navidrome-tg/internal/entities"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 	"gorm.io/gorm"
 )
 
@@ -19,8 +19,8 @@ func NewUserRepository(db *gorm.DB) *UserRepository {
 	}
 }
 
-func (r *UserRepository) GetById(ctx context.Context, telegram_id uint64) (*entities.User, error) {
-	var user entities.User
+func (r *UserRepository) GetById(ctx context.Context, telegram_id uint64) (*domain.User, error) {
+	var user domain.User
 
 	err := dbForContext(ctx, r.db).Where("telegram_id = ?", telegram_id).First(&user).Error
 	if err != nil {
@@ -32,6 +32,6 @@ func (r *UserRepository) GetById(ctx context.Context, telegram_id uint64) (*enti
 	return &user, nil
 }
 
-func (r *UserRepository) Save(ctx context.Context, user *entities.User) error {
+func (r *UserRepository) Save(ctx context.Context, user *domain.User) error {
 	return dbForContext(ctx, r.db).Create(user).Error
 }

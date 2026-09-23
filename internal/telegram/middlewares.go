@@ -12,10 +12,10 @@ import (
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application"
 	"github.com/lubaskinc0de/navidrome-tg/internal/database"
-	"github.com/lubaskinc0de/navidrome-tg/internal/entities"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 )
 
-func withUser(ctx context.Context, user *entities.User) context.Context {
+func withUser(ctx context.Context, user *domain.User) context.Context {
 	return context.WithValue(ctx, application.UserContextKey{}, user)
 }
 
@@ -58,7 +58,7 @@ func UserMiddleware(users *database.UserRepository, allowedUserIds []uint64) bot
 			}
 
 			if errors.Is(err, application.ErrUserNotFound) {
-				user = &entities.User{
+				user = &domain.User{
 					TelegramID: telegramID,
 					Username:   from.Username,
 					CreatedAt:  time.Now(),
