@@ -14,6 +14,11 @@ type TrackRepository interface {
 	FindByTitleAndPerformer(ctx context.Context, title string, performer string) (*entities.Track, error)
 }
 
+type NavidromeSessionRepository interface {
+	GetToken(ctx context.Context, username string) (string, error)
+	SaveToken(ctx context.Context, username string, token string) error
+}
+
 type TxManager interface {
 	WithinTx(ctx context.Context, fn func(context.Context) error) error
 }

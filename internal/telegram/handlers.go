@@ -6,6 +6,7 @@ import (
 	"html"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -14,24 +15,29 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/database"
 )
 
+const recentTracksLimit = 10
+
 type Handler struct {
-	saveTrack     *application.SaveTrack
-	getNowPlaying *application.GetNowPlaying
-	users         *database.UserRepository
-	config        config.Config
+	saveTrack         *application.SaveTrack
+	getNowPlaying     *application.GetNowPlaying
+	getRecentlyPlayed *application.GetRecentlyPlayed
+	users             *database.UserRepository
+	config            config.Config
 }
 
 func NewHandler(
 	saveTrack *application.SaveTrack,
 	nowPlaying *application.GetNowPlaying,
+	recentlyPlayed *application.GetRecentlyPlayed,
 	users *database.UserRepository,
 	config config.Config,
 ) *Handler {
 	return &Handler{
-		saveTrack:     saveTrack,
-		users:         users,
-		config:        config,
-		getNowPlaying: nowPlaying,
+		saveTrack:         saveTrack,
+		users:             users,
+		config:            config,
+		getNowPlaying:     nowPlaying,
+		getRecentlyPlayed: recentlyPlayed,
 	}
 }
 
@@ -99,6 +105,8 @@ func (h *Handler) HandleInlineQuery(
 	switch query {
 	case "", "np":
 		h.handleNowPlaying(ctx, b, update)
+	case "recent", "last":
+		h.handleRecentlyPlayed(ctx, b, update)
 	default:
 		answerInlineArticle(
 			ctx,
@@ -106,8 +114,8 @@ func (h *Handler) HandleInlineQuery(
 			update.InlineQuery.ID,
 			"unknown-command",
 			"❓ Неизвестная команда",
-			"Доступно: np — отправить текущий трек",
-			"❓ Неизвестная команда. Доступно: np",
+			"Доступно: np — текущий трек, recent — последние треки",
+			"❓ Неизвестная команда. Доступно: np, recent",
 		)
 	}
 }
@@ -182,6 +190,123 @@ func (h *Handler) handleNowPlaying(
 		description,
 		text,
 	)
+}
+
+func (h *Handler) handleRecentlyPlayed(
+	ctx context.Context,
+	b *bot.Bot,
+	update *models.Update,
+) {
+	if update.InlineQuery == nil {
+		return
+	}
+
+	tracks, err := h.getRecentlyPlayed.Execute(ctx, recentTracksLimit)
+	if err != nil {
+		slog.Error("get_recently_played", "error", err)
+
+		answerInlineArticle(
+			ctx,
+			b,
+			update.InlineQuery.ID,
+			"error",
+			"⚠️ Navidrome недоступен",
+			"Не удалось получить историю прослушиваний",
+			"⚠️ Не удалось получить историю прослушиваний",
+		)
+		return
+	}
+
+	if len(tracks) == 0 {
+		answerInlineArticle(
+			ctx,
+			b,
+			update.InlineQuery.ID,
+			"nothing-played",
+			"💤 История пуста",
+			"В Navidrome ещё ничего не прослушано",
+			"💤 История прослушиваний пуста",
+		)
+		return
+	}
+
+	now := time.Now()
+	results := make([]models.InlineQueryResult, 0, len(tracks)+1)
+
+	results = append(results, &models.InlineQueryResultArticle{
+		ID:          "recent-list",
+		Title:       fmt.Sprintf("📜 Последние %d треков", len(tracks)),
+		Description: "Отправить весь список одним сообщением",
+		InputMessageContent: &models.InputTextMessageContent{
+			MessageText: recentTracksText(tracks, now),
+			ParseMode:   models.ParseModeHTML,
+		},
+	})
+
+	for _, track := range tracks {
+		caption := fmt.Sprintf(
+			"🎧 <b>%s</b> — %s",
+			html.EscapeString(track.Artist),
+			html.EscapeString(track.Title),
+		)
+
+		if track.TelegramFileID != "" {
+			results = append(results, &models.InlineQueryResultCachedAudio{
+				ID:          "recent-" + track.ID,
+				AudioFileID: track.TelegramFileID,
+				Caption:     caption,
+				ParseMode:   models.ParseModeHTML,
+			})
+			continue
+		}
+
+		results = append(results, &models.InlineQueryResultArticle{
+			ID:          "recent-" + track.ID,
+			Title:       fmt.Sprintf("🎧 %s — %s", track.Artist, track.Title),
+			Description: fmt.Sprintf("%s · %s", track.Album, timeAgo(track.PlayedAt, now)),
+			InputMessageContent: &models.InputTextMessageContent{
+				MessageText: caption,
+				ParseMode:   models.ParseModeHTML,
+			},
+		})
+	}
+
+	answerInline(ctx, b, update.InlineQuery.ID, results...)
+}
+
+func recentTracksText(tracks []application.RecentTrack, now time.Time) string {
+	var b strings.Builder
+
+	fmt.Fprintf(&b, "📜 <b>Последние %d треков:</b>\n\n", len(tracks))
+
+	for i, track := range tracks {
+		fmt.Fprintf(
+			&b,
+			"%d. <b>%s</b> — %s\n     <i>%s · %s</i>\n",
+			i+1,
+			html.EscapeString(track.Artist),
+			html.EscapeString(track.Title),
+			formatSeconds(track.Duration),
+			timeAgo(track.PlayedAt, now),
+		)
+	}
+
+	return b.String()
+}
+
+func timeAgo(t time.Time, now time.Time) string {
+	d := now.Sub(t)
+
+	switch {
+	case d < time.Minute:
+		return "только что"
+	case d < time.Hour:
+		return fmt.Sprintf("%d мин назад", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%d ч назад", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%d дн назад", int(d.Hours()/24))
+	}
 }
 
 func nowPlayingText(track *application.NowPlaying) string {
@@ -269,26 +394,15 @@ func answerInlineArticle(
 	description string,
 	message string,
 ) {
-	_, err := b.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
-		InlineQueryID: inlineQueryID,
-		Results: []models.InlineQueryResult{
-			&models.InlineQueryResultArticle{
-				ID:          id,
-				Title:       title,
-				Description: description,
-				InputMessageContent: &models.InputTextMessageContent{
-					MessageText: message,
-					ParseMode:   models.ParseModeHTML,
-				},
-			},
+	answerInline(ctx, b, inlineQueryID, &models.InlineQueryResultArticle{
+		ID:          id,
+		Title:       title,
+		Description: description,
+		InputMessageContent: &models.InputTextMessageContent{
+			MessageText: message,
+			ParseMode:   models.ParseModeHTML,
 		},
-		CacheTime:  1,
-		IsPersonal: true,
 	})
-
-	if err != nil {
-		slog.Error("answer_inline_query", "error", err)
-	}
 }
 
 func answerInlineAudio(
@@ -299,22 +413,29 @@ func answerInlineAudio(
 	audioFileID string,
 	caption string,
 ) {
+	answerInline(ctx, b, inlineQueryID, &models.InlineQueryResultCachedAudio{
+		ID:          id,
+		AudioFileID: audioFileID,
+		Caption:     caption,
+		ParseMode:   models.ParseModeHTML,
+	})
+}
+
+func answerInline(
+	ctx context.Context,
+	b *bot.Bot,
+	inlineQueryID string,
+	results ...models.InlineQueryResult,
+) {
 	_, err := b.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
 		InlineQueryID: inlineQueryID,
-		Results: []models.InlineQueryResult{
-			&models.InlineQueryResultCachedAudio{
-				ID:          id,
-				AudioFileID: audioFileID,
-				Caption:     caption,
-				ParseMode:   models.ParseModeHTML,
-			},
-		},
-		CacheTime:  1,
-		IsPersonal: true,
+		Results:       results,
+		CacheTime:     1,
+		IsPersonal:    true,
 	})
 
 	if err != nil {
-		slog.Error("answer_inline_audio", "error", err)
+		slog.Error("answer_inline_query", "error", err)
 	}
 }
 

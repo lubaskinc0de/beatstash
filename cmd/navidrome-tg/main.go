@@ -35,20 +35,24 @@ func setupDeps(config config.Config) (*Dependencies, error) {
 	txManager := database.NewTxManager(db)
 	trackRepo := database.NewTrackRepository(db)
 	userRepo := database.NewUserRepository(db)
+	sessionRepo := database.NewNavidromeSessionRepository(db)
 	navidromeClient := application.NewNavidromeClient(
 		config.NavidromeUrl,
 		config.NavidromePassword,
 		config.NavidromeUser,
+		sessionRepo,
 	)
 
 	// application
 	saveTrack := application.NewSaveTrack(trackRepo, txManager)
 	nowPlaying := application.NewGetNowPlaying(navidromeClient, trackRepo)
+	recentlyPlayed := application.NewGetRecentlyPlayed(navidromeClient, trackRepo)
 
 	// delivery
 	handler := telegram.NewHandler(
 		saveTrack,
 		nowPlaying,
+		recentlyPlayed,
 		userRepo,
 		config,
 	)

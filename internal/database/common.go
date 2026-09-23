@@ -42,6 +42,7 @@ func Migrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&entities.User{},
 		&entities.Track{},
+		&entities.NavidromeSession{},
 	)
 }
 
