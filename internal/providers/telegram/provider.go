@@ -114,7 +114,7 @@ func (p *Provider) open(ctx context.Context, ref domain.TrackRef, filePath strin
 		return nil, fmt.Errorf("download file: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("download file: %s", resp.Status)
 	}
 	return resp.Body, nil

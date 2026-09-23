@@ -1,0 +1,8 @@
+version: "2"
+
+linters:
+  exclusions:
+    rules:
+      # Cleanup in defer has no caller left to handle its error.
+      - linters: [errcheck]
+        source: '^\s*defer '

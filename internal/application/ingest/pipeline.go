@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -49,6 +51,20 @@ type Result struct {
 }
 
 func noop() {}
+
+// Commit and Rollback run after the transaction has ended, so a failure can
+// only be logged: the database already says what the Library should hold.
+func removeFile(path string) {
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		slog.Error("library_remove_failed", "path", path, "error", err)
+	}
+}
+
+func moveFile(from, to string) {
+	if err := os.Rename(from, to); err != nil {
+		slog.Error("library_move_failed", "from", from, "to", to, "error", err)
+	}
+}
 
 // incoming carries what Process learned about the audio down to the store step.
 type incoming struct {
@@ -206,7 +222,7 @@ func (p *Pipeline) storeNew(ctx context.Context, in incoming) (*Result, error) {
 		Outcome:  outcome,
 		Path:     target,
 		Commit:   noop,
-		Rollback: func() { os.Remove(target) },
+		Rollback: func() { removeFile(target) },
 	}, nil
 }
 
@@ -244,8 +260,8 @@ func (p *Pipeline) mergeDuplicate(ctx context.Context, in incoming, track *domai
 		return &Result{
 			Outcome:  application.IngestReplaced,
 			Path:     target,
-			Commit:   func() { os.Remove(old) },
-			Rollback: func() { os.Remove(target) },
+			Commit:   func() { removeFile(old) },
+			Rollback: func() { removeFile(target) },
 		}, nil
 	}
 
@@ -258,8 +274,8 @@ func (p *Pipeline) mergeDuplicate(ctx context.Context, in incoming, track *domai
 	return &Result{
 		Outcome:  application.IngestReplaced,
 		Path:     target,
-		Commit:   func() { os.Rename(pending, target) },
-		Rollback: func() { os.Remove(pending) },
+		Commit:   func() { moveFile(pending, target) },
+		Rollback: func() { removeFile(pending) },
 	}, nil
 }
 
@@ -327,7 +343,7 @@ func (p *Pipeline) stage(audio *application.FetchedAudio) (string, error) {
 	_, copyErr := io.Copy(file, audio.Body)
 	closeErr := file.Close()
 	if err := errors.Join(copyErr, closeErr); err != nil {
-		os.Remove(file.Name())
+		_ = os.Remove(file.Name())
 		return "", fmt.Errorf("copy audio: %w", err)
 	}
 	return file.Name(), nil

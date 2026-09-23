@@ -17,7 +17,7 @@ func wavToFlac(ctx context.Context, wav string) (string, error) {
 		"-i", wav, "-map", "0:a", "-map_metadata", "0", "-c:a", "flac", flac,
 	).CombinedOutput()
 	if err != nil {
-		os.Remove(flac)
+		_ = os.Remove(flac)
 		return "", fmt.Errorf("ffmpeg: %w: %s", err, out)
 	}
 	return flac, nil
