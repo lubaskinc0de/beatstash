@@ -18,8 +18,8 @@ func TestMetadata(t *testing.T) {
 		s.waitIngest()
 
 		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
-		assert.Equal(t, []string{"Telegram Artist/Singles/Telegram Song.mp3"}, s.libraryFiles())
-		tags := readTags(t, s.libraryPath("Telegram Artist/Singles/Telegram Song.mp3"))
+		assert.Equal(t, []string{"Telegram Artist/Singles/Telegram Song.mp3"}, s.personalFiles(alice))
+		tags := readTags(t, s.personalPath(alice, "Telegram Artist/Singles/Telegram Song.mp3"))
 		assert.Equal(t, "Telegram Artist", tags["ARTIST"])
 		assert.Equal(t, "Telegram Song", tags["TITLE"])
 	})
@@ -31,8 +31,8 @@ func TestMetadata(t *testing.T) {
 		s.send(s.audioMessage(alice, audio))
 		s.waitIngest()
 
-		assert.Equal(t, []string{"Name Artist/Singles/Name Song.mp3"}, s.libraryFiles())
-		tags := readTags(t, s.libraryPath("Name Artist/Singles/Name Song.mp3"))
+		assert.Equal(t, []string{"Name Artist/Singles/Name Song.mp3"}, s.personalFiles(alice))
+		tags := readTags(t, s.personalPath(alice, "Name Artist/Singles/Name Song.mp3"))
 		assert.Equal(t, "Name Artist", tags["ARTIST"])
 		assert.Equal(t, "Name Song", tags["TITLE"])
 	})
@@ -45,7 +45,7 @@ func TestMetadata(t *testing.T) {
 		s.waitIngest()
 
 		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
-		assert.Equal(t, []string{"Inbox/audio_123.mp3"}, s.libraryFiles())
+		assert.Equal(t, []string{"Inbox/audio_123.mp3"}, s.personalFiles(alice))
 		replies := s.botAPI.Replies(t)
 		require.Len(t, replies, 1)
 		assert.Equal(t, msg.Message.ID, replies[0].ReplyTo)
@@ -61,7 +61,7 @@ func TestMetadata(t *testing.T) {
 		s.send(s.audioMessage(alice, audio))
 		s.waitIngest()
 
-		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.libraryFiles())
+		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.personalFiles(alice))
 	})
 
 	t.Run("Telegram data fills fields tags lack", func(t *testing.T) {
@@ -75,6 +75,6 @@ func TestMetadata(t *testing.T) {
 		s.send(s.audioMessage(alice, audio))
 		s.waitIngest()
 
-		assert.Equal(t, []string{"Telegram Artist/Tagged Album/Tagged Title.mp3"}, s.libraryFiles())
+		assert.Equal(t, []string{"Telegram Artist/Tagged Album/Tagged Title.mp3"}, s.personalFiles(alice))
 	})
 }

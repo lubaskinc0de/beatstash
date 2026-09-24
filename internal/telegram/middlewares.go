@@ -46,7 +46,7 @@ func UserMiddleware(users *database.UserRepository) bot.Middleware {
 
 			user, err := users.GetById(ctx, telegramID)
 			if errors.Is(err, application.ErrUserNotFound) {
-				if isInviteAcceptance(update) {
+				if isStart(update) {
 					next(ctx, b, update)
 					return
 				}
@@ -58,12 +58,22 @@ func UserMiddleware(users *database.UserRepository) bot.Middleware {
 				return
 			}
 
+			// Admins from ADMIN_IDS start without a username, and people rename themselves.
+			if from.Username != user.Username {
+				if err := users.SetUsername(ctx, user.ID, from.Username); err != nil {
+					slog.Error("set_username", "error", err)
+				} else {
+					user.Username = from.Username
+				}
+			}
+
 			next(withUser(ctx, user), b, update)
 		}
 	}
 }
 
-func isInviteAcceptance(update *models.Update) bool {
-	name, args, ok := command(update)
-	return ok && name == "start" && args != ""
+// isStart lets a stranger accept an invite or learn what the bot is.
+func isStart(update *models.Update) bool {
+	name, _, ok := command(update)
+	return ok && name == "start"
 }

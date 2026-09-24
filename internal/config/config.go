@@ -13,7 +13,10 @@ type Config struct {
 	BotApiUrl string
 	DbDsn     string
 	MusicDir  string
-	AdminIds  []uint64
+	// NavidromeMusicDir is MUSIC_DIR as Navidrome's container sees it.
+	NavidromeMusicDir string
+	AdminIds          []uint64
+	AdminContact string
 	// SecretKey is a base64-encoded 32-byte AES key for stored secrets.
 	SecretKey         string
 	NavidromeUser     string
@@ -34,12 +37,17 @@ func LoadConfig() Config {
 	botApiUrl := os.Getenv("BOT_API_URL")
 	dbDsn := os.Getenv("DB_DSN")
 	musicDir := os.Getenv("MUSIC_DIR")
+	navidromeMusicDir := os.Getenv("NAVIDROME_MUSIC_DIR")
+	if navidromeMusicDir == "" {
+		navidromeMusicDir = musicDir
+	}
 	secretKey := os.Getenv("SECRET_KEY")
 	navidromeUser := os.Getenv("NAVIDROME_USER")
 	navidomePass := os.Getenv("NAVIDROME_PASSWORD")
 	navidromeUrl := os.Getenv("NAVIDROME_URL")
 
 	adminIds := parseIds("ADMIN_IDS")
+	adminContact := strings.TrimSpace(os.Getenv("ADMIN_CONTACT"))
 
 	switch {
 	case token == "":
@@ -65,7 +73,9 @@ func LoadConfig() Config {
 		BotApiUrl:         botApiUrl,
 		DbDsn:             dbDsn,
 		MusicDir:          musicDir,
+		NavidromeMusicDir: navidromeMusicDir,
 		AdminIds:          adminIds,
+		AdminContact:      adminContact,
 		SecretKey:         secretKey,
 		NavidromeUser:     navidromeUser,
 		NavidromePassword: navidomePass,

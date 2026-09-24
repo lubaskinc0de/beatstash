@@ -11,6 +11,9 @@ import (
 var (
 	ErrNavidromeInvalidCredentials = errors.New("navidrome: invalid credentials")
 	ErrNavidromeLoginTaken         = errors.New("navidrome: login taken")
+	ErrNavidromeNameTaken          = errors.New("navidrome: library name taken")
+	// ErrNavidromeAdminAccount: Navidrome shows admins every library, so their access cannot be narrowed.
+	ErrNavidromeAdminAccount = errors.New("navidrome: account is an admin")
 )
 
 type NavidromeCredentials struct {
@@ -19,13 +22,26 @@ type NavidromeCredentials struct {
 }
 
 type Navidrome interface {
-	// Authenticate returns ErrNavidromeInvalidCredentials for a wrong login or password.
 	Authenticate(ctx context.Context, creds NavidromeCredentials) error
-	// NowPlaying returns what the account is playing, or nil.
 	NowPlaying(ctx context.Context, creds NavidromeCredentials) (*PlayingTrack, error)
 	RecentlyPlayed(ctx context.Context, creds NavidromeCredentials, limit int) ([]PlayedTrack, error)
 	// CreateAccount returns ErrNavidromeLoginTaken if the login is in use, whatever its case.
 	CreateAccount(ctx context.Context, admin, account NavidromeCredentials) error
+
+	Libraries(ctx context.Context, admin NavidromeCredentials) ([]NavidromeLibrary, error)
+	// CreateLibrary returns ErrNavidromeNameTaken if another library has the name.
+	CreateLibrary(ctx context.Context, admin NavidromeCredentials, library NavidromeLibrary) (int, error)
+	UpdateLibrary(ctx context.Context, admin NavidromeCredentials, library NavidromeLibrary) error
+	// SetLibraries replaces the libraries the account may see.
+	SetLibraries(ctx context.Context, admin NavidromeCredentials, login string, libraryIDs []int) error
+}
+
+type NavidromeLibrary struct {
+	ID   int
+	Name string
+	Path string
+	// DefaultNewUsers: Navidrome gives the library to every account it creates.
+	DefaultNewUsers bool
 }
 
 type NavidromeTrack struct {

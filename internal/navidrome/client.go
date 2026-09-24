@@ -272,6 +272,9 @@ func (c *Client) doNative(ctx context.Context, creds application.NavidromeCreden
 		}
 	}
 
+	if out == nil {
+		return nil
+	}
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
@@ -295,6 +298,86 @@ func (c *Client) CreateAccount(ctx context.Context, admin, account application.N
 		return application.ErrNavidromeLoginTaken
 	}
 	return err
+}
+
+type library struct {
+	ID              int    `json:"id"`
+	Name            string `json:"name"`
+	Path            string `json:"path"`
+	DefaultNewUsers bool   `json:"defaultNewUsers"`
+}
+
+func (c *Client) Libraries(ctx context.Context, admin application.NavidromeCredentials) ([]application.NavidromeLibrary, error) {
+	var libraries []library
+	if err := c.native(ctx, admin, nativeRequest{method: http.MethodGet, path: "/api/library"}, &libraries); err != nil {
+		return nil, err
+	}
+
+	result := make([]application.NavidromeLibrary, 0, len(libraries))
+	for _, l := range libraries {
+		result = append(result, application.NavidromeLibrary{ID: l.ID, Name: l.Name, Path: l.Path, DefaultNewUsers: l.DefaultNewUsers})
+	}
+	return result, nil
+}
+
+func (c *Client) CreateLibrary(ctx context.Context, admin application.NavidromeCredentials, l application.NavidromeLibrary) (int, error) {
+	var created struct {
+		ID string `json:"id"`
+	}
+	err := c.native(ctx, admin, nativeRequest{
+		method: http.MethodPost,
+		path:   "/api/library",
+		body:   map[string]any{"name": l.Name, "path": l.Path, "defaultNewUsers": l.DefaultNewUsers},
+	}, &created)
+
+	var invalid *validationError
+	if errors.As(err, &invalid) && invalid.Errors["name"] == "ra.validation.unique" {
+		return 0, application.ErrNavidromeNameTaken
+	}
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(created.ID)
+}
+
+func (c *Client) UpdateLibrary(ctx context.Context, admin application.NavidromeCredentials, l application.NavidromeLibrary) error {
+	err := c.native(ctx, admin, nativeRequest{
+		method: http.MethodPut,
+		path:   "/api/library/" + strconv.Itoa(l.ID),
+		body:   map[string]any{"name": l.Name, "path": l.Path, "defaultNewUsers": l.DefaultNewUsers},
+	}, nil)
+
+	var invalid *validationError
+	if errors.As(err, &invalid) && invalid.Errors["name"] == "ra.validation.unique" {
+		return application.ErrNavidromeNameTaken
+	}
+	return err
+}
+
+func (c *Client) SetLibraries(ctx context.Context, admin application.NavidromeCredentials, login string, libraryIDs []int) error {
+	var users []struct {
+		ID       string `json:"id"`
+		UserName string `json:"userName"`
+		IsAdmin  bool   `json:"isAdmin"`
+	}
+	if err := c.native(ctx, admin, nativeRequest{method: http.MethodGet, path: "/api/user"}, &users); err != nil {
+		return err
+	}
+
+	for _, user := range users {
+		if !strings.EqualFold(user.UserName, login) {
+			continue
+		}
+		if user.IsAdmin {
+			return application.ErrNavidromeAdminAccount
+		}
+		return c.native(ctx, admin, nativeRequest{
+			method: http.MethodPut,
+			path:   "/api/user/" + user.ID + "/library",
+			body:   map[string]any{"libraryIds": libraryIDs},
+		}, nil)
+	}
+	return fmt.Errorf("navidrome has no user %q", login)
 }
 
 func (c *Client) Authenticate(ctx context.Context, creds application.NavidromeCredentials) error {

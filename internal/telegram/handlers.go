@@ -12,6 +12,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 	tgprovider "github.com/lubaskinc0de/navidrome-tg/internal/providers/telegram"
 )
@@ -26,6 +27,10 @@ type Handler struct {
 	createInvite         *application.CreateInvite
 	acceptInvite         *application.AcceptInvite
 	registerAccount      *application.RegisterNavidromeAccount
+	sharing              *library.Sharing
+	getTop               *application.GetTop
+	getServiceStats      *application.GetServiceStats
+	adminContact         string
 }
 
 func NewHandler(
@@ -36,6 +41,10 @@ func NewHandler(
 	createInvite *application.CreateInvite,
 	acceptInvite *application.AcceptInvite,
 	registerAccount *application.RegisterNavidromeAccount,
+	sharing *library.Sharing,
+	getTop *application.GetTop,
+	getServiceStats *application.GetServiceStats,
+	adminContact string,
 ) *Handler {
 	return &Handler{
 		enqueueIngest:        enqueueIngest,
@@ -45,6 +54,10 @@ func NewHandler(
 		createInvite:         createInvite,
 		acceptInvite:         acceptInvite,
 		registerAccount:      registerAccount,
+		sharing:              sharing,
+		getTop:               getTop,
+		getServiceStats:      getServiceStats,
+		adminContact:         adminContact,
 	}
 }
 
@@ -130,6 +143,10 @@ func (h *Handler) HandleInlineQuery(
 		h.handleNowPlaying(ctx, b, update)
 	case "recent", "last":
 		h.handleRecentlyPlayed(ctx, b, update)
+	case "shared":
+		h.handleInlineFeed(ctx, b, update)
+	case "top":
+		h.handleInlineTop(ctx, b, update)
 	default:
 		answerInlineArticle(
 			ctx,
@@ -137,8 +154,8 @@ func (h *Handler) HandleInlineQuery(
 			update.InlineQuery.ID,
 			"unknown-command",
 			"❓ Неизвестная команда",
-			"Доступно: np — текущий трек, recent — последние треки",
-			"❓ Неизвестная команда. Доступно: np, recent",
+			"Доступно: np — текущий трек, recent — последние треки, shared — расшаренное, top — рейтинг",
+			"❓ Неизвестная команда. Доступно: np, recent, shared, top",
 		)
 	}
 }
@@ -148,16 +165,25 @@ func (h *Handler) HandleCallbackQuery(
 	b *bot.Bot,
 	update *models.Update,
 ) {
-	if update.CallbackQuery == nil {
+	query := update.CallbackQuery
+	if query == nil {
 		return
 	}
 
-	_, err := b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-		CallbackQueryID: update.CallbackQuery.ID,
-	})
-	if err != nil {
-		slog.Error("answer_callback_query", "error", err)
+	action, id, ok := parseCallback(query.Data)
+	switch {
+	case !ok:
+	case action == actionShareTrack, action == actionShareAlbum, action == actionUnshareTrack, action == actionUnshareAlbum:
+		h.handleShareCallback(ctx, b, query, action, id)
+		return
+	case action == actionTake:
+		h.handleTake(ctx, b, query, id)
+		return
+	case action == actionSendFile:
+		h.handleSendFile(ctx, b, query, id)
+		return
 	}
+	answerCallback(ctx, b, query.ID, "")
 }
 
 func (h *Handler) handleNowPlaying(
@@ -213,20 +239,28 @@ func (h *Handler) handleNowPlaying(
 		duration,
 	)
 
+	var markup models.ReplyMarkup
+	if track.ShareableTrackID != 0 {
+		markup = &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
+			{Text: "🔗 Share", CallbackData: callbackData(actionShareTrack, track.ShareableTrackID)},
+		}}}
+	}
+
 	if track.TelegramFile != nil {
-		answerInline(ctx, b, update.InlineQuery.ID, cachedFileResult(track.ID, track.TelegramFile, text))
+		answerInline(ctx, b, update.InlineQuery.ID, withMarkup(cachedFileResult(track.ID, track.TelegramFile, text), markup))
 		return
 	}
 
-	answerInlineArticle(
-		ctx,
-		b,
-		update.InlineQuery.ID,
-		track.ID,
-		fmt.Sprintf("🎧 %s — %s", track.Artist, track.Title),
-		description,
-		text,
-	)
+	answerInline(ctx, b, update.InlineQuery.ID, &models.InlineQueryResultArticle{
+		ID:          track.ID,
+		Title:       fmt.Sprintf("🎧 %s — %s", track.Artist, track.Title),
+		Description: description,
+		InputMessageContent: &models.InputTextMessageContent{
+			MessageText: text,
+			ParseMode:   models.ParseModeHTML,
+		},
+		ReplyMarkup: markup,
+	})
 }
 
 func (h *Handler) handleRecentlyPlayed(
@@ -423,6 +457,16 @@ func cachedFileResult(id string, file *domain.TelegramFile, caption string) mode
 		Caption:     caption,
 		ParseMode:   models.ParseModeHTML,
 	}
+}
+
+func withMarkup(result models.InlineQueryResult, markup models.ReplyMarkup) models.InlineQueryResult {
+	switch r := result.(type) {
+	case *models.InlineQueryResultCachedAudio:
+		r.ReplyMarkup = markup
+	case *models.InlineQueryResultCachedDocument:
+		r.ReplyMarkup = markup
+	}
+	return result
 }
 
 func answerInline(

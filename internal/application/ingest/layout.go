@@ -1,9 +1,7 @@
 package ingest
 
 import (
-	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -75,23 +73,4 @@ func sanitize(s string) string {
 func trimEnds(s string) string {
 	s = strings.TrimLeft(s, ". ")
 	return strings.TrimRight(s, ". ")
-}
-
-// freePath returns rel, or rel with a " (N)" suffix if a file already
-// takes its place.
-func freePath(library, rel string) (string, error) {
-	ext := filepath.Ext(rel)
-	stem := strings.TrimSuffix(rel, ext)
-
-	candidate := rel
-	for n := 2; ; n++ {
-		_, err := os.Stat(filepath.Join(library, candidate))
-		if errors.Is(err, os.ErrNotExist) {
-			return candidate, nil
-		}
-		if err != nil {
-			return "", err
-		}
-		candidate = fmt.Sprintf("%s (%d)%s", stem, n, ext)
-	}
 }

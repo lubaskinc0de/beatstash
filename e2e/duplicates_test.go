@@ -20,7 +20,7 @@ func TestDuplicates(t *testing.T) {
 		s.send(second)
 		s.waitIngest()
 
-		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3"}, s.libraryFiles())
+		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3"}, s.personalFiles(alice))
 		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.ReactionsOn(t, second.Message.ID))
 		assertAlreadyExists(t, s, second.Message.ID)
 	})
@@ -35,7 +35,7 @@ func TestDuplicates(t *testing.T) {
 		s.send(forward)
 		s.waitIngest()
 
-		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.libraryFiles())
+		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.personalFiles(alice))
 		assertAlreadyExists(t, s, forward.Message.ID)
 	})
 
@@ -49,11 +49,11 @@ func TestDuplicates(t *testing.T) {
 		s.send(s.documentMessage(alice, flac))
 		s.waitIngest()
 
-		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.flac"}, s.libraryFiles())
+		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.flac"}, s.personalFiles(alice))
 		assert.Empty(t, s.botAPI.Replies(t))
 		account := env.navidrome.createAccount(t, "alice")
 		s.link(alice, account)
-		track := env.navidrome.indexedTrack(t, s.library, "Dup Song")
+		track := env.navidrome.indexedTrack(t, account, s.library, "Dup Song")
 		env.navidrome.startPlaying(t, account, track.ID)
 		query := s.inlineQuery(alice, "np")
 		s.send(query)
@@ -74,8 +74,8 @@ func TestDuplicates(t *testing.T) {
 		s.send(s.audioMessage(alice, s.uploadAudioFile(high)))
 		s.waitIngest()
 
-		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3"}, s.libraryFiles())
-		assert.Equal(t, 320, bitrateKbps(t, s.libraryPath("Artist/Album/01 - Dup Song.mp3")))
+		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3"}, s.personalFiles(alice))
+		assert.Equal(t, 320, bitrateKbps(t, s.personalPath(alice, "Artist/Album/01 - Dup Song.mp3")))
 	})
 
 	t.Run("MP3 after FLAC keeps FLAC", func(t *testing.T) {
@@ -88,7 +88,7 @@ func TestDuplicates(t *testing.T) {
 		s.send(mp3)
 		s.waitIngest()
 
-		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.flac"}, s.libraryFiles())
+		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.flac"}, s.personalFiles(alice))
 		assertAlreadyExists(t, s, mp3.Message.ID)
 	})
 
@@ -101,7 +101,7 @@ func TestDuplicates(t *testing.T) {
 		s.send(s.audioMessage(alice, s.uploadAudioFile(makeAudio(t, "b.mp3", audioSpec{Tags: compilation}))))
 		s.waitIngest()
 
-		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3", "Artist/Best Of/05 - Dup Song.mp3"}, s.libraryFiles())
+		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3", "Artist/Best Of/05 - Dup Song.mp3"}, s.personalFiles(alice))
 		assert.Empty(t, s.botAPI.Replies(t))
 	})
 
@@ -113,7 +113,7 @@ func TestDuplicates(t *testing.T) {
 		s.send(s.audioMessage(alice, s.uploadAudioFile(makeAudio(t, "b.mp3", audioSpec{Seconds: 4.5, Tags: songTags}))))
 		s.waitIngest()
 
-		assert.Len(t, s.libraryFiles(), 2)
+		assert.Len(t, s.personalFiles(alice), 2)
 		assert.Empty(t, s.botAPI.Replies(t))
 	})
 
@@ -126,7 +126,7 @@ func TestDuplicates(t *testing.T) {
 		s.send(second)
 		s.waitIngest()
 
-		assert.Len(t, s.libraryFiles(), 1)
+		assert.Len(t, s.personalFiles(alice), 1)
 		assertAlreadyExists(t, s, second.Message.ID)
 	})
 
@@ -140,24 +140,7 @@ func TestDuplicates(t *testing.T) {
 		s.send(second)
 		s.waitIngest()
 
-		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3"}, s.libraryFiles())
-		assertAlreadyExists(t, s, second.Message.ID)
-	})
-
-	t.Run("track from two users is stored once", func(t *testing.T) {
-		s := newScenario(t)
-		mp3 := makeAudio(t, "song.mp3", audioSpec{Tags: songTags})
-		first := s.audioMessage(alice, s.uploadAudioFile(mp3))
-		s.send(first)
-		s.waitIngest()
-		second := s.audioMessage(bob, s.uploadAudioFile(mp3))
-
-		s.send(second)
-		s.waitIngest()
-
-		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3"}, s.libraryFiles())
-		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.ReactionsOn(t, first.Message.ID))
-		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.ReactionsOn(t, second.Message.ID))
+		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3"}, s.personalFiles(alice))
 		assertAlreadyExists(t, s, second.Message.ID)
 	})
 }

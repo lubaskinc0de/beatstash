@@ -10,6 +10,7 @@ import (
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/ingest"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/config"
 	"github.com/lubaskinc0de/navidrome-tg/internal/database"
 	"github.com/lubaskinc0de/navidrome-tg/internal/navidrome"
@@ -61,9 +62,24 @@ func build(config config.Config, db *gorm.DB, opts []bot.Option) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	navidromeAccounts := application.NewNavidromeAccounts(database.NewNavidromeAccountRepository(db), box)
+	accountRepo := database.NewNavidromeAccountRepository(db)
+	navidromeAccounts := application.NewNavidromeAccounts(accountRepo, box)
+	libraryRepo := database.NewLibraryRepository(db)
+	navidromeAdmin := application.NavidromeCredentials{Login: config.NavidromeUser, Password: config.NavidromePassword}
+	libraries := &application.Libraries{
+		Repo:              libraryRepo,
+		Users:             userRepo,
+		Accounts:          accountRepo,
+		Navidrome:         navidromeClient,
+		Admin:             navidromeAdmin,
+		MusicDir:          config.MusicDir,
+		NavidromeMusicDir: config.NavidromeMusicDir,
+	}
 
 	if err := userRepo.EnsureExist(context.Background(), config.AdminIds); err != nil {
+		return nil, err
+	}
+	if err := libraries.Prepare(context.Background()); err != nil {
 		return nil, err
 	}
 
@@ -87,39 +103,56 @@ func build(config config.Config, db *gorm.DB, opts []bot.Option) (*App, error) {
 		return nil, err
 	}
 
+	sharing := &library.Sharing{
+		Tx:        txManager,
+		Tracks:    trackRepo,
+		Shares:    database.NewShareRepository(db),
+		Takes:     database.NewTakeRepository(db),
+		Libraries: libraries,
+		Lock:      libraryLock,
+		Clock:     config.Clock,
+	}
 	providers := application.NewProviders(tgprovider.NewProvider(b))
 	workers := ingest.NewWorkers(
 		txManager,
 		ingestQueue,
-		ingest.NewPipeline(providers, trackRepo, uploadRepo, libraryLock, config.MusicDir),
+		ingest.NewPipeline(providers, trackRepo, uploadRepo, libraryRepo, sharing, libraryLock, config.MusicDir),
 		telegram.NewNotifier(b),
 		config.IngestWorkers,
 		config.IngestRetryDelays,
 		config.IngestPollInterval,
 	)
 	enqueueIngest := application.NewEnqueueIngest(ingestQueue, workers)
-	nowPlaying := application.NewGetNowPlaying(navidromeClient, trackRepo, navidromeAccounts)
-	recentlyPlayed := application.NewGetRecentlyPlayed(navidromeClient, trackRepo, navidromeAccounts)
+	nowPlaying := application.NewGetNowPlaying(navidromeClient, trackRepo, navidromeAccounts, libraries)
+	recentlyPlayed := application.NewGetRecentlyPlayed(navidromeClient, trackRepo, navidromeAccounts, libraries)
 
 	handler := telegram.NewHandler(
 		enqueueIngest,
 		nowPlaying,
 		recentlyPlayed,
-		application.NewLinkNavidromeAccount(navidromeClient, navidromeAccounts, userRepo),
+		application.NewLinkNavidromeAccount(navidromeClient, navidromeAccounts, userRepo, libraries),
 		application.NewCreateInvite(inviteRepo, config.AdminIds, config.InviteTTL, config.Clock),
-		application.NewAcceptInvite(txManager, inviteRepo, userRepo, config.Clock),
+		application.NewAcceptInvite(txManager, inviteRepo, userRepo, libraries, config.Clock),
 		application.NewRegisterNavidromeAccount(
 			navidromeClient,
 			navidromeAccounts,
 			userRepo,
-			application.NavidromeCredentials{Login: config.NavidromeUser, Password: config.NavidromePassword},
+			libraries,
+			navidromeAdmin,
 		),
+		sharing,
+		application.NewGetTop(sharing.Shares, sharing.Takes, config.Clock),
+		&application.GetServiceStats{Users: userRepo, Tracks: trackRepo, Libraries: libraryRepo},
+		config.AdminContact,
 	)
 
 	b.RegisterHandlerMatchFunc(telegram.HasAudio, handler.HandleAudio)
 	b.RegisterHandlerMatchFunc(telegram.IsCommand("link"), handler.HandleLink)
 	b.RegisterHandlerMatchFunc(telegram.IsCommand("invite"), handler.HandleInvite)
 	b.RegisterHandlerMatchFunc(telegram.IsCommand("start"), handler.HandleStart)
+	b.RegisterHandlerMatchFunc(telegram.IsCommand("share"), handler.HandleShare)
+	b.RegisterHandlerMatchFunc(telegram.IsCommand("shared"), handler.HandleSharedFeed)
+	b.RegisterHandlerMatchFunc(telegram.IsCommand("top"), handler.HandleTop)
 	b.RegisterHandlerMatchFunc(telegram.IsText, handler.HandleText)
 	b.RegisterHandlerMatchFunc(
 		func(update *models.Update) bool {

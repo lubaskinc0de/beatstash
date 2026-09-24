@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"log/slog"
 	"slices"
 	"time"
 
@@ -74,19 +75,28 @@ type TelegramProfile struct {
 }
 
 type AcceptInvite struct {
-	Tx      TxManager
-	Invites InviteRepository
-	Users   UserRepository
-	Clock   func() time.Time
+	Tx        TxManager
+	Invites   InviteRepository
+	Users     UserRepository
+	Libraries *Libraries
+	Clock     func() time.Time
 }
 
-func NewAcceptInvite(tx TxManager, invites InviteRepository, users UserRepository, clock func() time.Time) *AcceptInvite {
-	return &AcceptInvite{Tx: tx, Invites: invites, Users: users, Clock: clock}
+func NewAcceptInvite(
+	tx TxManager,
+	invites InviteRepository,
+	users UserRepository,
+	libraries *Libraries,
+	clock func() time.Time,
+) *AcceptInvite {
+	return &AcceptInvite{Tx: tx, Invites: invites, Users: users, Libraries: libraries, Clock: clock}
 }
 
 func (i *AcceptInvite) Execute(ctx context.Context, code string, profile TelegramProfile) (*domain.User, error) {
-	var user *domain.User
-
+	var (
+		user    *domain.User
+		library *domain.Library
+	)
 	err := i.Tx.WithinTx(ctx, func(ctx context.Context) error {
 		invite, err := i.Invites.GetForUpdate(ctx, code)
 		if err != nil {
@@ -103,6 +113,9 @@ func (i *AcceptInvite) Execute(ctx context.Context, code string, profile Telegra
 		if err := i.Users.Save(ctx, user); err != nil {
 			return err
 		}
+		if library, err = i.Libraries.Personal(ctx, user); err != nil {
+			return err
+		}
 
 		invite.UsedBy = &user.ID
 		invite.UsedAt = &now
@@ -110,6 +123,11 @@ func (i *AcceptInvite) Execute(ctx context.Context, code string, profile Telegra
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	// Navidrome sits outside the transaction; a failure here is repaired by the next grant or start.
+	if err := i.Libraries.CreateInNavidrome(ctx, library); err != nil {
+		slog.Error("create_personal_library_in_navidrome", "user_id", user.ID, "error", err)
 	}
 	return user, nil
 }

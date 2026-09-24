@@ -40,6 +40,17 @@ type inlineResult struct {
 	Title       string `json:"title"`
 	AudioFileID string `json:"audio_file_id"`
 	Caption     string `json:"caption"`
+	ReplyMarkup struct {
+		Rows [][]button `json:"inline_keyboard"`
+	} `json:"reply_markup"`
+}
+
+func (r inlineResult) Buttons() []button {
+	var buttons []button
+	for _, row := range r.ReplyMarkup.Rows {
+		buttons = append(buttons, row...)
+	}
+	return buttons
 }
 
 type reply struct {
@@ -335,6 +346,43 @@ func (a *botAPI) AnsweredCallbacks() []string {
 		ids = append(ids, call.Params["callback_query_id"])
 	}
 	return ids
+}
+
+type button struct {
+	Text string `json:"text"`
+	Data string `json:"callback_data"`
+}
+
+// Buttons returns the inline keyboard the bot sent or set last.
+func (a *botAPI) Buttons(t *testing.T) []button {
+	t.Helper()
+
+	calls := a.Calls()
+	for i := len(calls) - 1; i >= 0; i-- {
+		markup := calls[i].Params["reply_markup"]
+		if markup == "" {
+			continue
+		}
+		var keyboard struct {
+			Rows [][]button `json:"inline_keyboard"`
+		}
+		mustUnmarshal(t, markup, &keyboard)
+		var buttons []button
+		for _, row := range keyboard.Rows {
+			buttons = append(buttons, row...)
+		}
+		return buttons
+	}
+	return nil
+}
+
+// CallbackAnswers returns the texts the bot showed on button presses.
+func (a *botAPI) CallbackAnswers() []string {
+	var texts []string
+	for _, call := range a.callsTo("answerCallbackQuery") {
+		texts = append(texts, call.Params["text"])
+	}
+	return texts
 }
 
 func mustUnmarshal(t *testing.T, data string, v any) {

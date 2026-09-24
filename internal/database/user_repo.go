@@ -34,6 +34,18 @@ func (r *UserRepository) GetById(ctx context.Context, telegram_id uint64) (*doma
 	return &user, nil
 }
 
+func (r *UserRepository) All(ctx context.Context) ([]domain.User, error) {
+	var users []domain.User
+	err := dbForContext(ctx, r.db).Order("id").Find(&users).Error
+	return users, err
+}
+
+func (r *UserRepository) Count(ctx context.Context) (int64, error) {
+	var count int64
+	err := dbForContext(ctx, r.db).Model(&domain.User{}).Count(&count).Error
+	return count, err
+}
+
 func (r *UserRepository) Save(ctx context.Context, user *domain.User) error {
 	return dbForContext(ctx, r.db).Create(user).Error
 }
@@ -50,6 +62,13 @@ func (r *UserRepository) EnsureExist(ctx context.Context, telegramIDs []uint64) 
 	return dbForContext(ctx, r.db).
 		Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "telegram_id"}}, DoNothing: true}).
 		Create(&users).Error
+}
+
+func (r *UserRepository) SetUsername(ctx context.Context, userID uint, username string) error {
+	return dbForContext(ctx, r.db).
+		Model(&domain.User{}).
+		Where("id = ?", userID).
+		Update("username", username).Error
 }
 
 func (r *UserRepository) SetAwaitsNavidromeLogin(ctx context.Context, userID uint, awaits bool) error {

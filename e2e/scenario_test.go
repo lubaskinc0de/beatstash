@@ -2,11 +2,13 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -78,11 +80,27 @@ type scenario struct {
 
 type scenarioOption func(*config.Config)
 
+func withAdminContact(contact string) scenarioOption {
+	return func(c *config.Config) { c.AdminContact = contact }
+}
+
 func withoutWorkers() scenarioOption {
 	return func(c *config.Config) { c.IngestWorkers = 0 }
 }
 
 func newScenario(t *testing.T, opts ...scenarioOption) *scenario {
+	t.Helper()
+
+	s := prepareScenario(t, opts...)
+	s.start()
+	s.join(alice)
+	s.join(bob)
+	s.botAPI.forget()
+	return s
+}
+
+// prepareScenario sets up everything a bot needs but does not start it.
+func prepareScenario(t *testing.T, opts ...scenarioOption) *scenario {
 	t.Helper()
 
 	api := newBotAPI(t)
@@ -99,6 +117,7 @@ func newScenario(t *testing.T, opts ...scenarioOption) *scenario {
 		BotApiUrl:          api.URL(),
 		DbDsn:              postgresDSN(createDatabase(t)),
 		MusicDir:           library,
+		NavidromeMusicDir:  navidromeLibraryMount + "/" + filepath.Base(library),
 		AdminIds:           []uint64{uint64(adminUser.ID)},
 		SecretKey:          secretKey,
 		NavidromeUser:      navidromeAdmin,
@@ -112,12 +131,7 @@ func newScenario(t *testing.T, opts ...scenarioOption) *scenario {
 		opt(&cfg)
 	}
 
-	s := &scenario{t: t, clock: clk, config: cfg, botAPI: api, library: library}
-	s.start()
-	s.join(alice)
-	s.join(bob)
-	api.forget()
-	return s
+	return &scenario{t: t, clock: clk, config: cfg, botAPI: api, library: library}
 }
 
 func (s *scenario) start() {
@@ -276,6 +290,25 @@ func (s *scenario) inlineQuery(from telegramUser, query string) *models.Update {
 	}
 }
 
+// press taps a button of the bot's message in the user's private chat.
+func (s *scenario) press(from telegramUser, b button) *models.Update {
+	update := s.callbackQuery(from, b.Data)
+	update.CallbackQuery.Message = models.MaybeInaccessibleMessage{
+		Type:    models.MaybeInaccessibleMessageTypeMessage,
+		Message: &models.Message{ID: 1, Chat: models.Chat{ID: from.ID, Type: models.ChatTypePrivate}},
+	}
+	s.send(update)
+	return update
+}
+
+// pressInline taps a button of a message the user sent through inline mode.
+func (s *scenario) pressInline(from telegramUser, b button) *models.Update {
+	update := s.callbackQuery(from, b.Data)
+	update.CallbackQuery.InlineMessageID = "inline-message-" + update.CallbackQuery.ID
+	s.send(update)
+	return update
+}
+
 func (s *scenario) callbackQuery(from telegramUser, data string) *models.Update {
 	id := s.nextUpdateID()
 	return &models.Update{
@@ -291,13 +324,21 @@ func (s *scenario) callbackQuery(from telegramUser, data string) *models.Update 
 // Hidden entries are the bot's scratch space.
 func (s *scenario) libraryFiles() []string {
 	s.t.Helper()
+	return filesUnder(s.t, s.library)
+}
+
+func filesUnder(t *testing.T, root string) []string {
+	t.Helper()
 
 	var files []string
-	err := filepath.WalkDir(s.library, func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if errors.Is(err, fs.ErrNotExist) && path == root {
+			return filepath.SkipDir
+		}
 		if err != nil {
 			return err
 		}
-		if strings.HasPrefix(d.Name(), ".") && path != s.library {
+		if strings.HasPrefix(d.Name(), ".") && path != root {
 			if d.IsDir() {
 				return filepath.SkipDir
 			}
@@ -306,20 +347,34 @@ func (s *scenario) libraryFiles() []string {
 		if d.IsDir() {
 			return nil
 		}
-		rel, err := filepath.Rel(s.library, path)
+		rel, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
 		}
 		files = append(files, rel)
 		return nil
 	})
-	require.NoError(s.t, err)
+	require.NoError(t, err)
 	slices.Sort(files)
 	return files
 }
 
-func (s *scenario) libraryPath(rel string) string {
-	return filepath.Join(s.library, rel)
+func personalDir(user telegramUser) string {
+	return filepath.Join("users", strconv.FormatInt(user.ID, 10))
+}
+
+func (s *scenario) personalFiles(user telegramUser) []string {
+	s.t.Helper()
+	return filesUnder(s.t, filepath.Join(s.library, personalDir(user)))
+}
+
+func (s *scenario) personalPath(user telegramUser, rel string) string {
+	return filepath.Join(s.library, personalDir(user), rel)
+}
+
+func (s *scenario) sharedFiles() []string {
+	s.t.Helper()
+	return filesUnder(s.t, filepath.Join(s.library, "shared"))
 }
 
 func fixturePath(name string) string {

@@ -31,6 +31,25 @@ func (r *NavidromeAccountRepository) Get(ctx context.Context, userID uint) (*dom
 	return &account, nil
 }
 
+func (r *NavidromeAccountRepository) ByLogin(ctx context.Context, login string) (*domain.NavidromeAccount, error) {
+	var account domain.NavidromeAccount
+
+	err := dbForContext(ctx, r.db).Where("LOWER(login) = LOWER(?)", login).First(&account).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, application.ErrNavidromeAccountNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &account, nil
+}
+
+func (r *NavidromeAccountRepository) All(ctx context.Context) ([]domain.NavidromeAccount, error) {
+	var accounts []domain.NavidromeAccount
+	err := dbForContext(ctx, r.db).Order("user_id").Find(&accounts).Error
+	return accounts, err
+}
+
 func (r *NavidromeAccountRepository) Save(ctx context.Context, account *domain.NavidromeAccount) error {
 	return dbForContext(ctx, r.db).
 		Clauses(clause.OnConflict{

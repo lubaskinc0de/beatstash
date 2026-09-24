@@ -15,7 +15,7 @@ func TestIngest(t *testing.T) {
 		s.waitIngest()
 
 		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
-		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.libraryFiles())
+		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.personalFiles(alice))
 	})
 
 	t.Run("audio is acknowledged before Ingest", func(t *testing.T) {
@@ -44,7 +44,7 @@ func TestIngest(t *testing.T) {
 
 		assert.Equal(t, []string{"👀", "👎"}, s.botAPI.ReactionsOn(t, first.Message.ID))
 		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.ReactionsOn(t, second.Message.ID))
-		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.libraryFiles())
+		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.personalFiles(alice))
 	})
 
 	t.Run("stranger's audio is ignored", func(t *testing.T) {

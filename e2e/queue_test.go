@@ -20,7 +20,7 @@ func TestQueue(t *testing.T) {
 		s.waitIngest()
 
 		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
-		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.libraryFiles())
+		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.personalFiles(alice))
 		assert.Empty(t, s.botAPI.Replies(t))
 	})
 
@@ -67,7 +67,7 @@ func TestQueue(t *testing.T) {
 		s.restart()
 		s.waitIngest()
 
-		assert.Len(t, s.libraryFiles(), 5)
+		assert.Len(t, s.personalFiles(alice), 5)
 	})
 
 	t.Run("tracks in progress survive restart", func(t *testing.T) {
@@ -85,7 +85,7 @@ func TestQueue(t *testing.T) {
 		s.botAPI.releaseGetFile()
 		s.waitIngest()
 
-		assert.Len(t, s.libraryFiles(), 5)
+		assert.Len(t, s.personalFiles(alice), 5)
 		for _, msg := range msgs {
 			assert.Equal(t, []string{"👀", "👍"}, s.botAPI.ReactionsOn(t, msg.Message.ID))
 		}
@@ -103,7 +103,7 @@ func TestQueue(t *testing.T) {
 		}
 		s.waitIngest()
 
-		assert.Len(t, s.libraryFiles(), 10)
+		assert.Len(t, s.personalFiles(alice), 10)
 		for _, msg := range msgs {
 			assert.Equal(t, []string{"👀", "👍"}, s.botAPI.ReactionsOn(t, msg.Message.ID))
 		}

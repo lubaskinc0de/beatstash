@@ -72,7 +72,7 @@ func TestLayout(t *testing.T) {
 			s.send(s.audioMessage(alice, audio))
 			s.waitIngest()
 
-			assert.Equal(t, []string{tc.path}, s.libraryFiles())
+			assert.Equal(t, []string{tc.path}, s.personalFiles(alice))
 		})
 	}
 
@@ -87,7 +87,7 @@ func TestLayout(t *testing.T) {
 		s.send(s.audioMessage(alice, long))
 		s.waitIngest()
 
-		assert.Equal(t, []string{"Artist/Album/01 - Song (2).mp3", "Artist/Album/01 - Song.mp3"}, s.libraryFiles())
+		assert.Equal(t, []string{"Artist/Album/01 - Song (2).mp3", "Artist/Album/01 - Song.mp3"}, s.personalFiles(alice))
 	})
 
 	t.Run("album sent track by track shares one folder", func(t *testing.T) {
@@ -105,6 +105,6 @@ func TestLayout(t *testing.T) {
 			"Band/Record (2001)/01 - One.mp3",
 			"Band/Record (2001)/02 - Two.mp3",
 			"Band/Record (2001)/03 - Three.mp3",
-		}, s.libraryFiles())
+		}, s.personalFiles(alice))
 	})
 }

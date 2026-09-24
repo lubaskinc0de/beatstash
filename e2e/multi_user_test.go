@@ -21,8 +21,8 @@ func TestNavidromeAccount(t *testing.T) {
 		}}))
 		s.send(s.audioMessage(alice, aliceAudio))
 		s.send(s.audioMessage(bob, bobAudio))
-		env.navidrome.startPlaying(t, aliceAccount, env.navidrome.indexedTrack(t, s.library, fixtureTitle).ID)
-		env.navidrome.startPlaying(t, bobAccount, env.navidrome.indexedTrack(t, s.library, "Other Song").ID)
+		env.navidrome.startPlaying(t, aliceAccount, env.navidrome.indexedTrack(t, aliceAccount, s.library, fixtureTitle).ID)
+		env.navidrome.startPlaying(t, bobAccount, env.navidrome.indexedTrack(t, bobAccount, s.library, "Other Song").ID)
 		aliceQuery := s.inlineQuery(alice, "np")
 		bobQuery := s.inlineQuery(bob, "np")
 
@@ -53,7 +53,7 @@ func TestNavidromeAccount(t *testing.T) {
 		s.link(alice, account)
 		audio := s.uploadAudio("track.mp3")
 		s.send(s.audioMessage(alice, audio))
-		env.navidrome.play(t, account, env.navidrome.indexedTrack(t, s.library, fixtureTitle).ID)
+		env.navidrome.play(t, account, env.navidrome.indexedTrack(t, account, s.library, fixtureTitle).ID)
 		query := s.inlineQuery(alice, "recent")
 
 		s.send(query)

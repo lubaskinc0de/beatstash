@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/testcontainers/testcontainers-go"
@@ -41,6 +42,10 @@ func run(m *testing.M) int {
 		return 1
 	}
 	env.libraryRoot = libraryRoot
+	if err := os.Mkdir(filepath.Join(libraryRoot, navidromeRootLibrary), 0o755); err != nil {
+		log.Printf("create navidrome root library: %v", err)
+		return 1
+	}
 
 	pg, err := postgres.Run(ctx, "postgres:17",
 		postgres.WithUsername("postgres"),

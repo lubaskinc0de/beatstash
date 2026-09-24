@@ -88,7 +88,7 @@ func TestRegistration(t *testing.T) {
 		account := issuedAccount(t, s)
 		audio := s.uploadAudio("track.mp3")
 		s.send(s.audioMessage(carol, audio))
-		env.navidrome.startPlaying(t, account, env.navidrome.indexedTrack(t, s.library, fixtureTitle).ID)
+		env.navidrome.startPlaying(t, account, env.navidrome.indexedTrack(t, account, s.library, fixtureTitle).ID)
 		query := s.inlineQuery(carol, "np")
 
 		s.send(query)

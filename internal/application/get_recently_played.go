@@ -14,16 +14,18 @@ type RecentTrack struct {
 }
 
 type GetRecentlyPlayed struct {
-	Client   Navidrome
-	Repo     TrackRepository
-	Accounts *NavidromeAccounts
+	Client    Navidrome
+	Repo      TrackRepository
+	Accounts  *NavidromeAccounts
+	Libraries *Libraries
 }
 
-func NewGetRecentlyPlayed(client Navidrome, repo TrackRepository, accounts *NavidromeAccounts) *GetRecentlyPlayed {
+func NewGetRecentlyPlayed(client Navidrome, repo TrackRepository, accounts *NavidromeAccounts, libraries *Libraries) *GetRecentlyPlayed {
 	return &GetRecentlyPlayed{
-		Client:   client,
-		Repo:     repo,
-		Accounts: accounts,
+		Client:    client,
+		Repo:      repo,
+		Accounts:  accounts,
+		Libraries: libraries,
 	}
 }
 
@@ -32,6 +34,11 @@ func (i *GetRecentlyPlayed) Execute(
 	limit int,
 ) ([]RecentTrack, error) {
 	creds, err := i.Accounts.Credentials(ctx)
+	if err != nil {
+		return nil, err
+	}
+	user, _ := UserFromContext(ctx)
+	libs, err := i.Libraries.Of(ctx, user)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +53,7 @@ func (i *GetRecentlyPlayed) Execute(
 	for _, p := range played {
 		track := RecentTrack{PlayedTrack: p}
 
-		file, err := i.Repo.FindTelegramFile(ctx, p.Metadata())
+		file, err := i.Repo.FindTelegramFile(ctx, libs.IDs(), p.Metadata())
 		switch {
 		case err == nil:
 			track.TelegramFile = file

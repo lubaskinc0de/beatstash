@@ -38,17 +38,22 @@ func New(dsn string) (*gorm.DB, error) {
 	)
 }
 
+var models = []any{
+	&domain.User{},
+	&domain.Library{},
+	&domain.Track{},
+	&domain.TrackSource{},
+	&domain.Upload{},
+	&domain.Share{},
+	&domain.Take{},
+	&domain.IngestJob{},
+	&domain.NavidromeSession{},
+	&domain.NavidromeAccount{},
+	&domain.Invite{},
+}
+
 func Migrate(db *gorm.DB) error {
-	return db.AutoMigrate(
-		&domain.User{},
-		&domain.Track{},
-		&domain.TrackSource{},
-		&domain.Upload{},
-		&domain.IngestJob{},
-		&domain.NavidromeSession{},
-		&domain.NavidromeAccount{},
-		&domain.Invite{},
-	)
+	return db.AutoMigrate(models...)
 }
 
 func Close(db *gorm.DB) error {

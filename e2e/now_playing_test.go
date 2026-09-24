@@ -14,7 +14,7 @@ func TestNowPlaying(t *testing.T) {
 		s.link(alice, account)
 		audio := s.uploadAudio("track.mp3")
 		s.send(s.audioMessage(alice, audio))
-		track := env.navidrome.indexedTrack(t, s.library, fixtureTitle)
+		track := env.navidrome.indexedTrack(t, account, s.library, fixtureTitle)
 		env.navidrome.startPlaying(t, account, track.ID)
 		query := s.inlineQuery(alice, "np")
 

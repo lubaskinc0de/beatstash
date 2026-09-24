@@ -5,8 +5,9 @@ import "time"
 type Track struct {
 	ID uint `gorm:"primaryKey"`
 
-	// Path is relative to the Library root.
-	Path string `gorm:"uniqueIndex;not null"`
+	LibraryID uint `gorm:"not null;uniqueIndex:idx_track_library_path"`
+	// Path is relative to the Library's Dir.
+	Path string `gorm:"not null;uniqueIndex:idx_track_library_path"`
 
 	Metadata
 	Quality
@@ -17,6 +18,10 @@ type Track struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
+
+// DuplicateToleranceMs: tags of the same recording from different sources
+// may round its length differently; a bigger gap means another edit.
+const DuplicateToleranceMs = 2000
 
 type Quality struct {
 	Lossless bool
@@ -53,8 +58,10 @@ type TrackSource struct {
 	TrackID uint  `gorm:"not null;index"`
 	Track   Track `gorm:"constraint:OnDelete:CASCADE;"`
 
-	Provider ProviderName `gorm:"not null;uniqueIndex:idx_track_source_ref"`
-	Ref      string       `gorm:"not null;uniqueIndex:idx_track_source_ref"`
+	// LibraryID repeats the Track's one: a Track Ref is unique per Library.
+	LibraryID uint         `gorm:"not null;uniqueIndex:idx_track_source_library_ref"`
+	Provider  ProviderName `gorm:"not null;uniqueIndex:idx_track_source_library_ref"`
+	Ref       string       `gorm:"not null;uniqueIndex:idx_track_source_library_ref"`
 
 	TelegramFileID   string
 	TelegramFileKind TelegramFileKind

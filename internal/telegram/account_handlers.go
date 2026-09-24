@@ -39,7 +39,19 @@ func (h *Handler) HandleLink(
 	err := h.linkNavidromeAccount.Execute(ctx, application.NavidromeCredentials{Login: login, Password: password})
 	switch {
 	case err == nil:
-		sendText(ctx, b, chatID, fmt.Sprintf("✅ Аккаунт Navidrome <b>%s</b> привязан. Сообщение с паролем удалено", html.EscapeString(login)))
+		sendText(ctx, b, chatID, fmt.Sprintf(
+			"✅ Аккаунт Navidrome <b>%s</b> привязан. Теперь в Navidrome он видит только вашу личную библиотеку и общую. "+
+				"Сообщение с паролем удалено",
+			html.EscapeString(login),
+		))
+	case errors.Is(err, application.ErrNavidromeAdminAccount):
+		sendText(ctx, b, chatID, fmt.Sprintf(
+			"✅ Аккаунт Navidrome <b>%s</b> привязан. Это администратор Navidrome, поэтому он видит все библиотеки. "+
+				"Сообщение с паролем удалено",
+			html.EscapeString(login),
+		))
+	case errors.Is(err, application.ErrNavidromeAccountTaken):
+		sendText(ctx, b, chatID, "⛔ Этот аккаунт Navidrome уже привязан к другому пользователю. Сообщение с паролем удалено")
 	case errors.Is(err, application.ErrNavidromeInvalidCredentials):
 		sendText(ctx, b, chatID, "❌ Неверный логин или пароль Navidrome. Сообщение с паролем удалено, попробуйте ещё раз")
 	default:

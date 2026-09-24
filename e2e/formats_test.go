@@ -26,7 +26,7 @@ func TestFormats(t *testing.T) {
 		s.waitIngest()
 
 		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
-		assert.Equal(t, []string{"Noise/Static/03 - Hiss.flac"}, s.libraryFiles())
+		assert.Equal(t, []string{"Noise/Static/03 - Hiss.flac"}, s.personalFiles(alice))
 	})
 
 	t.Run("each supported format lands in Library", func(t *testing.T) {
@@ -39,7 +39,7 @@ func TestFormats(t *testing.T) {
 				s.waitIngest()
 
 				assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
-				assert.Len(t, s.libraryFiles(), 1)
+				assert.Len(t, s.personalFiles(alice), 1)
 			})
 		}
 	})
@@ -109,8 +109,8 @@ func TestWavToFlac(t *testing.T) {
 		s.waitIngest()
 
 		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
-		assert.Equal(t, []string{"Wave Artist/Singles/Wave Song.flac"}, s.libraryFiles())
-		path := s.libraryPath("Wave Artist/Singles/Wave Song.flac")
+		assert.Equal(t, []string{"Wave Artist/Singles/Wave Song.flac"}, s.personalFiles(alice))
+		path := s.personalPath(alice, "Wave Artist/Singles/Wave Song.flac")
 		codec, seconds := audioCodec(t, path)
 		assert.Equal(t, "flac", codec)
 		assert.InDelta(t, 2.0, seconds, 0.05)
@@ -126,6 +126,6 @@ func TestWavToFlac(t *testing.T) {
 		s.send(s.documentMessage(alice, s.uploadDocument(wav, "audio/x-wav")))
 		s.waitIngest()
 
-		assert.Equal(t, []string{"Doc Artist/Singles/Doc Song.flac"}, s.libraryFiles())
+		assert.Equal(t, []string{"Doc Artist/Singles/Doc Song.flac"}, s.personalFiles(alice))
 	})
 }

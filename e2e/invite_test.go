@@ -64,11 +64,12 @@ func TestInvite(t *testing.T) {
 		assert.NotContains(t, replies[0].Text, "?start=")
 	})
 
-	t.Run("stranger gets no answer", func(t *testing.T) {
+	t.Run("stranger gets no answer but to start", func(t *testing.T) {
 		s := newScenario(t)
 
-		s.send(s.textMessage(stranger, "/start"))
 		s.send(s.textMessage(stranger, "/invite"))
+		s.send(s.textMessage(stranger, "/share"))
+		s.send(s.textMessage(stranger, "/top"))
 		s.send(s.textMessage(stranger, "hello"))
 		s.send(s.audioMessage(stranger, s.uploadAudio("track.mp3")))
 
@@ -99,6 +100,41 @@ func TestStart(t *testing.T) {
 			assert.Contains(t, text, hint)
 		}
 		assert.NotContains(t, text, "/invite")
+	})
+
+	t.Run("welcome explains who sees the user's music", func(t *testing.T) {
+		s := newScenario(t)
+
+		s.send(s.textMessage(alice, "/start"))
+
+		text := lastReply(t, s).Text
+		assert.Contains(t, text, "другие пользователи её не видят")
+		assert.Contains(t, text, "владелец сервера")
+	})
+
+	t.Run("stranger learns what the service is", func(t *testing.T) {
+		s := newScenario(t, withAdminContact("@boss_support"))
+		s.share(alice, s.uploaded(alice, s.uploadAudio("track.mp3")), "🔗 Трек")
+		s.uploaded(bob, s.uploadAudioFile(makeAudio(t, "song.mp3", audioSpec{Tags: songTags})))
+
+		s.send(s.textMessage(stranger, "/start"))
+
+		text := lastReply(t, s).Text
+		assert.Contains(t, text, "Navidrome")
+		assert.Contains(t, text, "Пользователей: 3")
+		assert.Contains(t, text, "Треков в общей библиотеке: 1")
+		assert.Contains(t, text, "@boss_support")
+		assert.NotContains(t, text, "/link")
+	})
+
+	t.Run("stranger sees no contact unless it is set", func(t *testing.T) {
+		s := newScenario(t)
+
+		s.send(s.textMessage(stranger, "/start"))
+
+		text := lastReply(t, s).Text
+		assert.Contains(t, text, "Пользователей: 3")
+		assert.NotContains(t, text, "Попросить доступ")
 	})
 
 	t.Run("admin also learns about invites", func(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"log/slog"
 	"regexp"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
@@ -19,6 +20,7 @@ type RegisterNavidromeAccount struct {
 	Navidrome Navidrome
 	Accounts  *NavidromeAccounts
 	Users     UserRepository
+	Libraries *Libraries
 	Admin     NavidromeCredentials
 }
 
@@ -26,9 +28,10 @@ func NewRegisterNavidromeAccount(
 	navidrome Navidrome,
 	accounts *NavidromeAccounts,
 	users UserRepository,
+	libraries *Libraries,
 	admin NavidromeCredentials,
 ) *RegisterNavidromeAccount {
-	return &RegisterNavidromeAccount{Navidrome: navidrome, Accounts: accounts, Users: users, Admin: admin}
+	return &RegisterNavidromeAccount{Navidrome: navidrome, Accounts: accounts, Users: users, Libraries: libraries, Admin: admin}
 }
 
 func (i *RegisterNavidromeAccount) Execute(ctx context.Context, user *domain.User, login string) (NavidromeCredentials, error) {
@@ -57,6 +60,10 @@ func (i *RegisterNavidromeAccount) register(ctx context.Context, user *domain.Us
 	}
 	if err := i.Accounts.Save(ctx, user.ID, creds); err != nil {
 		return NavidromeCredentials{}, err
+	}
+	// The account already exists: failing here would strand it, and the next start grants again.
+	if err := i.Libraries.Grant(ctx, user, creds.Login); err != nil {
+		slog.Error("grant_navidrome_libraries", "user_id", user.ID, "error", err)
 	}
 	return creds, nil
 }

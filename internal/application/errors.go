@@ -4,6 +4,8 @@ import "errors"
 
 var ErrUserNotFound = errors.New("user not found")
 var ErrTrackNotFound = errors.New("track not found")
+var ErrLibraryNotFound = errors.New("library not found")
+var ErrShareNotFound = errors.New("share not found")
 var ErrNotAuthenticated = errors.New("access denied")
 var ErrCapabilityNotSupported = errors.New("provider capability not supported")
 
