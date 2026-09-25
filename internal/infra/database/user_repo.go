@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -16,7 +16,7 @@ type UserRepository struct {
 
 func (r *UserRepository) GetByTelegramID(ctx context.Context, telegramID uint64) (*domain.User, error) {
 	q := dbForContext(ctx, r.DB).Where("telegram_id = ?", telegramID)
-	return first[domain.User](q, application.ErrUserNotFound)
+	return first[domain.User](q, repositories.ErrUserNotFound)
 }
 
 func (r *UserRepository) All(ctx context.Context) ([]domain.User, error) {

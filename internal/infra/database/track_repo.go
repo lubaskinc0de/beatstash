@@ -5,7 +5,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 )
 
@@ -20,7 +20,7 @@ func (r *TrackRepository) FindSource(
 	ref string,
 ) (*domain.TrackSource, error) {
 	q := dbForContext(ctx, r.DB).Where("library_id = ? AND provider = ? AND ref = ?", libraryID, provider, ref)
-	return first[domain.TrackSource](q, application.ErrSourceNotFound)
+	return first[domain.TrackSource](q, repositories.ErrSourceNotFound)
 }
 
 func (r *TrackRepository) FindDuplicate(
@@ -36,7 +36,7 @@ func (r *TrackRepository) FindDuplicate(
 		Where("LOWER(album) = LOWER(?)", m.Album).
 		Where("ABS(duration_ms - ?) <= ?", durationMs, domain.DuplicateToleranceMs).
 		Order("id")
-	return first[domain.Track](q, application.ErrTrackNotFound)
+	return first[domain.Track](q, repositories.ErrTrackNotFound)
 }
 
 func (r *TrackRepository) SaveTrack(ctx context.Context, track *domain.Track) error {
@@ -55,10 +55,11 @@ func (r *TrackRepository) FindTelegramFile(ctx context.Context, libraryIDs []uin
 		Where("track_sources.telegram_file_id <> ''").
 		Where("LOWER(tracks.artist) = LOWER(TRIM(?))", m.Artist).
 		Where("LOWER(tracks.title) = LOWER(TRIM(?))", m.Title).
-		Order(gorm.Expr("LOWER(tracks.album) = LOWER(TRIM(?)) DESC", m.Album)).
-		Order(gorm.Expr("track_sources.telegram_file_kind = ? DESC", domain.TelegramFileAudio)).
-		Order("track_sources.id"),
-		application.ErrNoTelegramFile,
+		Order(orderBy(
+			"LOWER(tracks.album) = LOWER(TRIM(?)) DESC, track_sources.telegram_file_kind = ? DESC, track_sources.id",
+			m.Album, domain.TelegramFileAudio,
+		)),
+		repositories.ErrNoTelegramFile,
 	)
 	if err != nil {
 		return nil, err
@@ -67,7 +68,7 @@ func (r *TrackRepository) FindTelegramFile(ctx context.Context, libraryIDs []uin
 }
 
 func (r *TrackRepository) Get(ctx context.Context, id uint) (*domain.Track, error) {
-	return first[domain.Track](dbForContext(ctx, r.DB).Where("id = ?", id), application.ErrTrackNotFound)
+	return first[domain.Track](dbForContext(ctx, r.DB).Where("id = ?", id), repositories.ErrTrackNotFound)
 }
 
 func (r *TrackRepository) Sources(ctx context.Context, trackID uint) ([]domain.TrackSource, error) {
@@ -93,9 +94,8 @@ func (r *TrackRepository) Delete(ctx context.Context, id uint) error {
 func (r *TrackRepository) TelegramFile(ctx context.Context, trackID uint) (*domain.TelegramFile, error) {
 	q := dbForContext(ctx, r.DB).
 		Where("track_id = ? AND telegram_file_id <> ''", trackID).
-		Order(gorm.Expr("telegram_file_kind = ? DESC", domain.TelegramFileAudio)).
-		Order("id")
-	source, err := first[domain.TrackSource](q, application.ErrNoTelegramFile)
+		Order(orderBy("telegram_file_kind = ? DESC, id", domain.TelegramFileAudio))
+	source, err := first[domain.TrackSource](q, repositories.ErrNoTelegramFile)
 	if err != nil {
 		return nil, err
 	}
@@ -107,13 +107,66 @@ func (r *TrackRepository) FindByMetadata(ctx context.Context, libraryID uint, m 
 		Where("library_id = ?", libraryID).
 		Where("LOWER(artist) = LOWER(TRIM(?))", m.Artist).
 		Where("LOWER(title) = LOWER(TRIM(?))", m.Title).
-		Order(gorm.Expr("LOWER(album) = LOWER(TRIM(?)) DESC", m.Album)).
-		Order("id")
-	return first[domain.Track](q, application.ErrTrackNotFound)
+		Order(orderBy("LOWER(album) = LOWER(TRIM(?)) DESC, id", m.Album))
+	return first[domain.Track](q, repositories.ErrTrackNotFound)
 }
 
 func (r *TrackRepository) Count(ctx context.Context, libraryID uint) (int64, error) {
 	var count int64
 	err := dbForContext(ctx, r.DB).Model(&domain.Track{}).Where("library_id = ?", libraryID).Count(&count).Error
 	return count, err
+}
+
+func (r *TrackRepository) Copies(ctx context.Context, trackID uint) ([]domain.Track, error) {
+	var tracks []domain.Track
+	err := dbForContext(ctx, r.DB).
+		Where("id = ? OR id IN (?)", trackID, dbForContext(ctx, r.DB).
+			Model(&domain.TrackSource{}).
+			Select("copies.track_id").
+			Joins("JOIN track_sources copies ON copies.provider = track_sources.provider AND copies.ref = track_sources.ref").
+			Where("track_sources.track_id = ? AND track_sources.provider <> ?", trackID, domain.ProviderTelegram),
+		).
+		Order("id").
+		Find(&tracks).Error
+	return tracks, err
+}
+
+func (r *TrackRepository) KnownRefs(
+	ctx context.Context,
+	libraryID uint,
+	provider domain.ProviderName,
+	refs []string,
+) ([]string, error) {
+	var known []string
+	err := dbForContext(ctx, r.DB).
+		Model(&domain.TrackSource{}).
+		Where("library_id = ? AND provider = ? AND ref IN ?", libraryID, provider, refs).
+		Pluck("ref", &known).Error
+	return known, err
+}
+
+func (r *TrackRepository) SourcePaths(
+	ctx context.Context,
+	libraryID uint,
+	provider domain.ProviderName,
+	refs []string,
+) (map[string]string, error) {
+	var rows []struct {
+		Ref  string
+		Path string
+	}
+	err := dbForContext(ctx, r.DB).
+		Model(&domain.TrackSource{}).
+		Select("track_sources.ref, tracks.path").
+		Joins("JOIN tracks ON tracks.id = track_sources.track_id").
+		Where("track_sources.library_id = ? AND track_sources.provider = ? AND track_sources.ref IN ?", libraryID, provider, refs).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	paths := make(map[string]string, len(rows))
+	for _, row := range rows {
+		paths[row.Ref] = row.Path
+	}
+	return paths, nil
 }

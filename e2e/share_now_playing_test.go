@@ -18,6 +18,8 @@ func (s *scenario) nowPlayingButtons(user telegramUser) []button {
 }
 
 func TestShareNowPlaying(t *testing.T) {
+	t.Parallel()
+
 	t.Run("np shares the user's own playing track", func(t *testing.T) {
 		s := newScenario(t)
 		account := s.linkNewAccount(alice)

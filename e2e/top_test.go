@@ -17,6 +17,8 @@ const (
 )
 
 func TestTop(t *testing.T) {
+	t.Parallel()
+
 	t.Run("album counts as its tracks", func(t *testing.T) {
 		s := newScenario(t)
 		s.share(alice, s.uploadAlbum(alice, "Album", 3)[0], "💿 Альбом целиком")

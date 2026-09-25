@@ -13,10 +13,14 @@ import (
 const defaultConfigFile = "config.toml"
 
 type Config struct {
-	Token     string
-	BotAPIURL string
-	DBDSN     string
-	MusicDir  string
+	Token       string
+	BotAPIURL   string
+	MaxPostSize int64
+	// StorageChatID is where Tracks that came without a Telegram file get
+	// posted right after Ingest; zero posts them on first request only.
+	StorageChatID int64
+	DBDSN         string
+	MusicDir      string
 	// NavidromeMusicDir is MusicDir as Navidrome's container sees it.
 	NavidromeMusicDir string
 	AdminIDs          []uint64
@@ -34,6 +38,19 @@ type Config struct {
 	// IngestRetryDelays are waits before each retry of a failed Ingest Job.
 	IngestRetryDelays  []time.Duration
 	IngestPollInterval time.Duration
+	ProgressInterval   time.Duration
+
+	ZvukURL string
+	// ZvukWorkers is how many Zvuk downloads run at once for all users;
+	// ZvukPerUser caps those of one user.
+	ZvukWorkers  int
+	ZvukPerUser  int
+	ZvukPauseMin time.Duration
+	ZvukPauseMax time.Duration
+	SyncInterval time.Duration
+	// MirrorRetryInterval: stars and playlists need songs Navidrome has
+	// indexed; until it has, the bot tries again this often.
+	MirrorRetryInterval time.Duration
 }
 
 type fileConfig struct {
@@ -41,7 +58,8 @@ type fileConfig struct {
 	AdminContact string   `toml:"admin_contact"`
 
 	Telegram struct {
-		BotAPIURL string `toml:"bot_api_url"`
+		BotAPIURL     string `toml:"bot_api_url"`
+		StorageChatID int64  `toml:"storage_chat_id"`
 	} `toml:"telegram"`
 
 	Library struct {
@@ -59,10 +77,20 @@ type fileConfig struct {
 	} `toml:"invites"`
 
 	Ingest struct {
-		Workers      int             `toml:"workers"`
-		RetryDelays  []time.Duration `toml:"retry_delays"`
-		PollInterval time.Duration   `toml:"poll_interval"`
+		Workers          int             `toml:"workers"`
+		RetryDelays      []time.Duration `toml:"retry_delays"`
+		PollInterval     time.Duration   `toml:"poll_interval"`
+		ProgressInterval time.Duration   `toml:"progress_interval"`
 	} `toml:"ingest"`
+
+	Zvuk struct {
+		URL                 string          `toml:"url"`
+		Workers             int             `toml:"workers"`
+		PerUser             int             `toml:"per_user"`
+		Pause               []time.Duration `toml:"pause"`
+		SyncInterval        time.Duration   `toml:"sync_interval"`
+		MirrorRetryInterval time.Duration   `toml:"mirror_retry_interval"`
+	} `toml:"zvuk"`
 }
 
 func defaultFileConfig() fileConfig {
@@ -71,6 +99,13 @@ func defaultFileConfig() fileConfig {
 	f.Ingest.Workers = 2
 	f.Ingest.RetryDelays = []time.Duration{10 * time.Second, time.Minute, 5 * time.Minute}
 	f.Ingest.PollInterval = time.Second
+	f.Ingest.ProgressInterval = 3 * time.Second
+	f.Zvuk.URL = "https://zvuk.com"
+	f.Zvuk.Workers = 4
+	f.Zvuk.PerUser = 1
+	f.Zvuk.Pause = []time.Duration{5 * time.Second, 10 * time.Second}
+	f.Zvuk.SyncInterval = 6 * time.Hour
+	f.Zvuk.MirrorRetryInterval = time.Minute
 	return f
 }
 
@@ -101,9 +136,16 @@ func LoadConfig() (Config, error) {
 		navidromeMusicDir = file.Library.MusicDir
 	}
 
+	var pauseMin, pauseMax time.Duration
+	if len(file.Zvuk.Pause) == 2 {
+		pauseMin, pauseMax = file.Zvuk.Pause[0], file.Zvuk.Pause[1]
+	}
+
 	cfg := Config{
 		Token:             secret("BOT_TOKEN"),
 		BotAPIURL:         file.Telegram.BotAPIURL,
+		MaxPostSize:       maxPostSize(file.Telegram.BotAPIURL),
+		StorageChatID:     file.Telegram.StorageChatID,
 		DBDSN:             secret("DB_DSN"),
 		MusicDir:          file.Library.MusicDir,
 		NavidromeMusicDir: navidromeMusicDir,
@@ -120,6 +162,15 @@ func LoadConfig() (Config, error) {
 		IngestWorkers:      file.Ingest.Workers,
 		IngestRetryDelays:  file.Ingest.RetryDelays,
 		IngestPollInterval: file.Ingest.PollInterval,
+		ProgressInterval:   file.Ingest.ProgressInterval,
+
+		ZvukURL:             file.Zvuk.URL,
+		ZvukWorkers:         file.Zvuk.Workers,
+		ZvukPerUser:         file.Zvuk.PerUser,
+		ZvukPauseMin:        pauseMin,
+		ZvukPauseMax:        pauseMax,
+		SyncInterval:        file.Zvuk.SyncInterval,
+		MirrorRetryInterval: file.Zvuk.MirrorRetryInterval,
 	}
 	return cfg, errors.Join(problems...)
 }
@@ -149,5 +200,32 @@ func readFile(path string, file *fileConfig) []error {
 	if file.Ingest.PollInterval <= 0 {
 		problems = append(problems, errors.New("ingest.poll_interval must be positive"))
 	}
+	if file.Ingest.ProgressInterval <= 0 {
+		problems = append(problems, errors.New("ingest.progress_interval must be positive"))
+	}
+	require(file.Zvuk.URL == "", "zvuk.url")
+	if file.Zvuk.Workers < 1 {
+		problems = append(problems, errors.New("zvuk.workers must be at least 1"))
+	}
+	if file.Zvuk.PerUser < 1 {
+		problems = append(problems, errors.New("zvuk.per_user must be at least 1"))
+	}
+	if len(file.Zvuk.Pause) != 2 || file.Zvuk.Pause[0] < 0 || file.Zvuk.Pause[0] > file.Zvuk.Pause[1] {
+		problems = append(problems, errors.New(`zvuk.pause must be a range like ["5s", "10s"]`))
+	}
+	if file.Zvuk.SyncInterval <= 0 {
+		problems = append(problems, errors.New("zvuk.sync_interval must be positive"))
+	}
+	if file.Zvuk.MirrorRetryInterval <= 0 {
+		problems = append(problems, errors.New("zvuk.mirror_retry_interval must be positive"))
+	}
 	return problems
+}
+
+// maxPostSize is 50 MB on Telegram's Bot API; a local one takes up to 2 GB.
+func maxPostSize(botAPIURL string) int64 {
+	if botAPIURL == "" {
+		return 50 << 20
+	}
+	return 2000 << 20
 }

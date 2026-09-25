@@ -9,6 +9,8 @@ import (
 )
 
 func TestRegistration(t *testing.T) {
+	t.Parallel()
+
 	t.Run("invited person gets a Navidrome account named after their username", func(t *testing.T) {
 		s := newScenario(t)
 		carol := newcomer("carol")

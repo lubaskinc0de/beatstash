@@ -9,6 +9,8 @@ import (
 )
 
 func TestNavidromeAccount(t *testing.T) {
+	t.Parallel()
+
 	t.Run("each user sees their own np", func(t *testing.T) {
 		s := newScenario(t)
 		aliceAccount := env.navidrome.createAccount(t, "alice")

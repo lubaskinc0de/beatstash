@@ -10,6 +10,8 @@ import (
 )
 
 func TestInvite(t *testing.T) {
+	t.Parallel()
+
 	t.Run("invited person becomes a user", func(t *testing.T) {
 		s := newScenario(t)
 		carol := newcomer("carol")
@@ -89,6 +91,8 @@ func (s *scenario) invite() string {
 }
 
 func TestStart(t *testing.T) {
+	t.Parallel()
+
 	t.Run("user gets a welcome with instructions", func(t *testing.T) {
 		s := newScenario(t)
 
@@ -96,7 +100,7 @@ func TestStart(t *testing.T) {
 
 		text := lastReply(t, s).Text
 		assert.Contains(t, text, "Добро пожаловать")
-		for _, hint := range []string{"@" + botUsername + " np", "@" + botUsername + " recent", "/link"} {
+		for _, hint := range []string{"@" + botUsername + " np", "@" + botUsername + " recent", "/link", "/zvuk", "/zvuk_import", "zvuk.com/api/tiny/profile"} {
 			assert.Contains(t, text, hint)
 		}
 		assert.NotContains(t, text, "/invite")

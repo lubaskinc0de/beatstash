@@ -11,7 +11,8 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/connect_navidrome"
 )
 
 const loginRules = "от 3 до 32 символов, латинские буквы, цифры, точка, дефис или подчёркивание"
@@ -35,7 +36,7 @@ func (h *Handler) handleLink(
 
 	deleteMessage(ctx, b, chatID, update.Message.ID)
 
-	err := h.LinkNavidromeAccount.Execute(ctx, application.NavidromeCredentials{Login: login, Password: password})
+	err := h.LinkNavidromeAccount.Execute(ctx, navidrome.Credentials{Login: login, Password: password})
 	switch {
 	case err == nil:
 		sendText(ctx, b, chatID, fmt.Sprintf(
@@ -43,15 +44,15 @@ func (h *Handler) handleLink(
 				"Сообщение с паролем удалено",
 			html.EscapeString(login),
 		))
-	case errors.Is(err, application.ErrNavidromeAdminAccount):
+	case errors.Is(err, navidrome.ErrAdminAccount):
 		sendText(ctx, b, chatID, fmt.Sprintf(
 			"✅ Аккаунт Navidrome <b>%s</b> привязан. Это администратор Navidrome, поэтому он видит все библиотеки. "+
 				"Сообщение с паролем удалено",
 			html.EscapeString(login),
 		))
-	case errors.Is(err, application.ErrNavidromeAccountTaken):
+	case errors.Is(err, connect_navidrome.ErrNavidromeAccountTaken):
 		sendText(ctx, b, chatID, "⛔ Этот аккаунт Navidrome уже привязан к другому пользователю. Сообщение с паролем удалено")
-	case errors.Is(err, application.ErrNavidromeInvalidCredentials):
+	case errors.Is(err, navidrome.ErrInvalidCredentials):
 		sendText(ctx, b, chatID, "❌ Неверный логин или пароль Navidrome. Сообщение с паролем удалено, попробуйте ещё раз")
 	default:
 		slog.Error("link_navidrome_account", "error", err)
@@ -86,7 +87,7 @@ func isText(update *models.Update) bool {
 func (h *Handler) registerNavidromeAccount(ctx context.Context, b *bot.Bot, chatID int64, login string) {
 	creds, err := h.RegisterAccount.Execute(ctx, login)
 	switch {
-	case errors.Is(err, application.ErrNotAwaitingLogin):
+	case errors.Is(err, connect_navidrome.ErrNotAwaitingLogin):
 	case err == nil:
 		sendText(ctx, b, chatID, fmt.Sprintf(
 			"🎧 Аккаунт Navidrome создан, входите в любом клиенте Navidrome или Subsonic\n\n"+
@@ -94,11 +95,11 @@ func (h *Handler) registerNavidromeAccount(ctx context.Context, b *bot.Bot, chat
 				"Сохраните пароль: бот показывает его только один раз",
 			html.EscapeString(creds.Login), html.EscapeString(creds.Password),
 		))
-	case errors.Is(err, application.ErrNavidromeLoginInvalid) && login == "":
+	case errors.Is(err, connect_navidrome.ErrNavidromeLoginInvalid) && login == "":
 		sendText(ctx, b, chatID, "✏️ Придумайте логин для Navidrome и отправьте его сообщением: "+loginRules)
-	case errors.Is(err, application.ErrNavidromeLoginInvalid):
+	case errors.Is(err, connect_navidrome.ErrNavidromeLoginInvalid):
 		sendText(ctx, b, chatID, "✏️ Такой логин не подойдёт. Придумайте другой: "+loginRules)
-	case errors.Is(err, application.ErrNavidromeLoginTaken):
+	case errors.Is(err, navidrome.ErrLoginTaken):
 		sendText(ctx, b, chatID, fmt.Sprintf(
 			"✏️ Логин <b>%s</b> уже занят в Navidrome. Придумайте другой и отправьте его сообщением",
 			html.EscapeString(login),

@@ -10,7 +10,8 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
 )
 
 func (h *Handler) handleTop(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -37,7 +38,7 @@ func (h *Handler) handleInlineTop(ctx context.Context, b *bot.Bot, update *model
 	answerInlineArticle(ctx, b, queryID, "top", "🏆 Top", "Кто больше всех расшарил и чьё чаще берут", topText(top))
 }
 
-func topText(top *application.Top) string {
+func topText(top *view_top.Top) string {
 	var b strings.Builder
 	b.WriteString("🏆 <b>Top</b>")
 	writeRating(&b, "🔗 Больше всех расшарил", "за всё время", top.Sharers.AllTime)
@@ -47,7 +48,7 @@ func topText(top *application.Top) string {
 	return b.String()
 }
 
-func writeRating(b *strings.Builder, title, period string, entries []application.TopEntry) {
+func writeRating(b *strings.Builder, title, period string, entries []repositories.TopEntry) {
 	fmt.Fprintf(b, "\n\n<b>%s</b>, %s:", title, period)
 	if len(entries) == 0 {
 		b.WriteString("\nПока никого")

@@ -42,7 +42,10 @@ func startNavidrome(ctx context.Context, libraryRoot string) (*navidrome, testco
 			"ND_ENABLEINSIGHTSCOLLECTOR":        "false",
 			"ND_SUBSONIC_DEFAULTREPORTREALPATH": "true",
 			"ND_AUTHREQUESTLIMIT":               "0",
-			"ND_MUSICFOLDER":                    navidromeLibraryMount + "/" + navidromeRootLibrary,
+			// Scenarios scan on their own: a watcher would index files at
+			// its own pace and hide what waits for the scan.
+			"ND_SCANNER_WATCHERWAIT": "0",
+			"ND_MUSICFOLDER":         navidromeLibraryMount + "/" + navidromeRootLibrary,
 		},
 		HostConfigModifier: func(hc *container.HostConfig) {
 			hc.Binds = append(hc.Binds, libraryRoot+":"+navidromeLibraryMount+":ro")

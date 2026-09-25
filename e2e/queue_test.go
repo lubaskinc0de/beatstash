@@ -11,6 +11,8 @@ import (
 )
 
 func TestQueue(t *testing.T) {
+	t.Parallel()
+
 	t.Run("transient Bot API failures are retried", func(t *testing.T) {
 		s := newScenario(t)
 		audio := s.uploadAudio("track.mp3")

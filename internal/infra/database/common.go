@@ -10,6 +10,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 )
 
@@ -28,12 +29,26 @@ func New(dsn string) (*gorm.DB, error) {
 			Colorful:                  false,
 		},
 	)
-	return gorm.Open(
+	db, err := gorm.Open(
 		postgres.Open(dsn), &gorm.Config{
-			Logger: gormLogger,
+			Logger: quietOnCancel{gormLogger},
 		},
 	)
+	if err != nil {
+		return nil, err
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, err
+	}
+	sqlDB.SetMaxIdleConns(maxIdleConns)
+	return db, nil
 }
+
+// maxIdleConns keeps a connection for each worker polling the queue: with
+// database/sql's default of two, the others would open a new one, and
+// authenticate it, on every poll.
+const maxIdleConns = 32
 
 var models = []any{
 	&domain.User{},
@@ -43,9 +58,11 @@ var models = []any{
 	&domain.Upload{},
 	&domain.Share{},
 	&domain.Take{},
+	&domain.IngestBatch{},
 	&domain.IngestJob{},
 	&domain.NavidromeSession{},
 	&domain.NavidromeAccount{},
+	&domain.ProviderAccount{},
 	&domain.Invite{},
 }
 
@@ -105,4 +122,24 @@ func first[T any](q *gorm.DB, notFound error) (*T, error) {
 		return nil, err
 	}
 	return &row, nil
+}
+
+// orderBy is an ORDER BY with arguments. gorm ignores an Order given a bare
+// gorm.Expr, and a later Order drops the expression, so the whole ORDER BY
+// goes in one.
+func orderBy(sql string, args ...any) clause.OrderBy {
+	return clause.OrderBy{Expression: gorm.Expr(sql, args...)}
+}
+
+// quietOnCancel leaves out the queries cut short by a cancelled context:
+// shutdown cancels the ones in flight, and they are no errors.
+type quietOnCancel struct {
+	logger.Interface
+}
+
+func (l quietOnCancel) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+	l.Interface.Trace(ctx, begin, fc, err)
 }

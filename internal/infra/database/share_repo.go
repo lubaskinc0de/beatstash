@@ -7,7 +7,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 )
 
@@ -21,7 +21,7 @@ func (r *ShareRepository) Save(ctx context.Context, share *domain.Share) error {
 
 func (r *ShareRepository) BySource(ctx context.Context, sourceTrackID uint) (*domain.Share, error) {
 	q := dbForContext(ctx, r.DB).Where("source_track_id = ?", sourceTrackID)
-	return first[domain.Share](q, application.ErrShareNotFound)
+	return first[domain.Share](q, repositories.ErrShareNotFound)
 }
 
 func (r *ShareRepository) ForTrack(ctx context.Context, trackID uint) ([]domain.Share, error) {
@@ -55,7 +55,7 @@ func (r *ShareRepository) Feed(ctx context.Context, limit int) ([]domain.Share, 
 	return shares, err
 }
 
-func (r *ShareRepository) TopSharers(ctx context.Context, since time.Time, limit int) ([]application.TopEntry, error) {
+func (r *ShareRepository) TopSharers(ctx context.Context, since time.Time, limit int) ([]repositories.TopEntry, error) {
 	query := dbForContext(ctx, r.DB).
 		Model(&domain.Share{}).
 		Where("in_top AND created_at >= ?", since).
@@ -64,7 +64,7 @@ func (r *ShareRepository) TopSharers(ctx context.Context, since time.Time, limit
 }
 
 // topEntries ranks by count; a tie goes to whoever got there first.
-func topEntries(ctx context.Context, db *gorm.DB, grouped *gorm.DB, userColumn string, limit int) ([]application.TopEntry, error) {
+func topEntries(ctx context.Context, db *gorm.DB, grouped *gorm.DB, userColumn string, limit int) ([]repositories.TopEntry, error) {
 	var rows []struct {
 		UserID uint
 		Count  int
@@ -91,13 +91,13 @@ func topEntries(ctx context.Context, db *gorm.DB, grouped *gorm.DB, userColumn s
 		byID[user.ID] = user
 	}
 
-	entries := make([]application.TopEntry, 0, len(rows))
+	entries := make([]repositories.TopEntry, 0, len(rows))
 	for _, row := range rows {
 		user, ok := byID[row.UserID]
 		if !ok {
 			return nil, fmt.Errorf("top: user %d not found", row.UserID)
 		}
-		entries = append(entries, application.TopEntry{User: user, Count: row.Count})
+		entries = append(entries, repositories.TopEntry{User: user, Count: row.Count})
 	}
 	return entries, nil
 }

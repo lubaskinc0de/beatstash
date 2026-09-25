@@ -3,7 +3,7 @@ package database
 import (
 	"context"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -15,12 +15,12 @@ type NavidromeAccountRepository struct {
 
 func (r *NavidromeAccountRepository) Get(ctx context.Context, userID uint) (*domain.NavidromeAccount, error) {
 	q := dbForContext(ctx, r.DB).Where("user_id = ?", userID)
-	return first[domain.NavidromeAccount](q, application.ErrNavidromeAccountNotFound)
+	return first[domain.NavidromeAccount](q, repositories.ErrNavidromeAccountNotFound)
 }
 
 func (r *NavidromeAccountRepository) ByLogin(ctx context.Context, login string) (*domain.NavidromeAccount, error) {
 	q := dbForContext(ctx, r.DB).Where("LOWER(login) = LOWER(?)", login)
-	return first[domain.NavidromeAccount](q, application.ErrNavidromeAccountNotFound)
+	return first[domain.NavidromeAccount](q, repositories.ErrNavidromeAccountNotFound)
 }
 
 func (r *NavidromeAccountRepository) All(ctx context.Context) ([]domain.NavidromeAccount, error) {

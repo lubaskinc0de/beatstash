@@ -12,7 +12,9 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/invite_friend"
 )
 
 func (h *Handler) handleInvite(
@@ -23,7 +25,7 @@ func (h *Handler) handleInvite(
 	chatID := update.Message.Chat.ID
 
 	code, err := h.CreateInvite.Execute(ctx)
-	if errors.Is(err, application.ErrNotAdmin) {
+	if errors.Is(err, invite_friend.ErrNotAdmin) {
 		sendText(ctx, b, chatID, "⛔ Приглашения выдаёт только администратор")
 		return
 	}
@@ -51,12 +53,12 @@ func (h *Handler) handleStart(
 	update *models.Update,
 ) {
 	chatID := update.Message.Chat.ID
-	canInvite, err := h.CreateInvite.CanInvite(ctx)
+	canInvite, err := h.CheckCanInvite.Execute(ctx)
 	switch {
 	case err == nil:
 		h.sendWelcome(ctx, b, chatID, canInvite)
 		return
-	case !errors.Is(err, application.ErrNotAuthenticated):
+	case !errors.Is(err, common.ErrNotAuthenticated):
 		slog.Error("can_invite", "error", err)
 		return
 	}
@@ -67,7 +69,7 @@ func (h *Handler) handleStart(
 		return
 	}
 	user, err := h.AcceptInvite.Execute(ctx, code)
-	if errors.Is(err, application.ErrInviteInvalid) {
+	if errors.Is(err, repositories.ErrInviteInvalid) {
 		sendText(ctx, b, chatID, "⛔ Приглашение недействительно: оно уже использовано или истекло")
 		return
 	}
@@ -76,7 +78,7 @@ func (h *Handler) handleStart(
 		sendText(ctx, b, chatID, "⚠️ Не удалось принять приглашение, попробуйте позже")
 		return
 	}
-	if canInvite, err = h.CreateInvite.CanInvite(ctx); err != nil {
+	if canInvite, err = h.CheckCanInvite.Execute(ctx); err != nil {
 		slog.Error("can_invite", "error", err)
 	}
 	h.sendWelcome(ctx, b, chatID, canInvite)
@@ -109,6 +111,10 @@ func welcomeText(botUsername string, inviteTTL time.Duration) string {
 	b.WriteString("Библиотека ваша: другие пользователи её не видят, но файлы лежат на сервере, и их видит владелец сервера.\n\n")
 	b.WriteString("🎵 <b>Загрузка.</b> Пришлите аудиофайл или перешлите его из любого чата: mp3, flac, m4a, ogg, opus, wav. ")
 	b.WriteString("👀 — принял, 👍 — трек в библиотеке, 👎 — объясню, что не так\n\n")
+	b.WriteString("🟣 <b>Звук.</b> Подключите аккаунт: <code>/zvuk токен</code>. " + zvukTokenHowTo + ". ")
+	b.WriteString("Потом <code>/zvuk_import</code> перенесёт ")
+	b.WriteString("все лайки, альбомы и плейлисты: лайки станут звёздами, плейлисты — плейлистами Navidrome, ")
+	b.WriteString("а новое будет подтягиваться само. <code>/zvuk_off</code> — отключить\n\n")
 	fmt.Fprintf(&b, "🎧 <b>Сейчас играет.</b> В любом чате наберите <code>%s np</code>\n", mention)
 	fmt.Fprintf(&b, "📜 <b>История.</b> <code>%s recent</code> — последние треки\n\n", mention)
 	b.WriteString("🔗 <b>Share.</b> Ответьте <code>/share</code> на аудиосообщение, чтобы открыть трек или альбом всем. ")
@@ -131,7 +137,7 @@ func (h *Handler) sendAbout(ctx context.Context, b *bot.Bot, chatID int64) {
 
 	var text strings.Builder
 	text.WriteString("🎧 <b>Это закрытый музыкальный сервис на Navidrome.</b>\n\n")
-	text.WriteString("У каждого здесь своя музыкальная библиотека: загружать треки из Telegram, слушать их в любом клиенте Navidrome ")
+	text.WriteString("У каждого здесь своя музыкальная библиотека: загружать треки из Telegram и Звука, слушать их в любом клиенте Navidrome ")
 	text.WriteString("и делиться находками с остальными. Попасть сюда можно только по приглашению.\n\n")
 	fmt.Fprintf(&text, "👥 Пользователей: %d\n", stats.Users)
 	fmt.Fprintf(&text, "🎵 Треков в общей библиотеке: %d", stats.SharedTracks)

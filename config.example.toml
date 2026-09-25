@@ -17,6 +17,10 @@ admin_contact = ""
 # Local Telegram Bot API server (lifts the 20 MB download limit);
 # empty means https://api.telegram.org. In compose: "http://telegram-bot-api:8081".
 bot_api_url = ""
+# Chat where the bot uploads tracks that came without a Telegram file (e.g.
+# from Zvuk), so inline mode can send them as audio right away; the bot must
+# be able to post there. 0 uploads a track only when somebody asks for its file.
+storage_chat_id = 0
 
 [library]
 # In compose: "/music".
@@ -40,3 +44,20 @@ workers = 2
 # Waits before each retry of a failed Ingest Job.
 retry_delays = ["10s", "1m", "5m"]
 poll_interval = "1s"
+# Least time between two edits of an Import progress message.
+progress_interval = "3s"
+
+[zvuk]
+url = "https://zvuk.com"
+# How many tracks download at once, for all users together.
+workers = 4
+# How many of them may belong to one user. More is faster, but the account
+# looks less like a person and risks a block.
+per_user = 1
+# Random pause after each download of an account, so it is not blocked.
+pause = ["5s", "10s"]
+# How often new likes and playlist tracks are fetched after an Import.
+sync_interval = "6h"
+# Stars and playlists can be set only on songs Navidrome has already found
+# in the library. Until it scans the new files, the bot tries again this often.
+mirror_retry_interval = "1m"

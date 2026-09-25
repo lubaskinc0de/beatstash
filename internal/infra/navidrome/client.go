@@ -10,13 +10,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application"
+	appnd "github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
 )
 
 const nativeAuthHeader = "X-Nd-Authorization"
@@ -80,7 +81,7 @@ type nowPlayingResponse struct {
 	} `json:"subsonic-response"`
 }
 
-func addAuth(q url.Values, creds application.NavidromeCredentials) {
+func addAuth(q url.Values, creds appnd.Credentials) {
 	salt := randomSalt()
 
 	hash := md5.Sum([]byte(creds.Password + salt))
@@ -94,7 +95,7 @@ func addAuth(q url.Values, creds application.NavidromeCredentials) {
 	q.Set("f", "json")
 }
 
-func (c *Client) NowPlaying(ctx context.Context, creds application.NavidromeCredentials) (*application.PlayingTrack, error) {
+func (c *Client) NowPlaying(ctx context.Context, creds appnd.Credentials) (*appnd.PlayingTrack, error) {
 	resp, err := c.getNowPlaying(ctx, creds)
 	if err != nil {
 		return nil, err
@@ -104,7 +105,7 @@ func (c *Client) NowPlaying(ctx context.Context, creds application.NavidromeCred
 		if !strings.EqualFold(entry.Username, creds.Login) {
 			continue
 		}
-		return &application.PlayingTrack{
+		return &appnd.PlayingTrack{
 			ID:         entry.ID,
 			Artist:     entry.Artist,
 			Title:      entry.Title,
@@ -118,7 +119,7 @@ func (c *Client) NowPlaying(ctx context.Context, creds application.NavidromeCred
 	return nil, nil
 }
 
-func (c *Client) getNowPlaying(ctx context.Context, creds application.NavidromeCredentials) (*nowPlayingResponse, error) {
+func (c *Client) getNowPlaying(ctx context.Context, creds appnd.Credentials) (*nowPlayingResponse, error) {
 	u, err := url.Parse(c.baseURL + "/rest/getNowPlaying")
 	if err != nil {
 		return nil, err
@@ -157,7 +158,7 @@ func (c *Client) getNowPlaying(ctx context.Context, creds application.NavidromeC
 }
 
 // Subsonic API has no play history, so it goes through Navidrome's native API.
-func (c *Client) RecentlyPlayed(ctx context.Context, creds application.NavidromeCredentials, limit int) ([]application.PlayedTrack, error) {
+func (c *Client) RecentlyPlayed(ctx context.Context, creds appnd.Credentials, limit int) ([]appnd.PlayedTrack, error) {
 	q := url.Values{}
 	q.Set("_sort", "playDate")
 	q.Set("_order", "DESC")
@@ -169,12 +170,12 @@ func (c *Client) RecentlyPlayed(ctx context.Context, creds application.Navidrome
 		return nil, err
 	}
 
-	played := make([]application.PlayedTrack, 0, len(tracks))
+	played := make([]appnd.PlayedTrack, 0, len(tracks))
 	for _, track := range tracks {
 		if track.PlayDate == nil {
 			continue
 		}
-		played = append(played, application.PlayedTrack{
+		played = append(played, appnd.PlayedTrack{
 			ID:       track.ID,
 			Artist:   track.Artist,
 			Title:    track.Title,
@@ -210,7 +211,7 @@ func isUnique(err error, field string) bool {
 	return errors.As(err, &invalid) && invalid.Errors[field] == "ra.validation.unique"
 }
 
-func (c *Client) native(ctx context.Context, creds application.NavidromeCredentials, r nativeRequest, out any) error {
+func (c *Client) native(ctx context.Context, creds appnd.Credentials, r nativeRequest, out any) error {
 	token, err := c.sessions.GetToken(ctx, creds.Login)
 	if errors.Is(err, ErrSessionNotFound) {
 		token, err = c.login(ctx, creds)
@@ -231,7 +232,7 @@ func (c *Client) native(ctx context.Context, creds application.NavidromeCredenti
 	return c.doNative(ctx, creds, r, token, out)
 }
 
-func (c *Client) doNative(ctx context.Context, creds application.NavidromeCredentials, r nativeRequest, token string, out any) error {
+func (c *Client) doNative(ctx context.Context, creds appnd.Credentials, r nativeRequest, token string, out any) error {
 	u, err := url.Parse(c.baseURL + r.path)
 	if err != nil {
 		return err
@@ -289,7 +290,7 @@ func (c *Client) doNative(ctx context.Context, creds application.NavidromeCreden
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
-func (c *Client) CreateAccount(ctx context.Context, admin, account application.NavidromeCredentials) error {
+func (c *Client) CreateAccount(ctx context.Context, admin, account appnd.Credentials) error {
 	var created struct {
 		ID string `json:"id"`
 	}
@@ -305,7 +306,7 @@ func (c *Client) CreateAccount(ctx context.Context, admin, account application.N
 	}, &created)
 
 	if isUnique(err, "userName") {
-		return application.ErrNavidromeLoginTaken
+		return appnd.ErrLoginTaken
 	}
 	return err
 }
@@ -317,24 +318,24 @@ type library struct {
 	DefaultNewUsers bool   `json:"defaultNewUsers"`
 }
 
-func toLibrary(l application.NavidromeLibrary) library {
+func toLibrary(l appnd.Library) library {
 	return library{Name: l.Name, Path: l.Path, DefaultNewUsers: l.DefaultNewUsers}
 }
 
-func (c *Client) Libraries(ctx context.Context, admin application.NavidromeCredentials) ([]application.NavidromeLibrary, error) {
+func (c *Client) Libraries(ctx context.Context, admin appnd.Credentials) ([]appnd.Library, error) {
 	var libraries []library
 	if err := c.native(ctx, admin, nativeRequest{method: http.MethodGet, path: "/api/library"}, &libraries); err != nil {
 		return nil, err
 	}
 
-	result := make([]application.NavidromeLibrary, 0, len(libraries))
+	result := make([]appnd.Library, 0, len(libraries))
 	for _, l := range libraries {
-		result = append(result, application.NavidromeLibrary{ID: l.ID, Name: l.Name, Path: l.Path, DefaultNewUsers: l.DefaultNewUsers})
+		result = append(result, appnd.Library{ID: l.ID, Name: l.Name, Path: l.Path, DefaultNewUsers: l.DefaultNewUsers})
 	}
 	return result, nil
 }
 
-func (c *Client) CreateLibrary(ctx context.Context, admin application.NavidromeCredentials, l application.NavidromeLibrary) (int, error) {
+func (c *Client) CreateLibrary(ctx context.Context, admin appnd.Credentials, l appnd.Library) (int, error) {
 	var created struct {
 		ID string `json:"id"`
 	}
@@ -345,7 +346,7 @@ func (c *Client) CreateLibrary(ctx context.Context, admin application.NavidromeC
 	}, &created)
 
 	if isUnique(err, "name") {
-		return 0, application.ErrNavidromeNameTaken
+		return 0, appnd.ErrNameTaken
 	}
 	if err != nil {
 		return 0, err
@@ -353,7 +354,7 @@ func (c *Client) CreateLibrary(ctx context.Context, admin application.NavidromeC
 	return strconv.Atoi(created.ID)
 }
 
-func (c *Client) UpdateLibrary(ctx context.Context, admin application.NavidromeCredentials, l application.NavidromeLibrary) error {
+func (c *Client) UpdateLibrary(ctx context.Context, admin appnd.Credentials, l appnd.Library) error {
 	err := c.native(ctx, admin, nativeRequest{
 		method: http.MethodPut,
 		path:   "/api/library/" + strconv.Itoa(l.ID),
@@ -361,12 +362,12 @@ func (c *Client) UpdateLibrary(ctx context.Context, admin application.NavidromeC
 	}, nil)
 
 	if isUnique(err, "name") {
-		return application.ErrNavidromeNameTaken
+		return appnd.ErrNameTaken
 	}
 	return err
 }
 
-func (c *Client) SetLibraries(ctx context.Context, admin application.NavidromeCredentials, login string, libraryIDs []int) error {
+func (c *Client) SetLibraries(ctx context.Context, admin appnd.Credentials, login string, libraryIDs []int) error {
 	var users []struct {
 		ID       string `json:"id"`
 		UserName string `json:"userName"`
@@ -381,7 +382,7 @@ func (c *Client) SetLibraries(ctx context.Context, admin application.NavidromeCr
 			continue
 		}
 		if user.IsAdmin {
-			return application.ErrNavidromeAdminAccount
+			return appnd.ErrAdminAccount
 		}
 		return c.native(ctx, admin, nativeRequest{
 			method: http.MethodPut,
@@ -392,12 +393,12 @@ func (c *Client) SetLibraries(ctx context.Context, admin application.NavidromeCr
 	return fmt.Errorf("navidrome has no user %q", login)
 }
 
-func (c *Client) Authenticate(ctx context.Context, creds application.NavidromeCredentials) error {
+func (c *Client) Authenticate(ctx context.Context, creds appnd.Credentials) error {
 	_, err := c.login(ctx, creds)
 	return err
 }
 
-func (c *Client) login(ctx context.Context, creds application.NavidromeCredentials) (string, error) {
+func (c *Client) login(ctx context.Context, creds appnd.Credentials) (string, error) {
 	body, err := json.Marshal(map[string]string{
 		"username": creds.Login,
 		"password": creds.Password,
@@ -419,7 +420,7 @@ func (c *Client) login(ctx context.Context, creds application.NavidromeCredentia
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		return "", application.ErrNavidromeInvalidCredentials
+		return "", appnd.ErrInvalidCredentials
 	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("navidrome login returned status %s", resp.Status)
@@ -444,4 +445,131 @@ func (c *Client) login(ctx context.Context, creds application.NavidromeCredentia
 
 func randomSalt() string {
 	return rand.Text()
+}
+
+const subsonicNotFound = 70
+
+type subsonicError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+func (e *subsonicError) Error() string {
+	return fmt.Sprintf("navidrome subsonic error %d: %s", e.Code, e.Message)
+}
+
+// subsonic posts the parameters as a form: a playlist of hundreds of songs
+// would not fit into a URL.
+func (c *Client) subsonic(ctx context.Context, creds appnd.Credentials, endpoint string, params url.Values, out any) error {
+	form := maps.Clone(params)
+	if form == nil {
+		form = url.Values{}
+	}
+	addAuth(form, creds)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/rest/"+endpoint, strings.NewReader(form.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("navidrome returned status %s", resp.Status)
+	}
+
+	var envelope struct {
+		Response json.RawMessage `json:"subsonic-response"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return err
+	}
+	var status struct {
+		Status string        `json:"status"`
+		Error  subsonicError `json:"error"`
+	}
+	if err := json.Unmarshal(envelope.Response, &status); err != nil {
+		return err
+	}
+	if status.Status != "ok" {
+		return &status.Error
+	}
+	if out == nil {
+		return nil
+	}
+	return json.Unmarshal(envelope.Response, out)
+}
+
+const songsPage = 500
+
+func (c *Client) Songs(ctx context.Context, creds appnd.Credentials, libraryID int) (map[string]string, error) {
+	songs := map[string]string{}
+	for start := 0; ; start += songsPage {
+		q := url.Values{}
+		q.Set("library_id", strconv.Itoa(libraryID))
+		q.Set("_sort", "id")
+		q.Set("_start", strconv.Itoa(start))
+		q.Set("_end", strconv.Itoa(start+songsPage))
+
+		var page []struct {
+			ID   string `json:"id"`
+			Path string `json:"path"`
+		}
+		if err := c.native(ctx, creds, nativeRequest{method: http.MethodGet, path: "/api/song", query: q}, &page); err != nil {
+			return nil, err
+		}
+		for _, song := range page {
+			songs[song.Path] = song.ID
+		}
+		if len(page) < songsPage {
+			return songs, nil
+		}
+	}
+}
+
+func (c *Client) Star(ctx context.Context, creds appnd.Credentials, songIDs []string) error {
+	if len(songIDs) == 0 {
+		return nil
+	}
+	return c.subsonic(ctx, creds, "star", url.Values{"id": songIDs}, nil)
+}
+
+func (c *Client) Unstar(ctx context.Context, creds appnd.Credentials, songIDs []string) error {
+	if len(songIDs) == 0 {
+		return nil
+	}
+	return c.subsonic(ctx, creds, "unstar", url.Values{"id": songIDs}, nil)
+}
+
+func (c *Client) SavePlaylist(
+	ctx context.Context,
+	creds appnd.Credentials,
+	id, name string,
+	songIDs []string,
+) (string, error) {
+	params := url.Values{"songId": songIDs}
+	if id != "" {
+		params.Set("playlistId", id)
+	} else {
+		params.Set("name", name)
+	}
+
+	var result struct {
+		Playlist struct {
+			ID string `json:"id"`
+		} `json:"playlist"`
+	}
+	err := c.subsonic(ctx, creds, "createPlaylist", params, &result)
+	var missing *subsonicError
+	if id != "" && errors.As(err, &missing) && missing.Code == subsonicNotFound {
+		return c.SavePlaylist(ctx, creds, "", name, songIDs)
+	}
+	if err != nil {
+		return "", err
+	}
+	return result.Playlist.ID, nil
 }

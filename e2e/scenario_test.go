@@ -73,11 +73,14 @@ type scenario struct {
 	app     *app.App
 	stop    func()
 	botAPI  *botAPI
+	zvuk    *zvukAPI
 	library string
 
 	updates  int64
 	messages int
 	uploads  int
+
+	sharedZvukAudio zvukAudio
 }
 
 type scenarioOption func(*app.Config)
@@ -87,7 +90,10 @@ func withAdminContact(contact string) scenarioOption {
 }
 
 func withoutWorkers() scenarioOption {
-	return func(c *app.Config) { c.IngestWorkers = 0 }
+	return func(c *app.Config) {
+		c.IngestWorkers = 0
+		c.ZvukWorkers = 0
+	}
 }
 
 func newScenario(t *testing.T, opts ...scenarioOption) *scenario {
@@ -102,10 +108,14 @@ func newScenario(t *testing.T, opts ...scenarioOption) *scenario {
 }
 
 // prepareScenario sets up everything a bot needs but does not start it.
+// Scenarios run in parallel: each has a database, Bot API, Zvuk and Library
+// of its own, and Navidrome logins and libraries are unique.
 func prepareScenario(t *testing.T, opts ...scenarioOption) *scenario {
 	t.Helper()
+	t.Parallel()
 
 	api := newBotAPI(t)
+	zvuk := newZvukAPI(t)
 
 	library, err := os.MkdirTemp(env.libraryRoot, "scenario-")
 	require.NoError(t, err)
@@ -113,27 +123,33 @@ func prepareScenario(t *testing.T, opts ...scenarioOption) *scenario {
 
 	clk := &clock{now: time.Now()}
 	cfg := app.Config{
-		Clock:              clk.Now,
-		InviteTTL:          7 * 24 * time.Hour,
-		Token:              botToken,
-		BotAPIURL:          api.url(),
-		DBDSN:              postgresDSN(createDatabase(t)),
-		MusicDir:           library,
-		NavidromeMusicDir:  navidromeLibraryMount + "/" + filepath.Base(library),
-		AdminIDs:           []uint64{uint64(adminUser.ID)},
-		SecretKey:          secretKey,
-		NavidromeUser:      navidromeAdmin,
-		NavidromePassword:  navidromePassword,
-		NavidromeURL:       env.navidrome.url,
-		IngestWorkers:      2,
-		IngestRetryDelays:  []time.Duration{10 * time.Millisecond, 10 * time.Millisecond, 10 * time.Millisecond},
-		IngestPollInterval: 10 * time.Millisecond,
+		Clock:               clk.Now,
+		InviteTTL:           7 * 24 * time.Hour,
+		Token:               botToken,
+		BotAPIURL:           api.url(),
+		MaxPostSize:         50 << 20,
+		DBDSN:               postgresDSN(createDatabase(t)),
+		MusicDir:            library,
+		NavidromeMusicDir:   navidromeLibraryMount + "/" + filepath.Base(library),
+		AdminIDs:            []uint64{uint64(adminUser.ID)},
+		SecretKey:           secretKey,
+		NavidromeUser:       navidromeAdmin,
+		NavidromePassword:   navidromePassword,
+		NavidromeURL:        env.navidrome.url,
+		IngestWorkers:       2,
+		ZvukWorkers:         2,
+		ZvukPerUser:         1,
+		IngestRetryDelays:   []time.Duration{10 * time.Millisecond, 10 * time.Millisecond, 10 * time.Millisecond},
+		IngestPollInterval:  10 * time.Millisecond,
+		ZvukURL:             zvuk.url(),
+		SyncInterval:        time.Hour,
+		MirrorRetryInterval: 50 * time.Millisecond,
 	}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
 
-	return &scenario{t: t, clock: clk, config: cfg, botAPI: api, library: library}
+	return &scenario{t: t, clock: clk, config: cfg, botAPI: api, zvuk: zvuk, library: library}
 }
 
 func (s *scenario) start() {
@@ -163,6 +179,7 @@ func (s *scenario) restart(opts ...scenarioOption) {
 
 	s.stop()
 	s.config.IngestWorkers = 2
+	s.config.ZvukWorkers = 2
 	for _, opt := range opts {
 		opt(&s.config)
 	}

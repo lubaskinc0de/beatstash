@@ -8,6 +8,8 @@ import (
 )
 
 func TestMetadata(t *testing.T) {
+	t.Parallel()
+
 	t.Run("untagged MP3 is laid out by Telegram data", func(t *testing.T) {
 		s := newScenario(t)
 		audio := s.uploadAudioFile(makeAudio(t, "untagged.mp3", audioSpec{}))

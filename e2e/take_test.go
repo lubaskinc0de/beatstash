@@ -10,6 +10,8 @@ import (
 )
 
 func TestTake(t *testing.T) {
+	t.Parallel()
+
 	t.Run("taken track lands in the taker's Personal Library", func(t *testing.T) {
 		s := newScenario(t)
 		bobAccount := s.linkNewAccount(bob)
@@ -124,6 +126,8 @@ func TestTake(t *testing.T) {
 }
 
 func TestSharedFeed(t *testing.T) {
+	t.Parallel()
+
 	t.Run("inline shared lists recent Shares with their authors", func(t *testing.T) {
 		s := newScenario(t)
 		aliceAudio := s.uploadAudio("track.mp3")
@@ -174,6 +178,8 @@ func (s *scenario) botAudio(to telegramUser, audio models.Audio) *models.Update 
 }
 
 func TestAuthorName(t *testing.T) {
+	t.Parallel()
+
 	t.Run("admin from config is shown by username", func(t *testing.T) {
 		s := newScenario(t)
 		s.share(adminUser, s.uploaded(adminUser, s.uploadAudio("track.mp3")), "🔗 Трек")

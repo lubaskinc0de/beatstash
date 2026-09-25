@@ -10,6 +10,8 @@ import (
 )
 
 func TestPersonalLibrary(t *testing.T) {
+	t.Parallel()
+
 	t.Run("upload stays private to its uploader", func(t *testing.T) {
 		s := newScenario(t)
 		aliceAccount := s.linkNewAccount(alice)
@@ -64,6 +66,8 @@ func TestPersonalLibrary(t *testing.T) {
 }
 
 func TestNavidromeDefaults(t *testing.T) {
+	t.Parallel()
+
 	t.Run("account made in Navidrome sees the Shared Library but no Personal one", func(t *testing.T) {
 		s := newScenario(t)
 
@@ -78,6 +82,8 @@ func TestNavidromeDefaults(t *testing.T) {
 }
 
 func TestNavidromeLibraryGone(t *testing.T) {
+	t.Parallel()
+
 	t.Run("library deleted in Navidrome is found again by its path", func(t *testing.T) {
 		s := newScenario(t)
 		account := s.linkNewAccount(alice)
@@ -108,6 +114,8 @@ func TestNavidromeLibraryGone(t *testing.T) {
 }
 
 func TestLinkAfterMove(t *testing.T) {
+	t.Parallel()
+
 	t.Run("account linked to another user is refused", func(t *testing.T) {
 		s := newScenario(t)
 		account := s.linkNewAccount(alice)

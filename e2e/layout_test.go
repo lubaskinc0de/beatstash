@@ -8,6 +8,8 @@ import (
 )
 
 func TestLayout(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		tags map[string]string

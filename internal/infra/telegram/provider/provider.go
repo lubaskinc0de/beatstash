@@ -14,11 +14,11 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 )
 
-const Name domain.ProviderName = "telegram"
+const Name = domain.ProviderTelegram
 
 type File struct {
 	ID        string                  `json:"file_id"`
@@ -52,10 +52,10 @@ func (p *Provider) Name() domain.ProviderName {
 	return Name
 }
 
-func (p *Provider) Fetch(ctx context.Context, ref domain.TrackRef) (*application.FetchedAudio, error) {
+func (p *Provider) Fetch(ctx context.Context, _ uint, ref domain.TrackRef) (*providers.FetchedAudio, error) {
 	var file File
 	if err := json.Unmarshal([]byte(ref.Payload), &file); err != nil {
-		return nil, application.Permanent(application.ReasonInternal, fmt.Errorf("decode payload: %w", err))
+		return nil, providers.Permanent(providers.ReasonInternal, fmt.Errorf("decode payload: %w", err))
 	}
 
 	info, err := p.Bot.GetFile(ctx, &bot.GetFileParams{FileID: file.ID})
@@ -68,7 +68,7 @@ func (p *Provider) Fetch(ctx context.Context, ref domain.TrackRef) (*application
 		return nil, err
 	}
 
-	return &application.FetchedAudio{
+	return &providers.FetchedAudio{
 		Body:         body,
 		FileName:     file.Name,
 		Format:       file.Format,

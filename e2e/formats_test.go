@@ -10,6 +10,8 @@ import (
 )
 
 func TestFormats(t *testing.T) {
+	t.Parallel()
+
 	t.Run("30 MB FLAC document lands in Library", func(t *testing.T) {
 		s := newScenario(t)
 		flac := makeAudio(t, "big.flac", audioSpec{
@@ -99,6 +101,8 @@ func TestFormats(t *testing.T) {
 }
 
 func TestWavToFlac(t *testing.T) {
+	t.Parallel()
+
 	t.Run("WAV lands as lossless FLAC", func(t *testing.T) {
 		s := newScenario(t)
 		wav := s.uploadAudioFile(makeAudio(t, "take.wav", audioSpec{Seconds: 2}))

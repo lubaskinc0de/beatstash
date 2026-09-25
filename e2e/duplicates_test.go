@@ -10,6 +10,8 @@ import (
 var songTags = map[string]string{"artist": "Artist", "album": "Album", "track": "1", "title": "Dup Song"}
 
 func TestDuplicates(t *testing.T) {
+	t.Parallel()
+
 	t.Run("same MP3 sent twice is stored once", func(t *testing.T) {
 		s := newScenario(t)
 		mp3 := makeAudio(t, "song.mp3", audioSpec{Tags: songTags})

@@ -12,8 +12,8 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/library"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/browse_shared"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 )
 
@@ -29,7 +29,7 @@ const emptyFeed = "💤 Пока никто ничего не расшарил. 
 func (h *Handler) handleSharedFeed(ctx context.Context, b *bot.Bot, update *models.Update) {
 	chatID := update.Message.Chat.ID
 
-	entries, err := h.Sharing.Feed(ctx, feedLimit)
+	entries, err := h.ViewFeed.Execute(ctx, feedLimit)
 	if err != nil {
 		slog.Error("shared_feed", "error", err)
 		sendText(ctx, b, chatID, "⚠️ Не удалось получить ленту, попробуйте позже")
@@ -51,7 +51,7 @@ func (h *Handler) handleSharedFeed(ctx context.Context, b *bot.Bot, update *mode
 	sendKeyboard(ctx, b, chatID, feedText(entries), &models.InlineKeyboardMarkup{InlineKeyboard: rows})
 }
 
-func feedText(entries []library.FeedEntry) string {
+func feedText(entries []browse_shared.FeedEntry) string {
 	var b strings.Builder
 	b.WriteString("🔗 <b>Свежее в общей библиотеке:</b>\n\n")
 	for i, entry := range entries {
@@ -67,7 +67,7 @@ func trackLine(track *domain.Track) string {
 func (h *Handler) handleInlineFeed(ctx context.Context, b *bot.Bot, update *models.Update) {
 	queryID := update.InlineQuery.ID
 
-	entries, err := h.Sharing.Feed(ctx, feedLimit)
+	entries, err := h.ViewFeed.Execute(ctx, feedLimit)
 	if err != nil {
 		slog.Error("shared_feed", "error", err)
 		answerInlineArticle(ctx, b, queryID, "error", "⚠️ Лента недоступна", "Не удалось получить расшаренное", "⚠️ Не удалось получить расшаренное")
@@ -109,13 +109,13 @@ func (h *Handler) handleInlineFeed(ctx context.Context, b *bot.Bot, update *mode
 }
 
 func (h *Handler) handleTake(ctx context.Context, b *bot.Bot, query *models.CallbackQuery, sharedTrackID uint) {
-	err := h.Sharing.Take(ctx, sharedTrackID)
+	err := h.TakeTrack.Execute(ctx, sharedTrackID)
 	switch {
 	case err == nil:
 		answerCallback(ctx, b, query.ID, "➕ Трек в вашей библиотеке")
-	case errors.Is(err, library.ErrAlreadyInLibrary):
+	case errors.Is(err, domain.ErrAlreadyInLibrary):
 		answerCallback(ctx, b, query.ID, "Этот трек уже есть у вас")
-	case errors.Is(err, library.ErrNotShared):
+	case errors.Is(err, domain.ErrNotShared):
 		answerCallback(ctx, b, query.ID, "Трек больше не в общей библиотеке")
 	default:
 		slog.Error("take", "error", err)
@@ -126,31 +126,16 @@ func (h *Handler) handleTake(ctx context.Context, b *bot.Bot, query *models.Call
 // handleSendFile sends to the private chat: the button may sit in a
 // message sent through inline mode, where the bot cannot post.
 func (h *Handler) handleSendFile(ctx context.Context, b *bot.Bot, query *models.CallbackQuery, sharedTrackID uint) {
-	file, err := h.Sharing.SharedFile(ctx, sharedTrackID)
+	err := h.SendFile.Execute(ctx, sharedTrackID, query.From.ID)
 	switch {
-	case errors.Is(err, library.ErrNotShared):
+	case err == nil:
+		answerCallback(ctx, b, query.ID, "")
+	case errors.Is(err, domain.ErrNotShared):
 		answerCallback(ctx, b, query.ID, "Трек больше не в общей библиотеке")
-		return
-	case errors.Is(err, application.ErrNoTelegramFile):
-		answerCallback(ctx, b, query.ID, "Файла этого трека в Telegram нет")
-		return
-	case err != nil:
-		slog.Error("shared_file", "error", err)
+	case errors.Is(err, common.ErrFileTooLarge):
+		answerCallback(ctx, b, query.ID, "Файл слишком большой: Telegram не даёт боту его отправить")
+	default:
+		slog.Error("send_shared_file", "error", err)
 		answerCallback(ctx, b, query.ID, "⚠️ Не получилось, попробуйте позже")
-		return
-	}
-	answerCallback(ctx, b, query.ID, "")
-	sendFile(ctx, b, query.From.ID, file)
-}
-
-func sendFile(ctx context.Context, b *bot.Bot, chatID int64, file *domain.TelegramFile) {
-	var err error
-	if file.Kind == domain.TelegramFileDocument {
-		_, err = b.SendDocument(ctx, &bot.SendDocumentParams{ChatID: chatID, Document: &models.InputFileString{Data: file.ID}})
-	} else {
-		_, err = b.SendAudio(ctx, &bot.SendAudioParams{ChatID: chatID, Audio: &models.InputFileString{Data: file.ID}})
-	}
-	if err != nil {
-		slog.Error("send_file", "error", err)
 	}
 }

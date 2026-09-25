@@ -11,8 +11,20 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/library"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/add_track"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/browse_shared"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/connect_navidrome"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/connect_provider"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/greet_stranger"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/import_collection"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/invite_friend"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/join_by_invite"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/share_tracks"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/show_playing"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 	tgprovider "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/provider"
 )
@@ -20,17 +32,31 @@ import (
 const recentTracksLimit = 10
 
 type Handler struct {
-	EnqueueIngest        *application.EnqueueIngest
-	GetNowPlaying        *application.GetNowPlaying
-	GetRecentlyPlayed    *application.GetRecentlyPlayed
-	LinkNavidromeAccount *application.LinkNavidromeAccount
-	CreateInvite         *application.CreateInvite
-	AcceptInvite         *application.AcceptInvite
-	RegisterAccount      *application.RegisterNavidromeAccount
-	Sharing              *library.Sharing
-	GetTop               *application.GetTop
-	GetServiceStats      *application.GetServiceStats
-	AdminContact         string
+	Zvuk domain.ProviderName
+
+	EnqueueIngest             *add_track.EnqueueIngest
+	GetNowPlaying             *show_playing.GetNowPlaying
+	GetRecentlyPlayed         *show_playing.GetRecentlyPlayed
+	LinkNavidromeAccount      *connect_navidrome.LinkNavidromeAccount
+	CreateInvite              *invite_friend.CreateInvite
+	CheckCanInvite            *invite_friend.CheckCanInvite
+	AcceptInvite              *join_by_invite.AcceptInvite
+	RegisterAccount           *connect_navidrome.RegisterNavidromeAccount
+	ShowShareOptions          *share_tracks.ShowShareOptions
+	ShareTrack                *share_tracks.ShareTrack
+	ShareAlbum                *share_tracks.ShareAlbum
+	UnshareTrack              *share_tracks.UnshareTrack
+	UnshareAlbum              *share_tracks.UnshareAlbum
+	ViewFeed                  *browse_shared.ViewFeed
+	TakeTrack                 *browse_shared.TakeTrack
+	SendFile                  *browse_shared.SendFile
+	GetTop                    *view_top.GetTop
+	GetServiceStats           *greet_stranger.GetServiceStats
+	ConnectProviderAccount    *connect_provider.ConnectProviderAccount
+	DisconnectProviderAccount *connect_provider.DisconnectProviderAccount
+	PlanImport                *import_collection.PlanImport
+	StartImport               *import_collection.StartImport
+	AdminContact              string
 }
 
 func (h *Handler) handleAudio(
@@ -42,12 +68,12 @@ func (h *Handler) handleAudio(
 	if !ok {
 		return
 	}
-	msg := application.MessageRef{ChatID: update.Message.Chat.ID, MessageID: update.Message.ID}
+	msg := common.MessageRef{ChatID: update.Message.Chat.ID, MessageID: update.Message.ID}
 
 	format, ok := domain.FormatOf(file.Name, mime)
 	if !ok {
 		slog.Info("unsupported_format", "file_name", file.Name, "mime_type", mime)
-		reject(ctx, b, msg, application.ReasonUnsupportedFormat)
+		reject(ctx, b, msg, failureTexts[providers.ReasonUnsupportedFormat])
 		return
 	}
 	file.Format = format
@@ -55,16 +81,16 @@ func (h *Handler) handleAudio(
 	ref, err := tgprovider.Ref(file)
 	if err != nil {
 		slog.Error("track_ref", "error", err)
-		reject(ctx, b, msg, application.ReasonInternal)
+		reject(ctx, b, msg, failureTexts[providers.ReasonInternal])
 		return
 	}
 
 	// 👀 goes first: a worker may finish and set 👍 before Execute returns.
 	setReaction(ctx, b, msg, "👀")
-	err = h.EnqueueIngest.Execute(ctx, application.IngestRequest{Ref: ref, Message: msg})
+	err = h.EnqueueIngest.Execute(ctx, add_track.IngestRequest{Ref: ref, Message: msg})
 	if err != nil {
 		slog.Error("enqueue_ingest", "error", err)
-		reject(ctx, b, msg, application.ReasonInternal)
+		reject(ctx, b, msg, failureTexts[providers.ReasonInternal])
 	}
 }
 
@@ -134,7 +160,7 @@ func (h *Handler) handleNowPlaying(
 	update *models.Update,
 ) {
 	track, err := h.GetNowPlaying.Execute(ctx)
-	if errors.Is(err, application.ErrNavidromeAccountNotFound) {
+	if errors.Is(err, repositories.ErrNavidromeAccountNotFound) {
 		answerNoNavidromeAccount(ctx, b, update.InlineQuery.ID)
 		return
 	}
@@ -207,7 +233,7 @@ func (h *Handler) handleRecentlyPlayed(
 	update *models.Update,
 ) {
 	tracks, err := h.GetRecentlyPlayed.Execute(ctx, recentTracksLimit)
-	if errors.Is(err, application.ErrNavidromeAccountNotFound) {
+	if errors.Is(err, repositories.ErrNavidromeAccountNotFound) {
 		answerNoNavidromeAccount(ctx, b, update.InlineQuery.ID)
 		return
 	}
@@ -278,7 +304,7 @@ func (h *Handler) handleRecentlyPlayed(
 	answerInline(ctx, b, update.InlineQuery.ID, results...)
 }
 
-func recentTracksText(tracks []application.RecentTrack, now time.Time) string {
+func recentTracksText(tracks []show_playing.RecentTrack, now time.Time) string {
 	var b strings.Builder
 
 	fmt.Fprintf(&b, "📜 <b>Последние %d треков:</b>\n\n", len(tracks))
@@ -313,7 +339,7 @@ func timeAgo(t time.Time, now time.Time) string {
 	}
 }
 
-func nowPlayingText(track *application.NowPlaying) string {
+func nowPlayingText(track *show_playing.NowPlaying) string {
 	position := track.PositionMs / 1000
 	icon := "▶️"
 	header := "Сейчас играет"

@@ -71,7 +71,11 @@ type botAPI struct {
 	failures map[string]int
 	hold     chan struct{}
 	held     chan struct{}
+	sent     int
+	uploaded []string
 }
+
+const uploadedFileParam = "uploaded_file"
 
 func newBotAPI(t *testing.T) *botAPI {
 	api := &botAPI{
@@ -142,6 +146,9 @@ func (a *botAPI) handle(w http.ResponseWriter, r *http.Request) {
 		for key, values := range r.MultipartForm.Value {
 			params[key] = values[0]
 		}
+		for _, files := range r.MultipartForm.File {
+			params[uploadedFileParam] = files[0].Filename
+		}
 	}
 
 	a.mu.Lock()
@@ -156,11 +163,51 @@ func (a *botAPI) handle(w http.ResponseWriter, r *http.Request) {
 		a.getFile(w, params["file_id"])
 	case "getMe":
 		writeResult(w, map[string]any{"id": 123456, "is_bot": true, "first_name": "Navidrome", "username": botUsername})
-	case "sendMessage":
-		writeResult(w, map[string]any{"message_id": 1, "date": 0, "chat": map[string]any{"id": 1, "type": "private"}})
+	case "sendMessage", "editMessageText":
+		writeResult(w, a.botMessage(params))
+	case "sendAudio":
+		msg := a.botMessage(params)
+		msg["audio"] = a.sentAudio(params)
+		writeResult(w, msg)
 	default:
 		writeResult(w, true)
 	}
+}
+
+func (a *botAPI) botMessage(params map[string]string) map[string]any {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	id, err := strconv.Atoi(params["message_id"])
+	if err != nil {
+		a.sent++
+		id = a.sent
+	}
+	chatID, _ := strconv.ParseInt(params["chat_id"], 10, 64)
+	return map[string]any{"message_id": id, "date": 0, "chat": map[string]any{"id": chatID, "type": "private"}}
+}
+
+// sentAudio describes the audio of a sendAudio call: an uploaded file gets
+// a new file_id, a file_id is sent as is.
+func (a *botAPI) sentAudio(params map[string]string) map[string]any {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	id := params["audio"]
+	if params[uploadedFileParam] != "" {
+		id = fmt.Sprintf("uploaded-%d", len(a.uploaded)+1)
+		a.uploaded = append(a.uploaded, id)
+	}
+	return map[string]any{"file_id": id, "file_unique_id": id + "-unique", "duration": 2}
+}
+
+func (a *botAPI) uploadedFileID(n int) string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if n >= len(a.uploaded) {
+		return ""
+	}
+	return a.uploaded[n]
 }
 
 func (a *botAPI) waitHold(r *http.Request) bool {
@@ -415,4 +462,29 @@ func (a *botAPI) pathOf(fileID string) string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.files[fileID]
+}
+
+type progressMessage struct {
+	ID    int
+	Text  string
+	Edits int
+}
+
+// progressMessage follows the last message the bot kept editing: its
+// latest text and how many times it changed.
+func (s *scenario) progressMessage(t *testing.T) progressMessage {
+	t.Helper()
+
+	edited := s.botAPI.callsTo("editMessageText")
+	require.NotEmpty(t, edited, "the bot edited no message")
+
+	last := edited[len(edited)-1]
+	msg := progressMessage{Text: last.Params["text"]}
+	msg.ID, _ = strconv.Atoi(last.Params["message_id"])
+	for _, call := range edited {
+		if call.Params["message_id"] == last.Params["message_id"] {
+			msg.Edits++
+		}
+	}
+	return msg
 }

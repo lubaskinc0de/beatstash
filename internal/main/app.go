@@ -7,20 +7,42 @@ import (
 	"github.com/go-telegram/bot"
 	"gorm.io/gorm"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/ingest"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/library"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/add_track"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/browse_shared"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/accounts"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
+	appnd "github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/connect_navidrome"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/connect_provider"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/greet_stranger"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/import_collection"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/ingest_track"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/invite_friend"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/join_by_invite"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/share_tracks"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/show_playing"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/start_app"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/sync_collection"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/audio"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/background"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/database"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/disk"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/secrets"
 	tgbot "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/bot"
 	tgprovider "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/provider"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/zvuk"
 )
 
 type App struct {
-	bot     *bot.Bot
-	workers *ingest.Workers
-	db      *gorm.DB
+	bot       *bot.Bot
+	workers   *background.IngestWorkers
+	scheduler *background.Scheduler
+	db        *gorm.DB
 
 	closeOnce sync.Once
 	closeErr  error
@@ -61,20 +83,26 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	ingestQueue := &database.IngestQueue{DB: db}
 	accountRepo := &database.NavidromeAccountRepository{DB: db}
 	navidromeClient := navidrome.NewClient(cfg.NavidromeURL, &database.NavidromeSessionRepository{DB: db})
-	navidromeAdmin := application.NavidromeCredentials{Login: cfg.NavidromeUser, Password: cfg.NavidromePassword}
-	accounts := &application.NavidromeAccounts{Repo: accountRepo, Box: box}
+	navidromeAdmin := appnd.Credentials{Login: cfg.NavidromeUser, Password: cfg.NavidromePassword}
+	navidromeAccounts := &accounts.Navidrome{Repo: accountRepo, Box: box}
+	fileDisk := &disk.Disk{MusicDir: cfg.MusicDir}
 
-	libraries := &application.Libraries{
-		Repo:              libraryRepo,
-		Users:             users,
-		Accounts:          accountRepo,
-		Navidrome:         navidromeClient,
-		Admin:             navidromeAdmin,
-		MusicDir:          cfg.MusicDir,
-		NavidromeMusicDir: cfg.NavidromeMusicDir,
+	libs := &libraries.Libraries{Repo: libraryRepo, Disk: fileDisk, MusicDir: cfg.MusicDir}
+	navidromeLibraries := &libraries.Navidrome{
+		Libraries: libs,
+		Navidrome: navidromeClient,
+		Admin:     navidromeAdmin,
+		MusicDir:  cfg.NavidromeMusicDir,
 	}
-	startup := &application.Startup{Admins: users, AdminIDs: cfg.AdminIDs, Libraries: libraries}
-	if err := startup.Execute(ctx); err != nil {
+	startApp := &start_app.StartApp{
+		Admins:             users,
+		AdminIDs:           cfg.AdminIDs,
+		Users:              users,
+		Accounts:           accountRepo,
+		Libraries:          libs,
+		NavidromeLibraries: navidromeLibraries,
+	}
+	if err := startApp.Execute(ctx); err != nil {
 		return nil, err
 	}
 
@@ -88,92 +116,179 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		return nil, err
 	}
 
-	sharing := &library.Sharing{
-		IDs:       ids,
-		Tx:        txManager,
-		Tracks:    tracks,
-		Shares:    &database.ShareRepository{DB: db},
-		Takes:     &database.TakeRepository{DB: db},
-		Libraries: libraries,
-		Lock:      libraryLock,
-		Clock:     cfg.Clock,
-	}
-	pipeline := &ingest.Pipeline{
-		Providers: application.NewProviders(&tgprovider.Provider{Bot: b}),
-		Tracks:    tracks,
-		Uploads:   uploads,
-		Libraries: libraryRepo,
-		Shared:    sharing,
-		Lock:      libraryLock,
-		MusicDir:  cfg.MusicDir,
-	}
-	workers := ingest.NewWorkers(
-		txManager,
-		ingestQueue,
-		pipeline,
-		&tgbot.Notifier{Bot: b},
-		cfg.IngestWorkers,
-		cfg.IngestRetryDelays,
-		cfg.IngestPollInterval,
+	audioSender := &tgbot.AudioSender{Bot: b, MaxPostSize: cfg.MaxPostSize}
+	shares := &database.ShareRepository{DB: db}
+	takes := &database.TakeRepository{DB: db}
+	providerAccountRepo := &database.ProviderAccountRepository{DB: db}
+	providerAccounts := &accounts.ProviderTokens{Repo: providerAccountRepo, Box: box}
+	providers := providers.NewRegistry(
+		&tgprovider.Provider{Bot: b},
+		&zvuk.Provider{
+			Client: zvuk.NewClient(cfg.ZvukURL),
+			Tokens: providerAccounts,
+			Pacer:  &zvuk.Pacer{Min: cfg.ZvukPauseMin, Max: cfg.ZvukPauseMax, PerUser: cfg.ZvukPerUser},
+		},
 	)
+	notifier := &tgbot.Notifier{Bot: b, ProgressInterval: cfg.ProgressInterval}
+	batchRepo := &database.IngestBatchRepository{DB: db}
+	waker := &background.Waker{}
+	// Zvuk gets workers of its own: its downloads wait out pauses that
+	// must not hold up files sent from Telegram.
+	paced := []domain.ProviderName{zvuk.Name}
+	inFlight := &ingest_track.InFlight{}
+	workers := &background.IngestWorkers{
+		ProcessIngestJob: &ingest_track.ProcessIngestJob{
+			Tx:            txManager,
+			Queue:         ingestQueue,
+			Providers:     providers,
+			Tracks:        tracks,
+			Uploads:       uploads,
+			Libraries:     libraryRepo,
+			Lock:          libraryLock,
+			Disk:          fileDisk,
+			Tags:          audio.Tags{},
+			Remuxer:       audio.FFmpeg{},
+			Notifier:      notifier,
+			Batches:       batchRepo,
+			Reporter:      notifier,
+			Sender:        audioSender,
+			InFlight:      inFlight,
+			MusicDir:      cfg.MusicDir,
+			StorageChatID: cfg.StorageChatID,
+			RetryDelays:   cfg.IngestRetryDelays,
+		},
+		InFlight:      inFlight,
+		Queue:         ingestQueue,
+		SettleBatches: &ingest_track.SettleIngestBatches{Tx: txManager, Queue: ingestQueue, Batches: batchRepo, Reporter: notifier},
+		Disk:          fileDisk,
+		Waker:         waker,
+		Lanes: []background.Lane{
+			{Filter: repositories.JobFilter{Except: paced}, Workers: cfg.IngestWorkers},
+			{Filter: repositories.JobFilter{Only: paced, PerUser: cfg.ZvukPerUser}, Workers: cfg.ZvukWorkers},
+		},
+		PollInterval: cfg.IngestPollInterval,
+	}
+	enqueueIngest := &add_track.EnqueueIngest{IDs: ids, Queue: ingestQueue, Waker: waker}
 	invites := &database.InviteRepository{DB: db}
-	createInvite := &application.CreateInvite{IDs: ids, Invites: invites, AdminIDs: cfg.AdminIDs, TTL: cfg.InviteTTL, Clock: cfg.Clock}
+	createInvite := &invite_friend.CreateInvite{IDs: ids, Invites: invites, AdminIDs: cfg.AdminIDs, TTL: cfg.InviteTTL, Clock: cfg.Clock}
 
 	handler := &tgbot.Handler{
-		EnqueueIngest: &application.EnqueueIngest{IDs: ids, Queue: ingestQueue, Waker: workers},
-		GetNowPlaying: &application.GetNowPlaying{
+		Zvuk:          zvuk.Name,
+		EnqueueIngest: enqueueIngest,
+		GetNowPlaying: &show_playing.GetNowPlaying{
 			IDs:       ids,
 			Client:    navidromeClient,
 			Repo:      tracks,
-			Accounts:  accounts,
-			Libraries: libraries,
+			Accounts:  navidromeAccounts,
+			Libraries: libs,
 		},
-		GetRecentlyPlayed: &application.GetRecentlyPlayed{
+		GetRecentlyPlayed: &show_playing.GetRecentlyPlayed{
 			IDs:       ids,
 			Client:    navidromeClient,
 			Repo:      tracks,
-			Accounts:  accounts,
-			Libraries: libraries,
+			Accounts:  navidromeAccounts,
+			Libraries: libs,
 		},
-		LinkNavidromeAccount: &application.LinkNavidromeAccount{
+		LinkNavidromeAccount: &connect_navidrome.LinkNavidromeAccount{
 			IDs:       ids,
 			Navidrome: navidromeClient,
-			Accounts:  accounts,
+			Accounts:  navidromeAccounts,
+			Linked:    accountRepo,
 			Users:     users,
-			Libraries: libraries,
+			Libraries: navidromeLibraries,
 		},
-		CreateInvite: createInvite,
-		AcceptInvite: &application.AcceptInvite{
-			IDs:       ids,
-			Tx:        txManager,
-			Invites:   invites,
-			Users:     users,
-			Libraries: libraries,
-			Clock:     cfg.Clock,
+		CreateInvite:   createInvite,
+		CheckCanInvite: &invite_friend.CheckCanInvite{IDs: ids, AdminIDs: cfg.AdminIDs},
+		AcceptInvite: &join_by_invite.AcceptInvite{
+			IDs:                ids,
+			Tx:                 txManager,
+			Invites:            invites,
+			Users:              users,
+			Libraries:          libs,
+			NavidromeLibraries: navidromeLibraries,
+			Clock:              cfg.Clock,
 		},
-		RegisterAccount: &application.RegisterNavidromeAccount{
+		RegisterAccount: &connect_navidrome.RegisterNavidromeAccount{
 			IDs:       ids,
 			Navidrome: navidromeClient,
-			Accounts:  accounts,
+			Accounts:  navidromeAccounts,
 			Users:     users,
-			Libraries: libraries,
+			Libraries: navidromeLibraries,
 			Admin:     navidromeAdmin,
 		},
-		Sharing:         sharing,
-		GetTop:          &application.GetTop{IDs: ids, Shares: sharing.Shares, Takes: sharing.Takes, Clock: cfg.Clock},
-		GetServiceStats: &application.GetServiceStats{Users: users, Tracks: tracks, Libraries: libraryRepo},
-		AdminContact:    cfg.AdminContact,
+		ShowShareOptions: &share_tracks.ShowShareOptions{IDs: ids, Tracks: tracks, Shares: shares, Libraries: libs},
+		ShareTrack: &share_tracks.ShareTrack{
+			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shares: shares,
+			Libraries: libs, Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,
+		},
+		ShareAlbum: &share_tracks.ShareAlbum{
+			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shares: shares,
+			Libraries: libs, Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,
+		},
+		UnshareTrack: &share_tracks.UnshareTrack{
+			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shares: shares,
+			Libraries: libs, Disk: fileDisk, MusicDir: cfg.MusicDir,
+		},
+		UnshareAlbum: &share_tracks.UnshareAlbum{
+			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shares: shares,
+			Libraries: libs, Disk: fileDisk, MusicDir: cfg.MusicDir,
+		},
+		ViewFeed: &browse_shared.ViewFeed{IDs: ids, Tracks: tracks, Shares: shares},
+		TakeTrack: &browse_shared.TakeTrack{
+			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shares: shares, Takes: takes,
+			Libraries: libs, Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,
+		},
+		SendFile:        &browse_shared.SendFile{IDs: ids, Tx: txManager, Tracks: tracks, Libraries: libs, Sender: audioSender},
+		GetTop:          &view_top.GetTop{IDs: ids, Shares: shares, Takes: takes, Clock: cfg.Clock},
+		GetServiceStats: &greet_stranger.GetServiceStats{Users: users, Tracks: tracks, Libraries: libraryRepo},
+		ConnectProviderAccount: &connect_provider.ConnectProviderAccount{
+			IDs: ids, Tx: txManager, Providers: providers, Accounts: providerAccountRepo, Box: box,
+		},
+		DisconnectProviderAccount: &connect_provider.DisconnectProviderAccount{IDs: ids, Tx: txManager, Accounts: providerAccountRepo},
+		PlanImport:                &import_collection.PlanImport{IDs: ids, Providers: providers, Libraries: libraryRepo, Tracks: tracks},
+		StartImport: &import_collection.StartImport{
+			IDs:       ids,
+			Tx:        txManager,
+			Providers: providers,
+			Libraries: libraryRepo,
+			Tracks:    tracks,
+			Accounts:  providerAccountRepo,
+			Queue:     ingestQueue,
+			BatchRepo: batchRepo,
+			Reporter:  notifier,
+			Waker:     waker,
+		},
+		AdminContact: cfg.AdminContact,
 	}
 	handler.Register(b)
 
-	return &App{bot: b, workers: workers, db: db}, nil
+	scheduler := &background.Scheduler{
+		Provider: zvuk.Name,
+		Sync: &sync_collection.SyncCollection{
+			Tx:        txManager,
+			Accounts:  providerAccountRepo,
+			Providers: providers,
+			Queue:     ingestQueue,
+			BatchRepo: batchRepo,
+			Waker:     waker,
+			Notifier:  notifier,
+			Interval:  cfg.SyncInterval,
+
+			Libraries:         libraryRepo,
+			Tracks:            tracks,
+			Navidrome:         navidromeClient,
+			NavidromeAccounts: navidromeAccounts,
+		},
+		Tick: min(cfg.SyncInterval, cfg.MirrorRetryInterval),
+	}
+
+	return &App{bot: b, workers: workers, scheduler: scheduler, db: db}, nil
 }
 
 func (a *App) Bot() *bot.Bot {
 	return a.bot
 }
 
-// Run serves updates and Ingest Jobs until ctx is done.
 func (a *App) Run(ctx context.Context) {
 	stopped := a.StartWorkers(ctx)
 	a.bot.Start(ctx)
@@ -181,7 +296,14 @@ func (a *App) Run(ctx context.Context) {
 }
 
 func (a *App) StartWorkers(ctx context.Context) <-chan struct{} {
-	return a.workers.Start(ctx)
+	workers := a.workers.Start(ctx)
+	stopped := make(chan struct{})
+	go func() {
+		a.scheduler.Run(ctx)
+		<-workers
+		close(stopped)
+	}()
+	return stopped
 }
 
 func (a *App) WaitIngest(ctx context.Context) error {

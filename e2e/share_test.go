@@ -11,6 +11,8 @@ import (
 )
 
 func TestShare(t *testing.T) {
+	t.Parallel()
+
 	t.Run("shared track is found by another user", func(t *testing.T) {
 		s := newScenario(t)
 		bobAccount := s.linkNewAccount(bob)

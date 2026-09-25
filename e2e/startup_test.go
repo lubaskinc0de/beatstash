@@ -14,6 +14,8 @@ import (
 )
 
 func TestStartup(t *testing.T) {
+	t.Parallel()
+
 	t.Run("bot refuses to start without SECRET_KEY", func(t *testing.T) {
 		binary := buildBot(t)
 		vars := botEnv(t)

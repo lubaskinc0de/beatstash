@@ -7,7 +7,8 @@ import (
 
 	"github.com/go-telegram/bot/models"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 )
 
@@ -25,13 +26,13 @@ func withSender(ctx context.Context, from *models.User) context.Context {
 func senderFrom(ctx context.Context) (*sender, error) {
 	s, ok := ctx.Value(senderContextKey{}).(*sender)
 	if !ok {
-		return nil, application.ErrNotAuthenticated
+		return nil, common.ErrNotAuthenticated
 	}
 	return s, nil
 }
 
 type IDProvider struct {
-	Users application.UserRepository
+	Users repositories.Users
 }
 
 func (p *IDProvider) CurrentUser(ctx context.Context) (*domain.User, error) {
@@ -44,8 +45,8 @@ func (p *IDProvider) CurrentUser(ctx context.Context) (*domain.User, error) {
 	}
 
 	user, err := p.Users.GetByTelegramID(ctx, uint64(s.from.ID))
-	if errors.Is(err, application.ErrUserNotFound) {
-		return nil, application.ErrNotAuthenticated
+	if errors.Is(err, repositories.ErrUserNotFound) {
+		return nil, common.ErrNotAuthenticated
 	}
 	if err != nil {
 		return nil, err

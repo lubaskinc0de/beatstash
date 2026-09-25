@@ -11,8 +11,8 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/library"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/share_tracks"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 	tgprovider "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/provider"
 )
@@ -35,13 +35,13 @@ func (h *Handler) handleShare(ctx context.Context, b *bot.Bot, update *models.Up
 		return
 	}
 
-	state, err := h.Sharing.Find(ctx, domain.TrackRef{Provider: tgprovider.Name, ID: file.UniqueID})
+	state, err := h.ShowShareOptions.Execute(ctx, domain.TrackRef{Provider: tgprovider.Name, ID: file.UniqueID})
 	switch {
 	case err == nil:
 		sendKeyboard(ctx, b, msg.Chat.ID, "Что расшарить?", shareKeyboard(state))
-	case errors.Is(err, library.ErrInboxTrack):
+	case errors.Is(err, domain.ErrInboxTrack):
 		sendText(ctx, b, msg.Chat.ID, "🗂 Трек из Inbox нельзя расшарить: у него нет исполнителя или названия")
-	case errors.Is(err, application.ErrSourceNotFound):
+	case errors.Is(err, repositories.ErrSourceNotFound):
 		sendText(ctx, b, msg.Chat.ID, shareUsage)
 	default:
 		slog.Error("find_share_state", "error", err)
@@ -49,7 +49,7 @@ func (h *Handler) handleShare(ctx context.Context, b *bot.Bot, update *models.Up
 	}
 }
 
-func shareKeyboard(state *library.ShareState) *models.InlineKeyboardMarkup {
+func shareKeyboard(state *share_tracks.ShareState) *models.InlineKeyboardMarkup {
 	track := models.InlineKeyboardButton{Text: "🔗 Трек", CallbackData: callbackData(actionShareTrack, state.TrackID)}
 	if state.Shared {
 		track = models.InlineKeyboardButton{Text: "🔒 Снять Share", CallbackData: callbackData(actionUnshareTrack, state.TrackID)}
@@ -90,25 +90,28 @@ func (h *Handler) shareCallback(action string) callbackHandler {
 
 func (h *Handler) handleShareCallback(ctx context.Context, b *bot.Bot, query *models.CallbackQuery, action string, trackID uint) {
 	var (
-		text string
-		err  error
+		text  string
+		state *share_tracks.ShareState
+		err   error
 	)
-	wholeAlbum := action == actionShareAlbum || action == actionUnshareAlbum
 	switch action {
-	case actionShareTrack, actionShareAlbum:
-		var result library.ShareResult
-		result, err = h.Sharing.Share(ctx, trackID, wholeAlbum)
-		text = shareResultText(result)
-	case actionUnshareTrack, actionUnshareAlbum:
-		err = h.Sharing.Unshare(ctx, trackID, wholeAlbum)
+	case actionShareTrack:
+		text, state, err = shareOutcome(h.ShareTrack.Execute(ctx, trackID))
+	case actionShareAlbum:
+		text, state, err = shareOutcome(h.ShareAlbum.Execute(ctx, trackID))
+	case actionUnshareTrack:
+		state, err = h.UnshareTrack.Execute(ctx, trackID)
+		text = "🔒 Share снят"
+	case actionUnshareAlbum:
+		state, err = h.UnshareAlbum.Execute(ctx, trackID)
 		text = "🔒 Share снят"
 	}
 
 	switch {
-	case errors.Is(err, library.ErrNotOwnTrack):
+	case errors.Is(err, domain.ErrNotOwnTrack):
 		answerCallback(ctx, b, query.ID, "Этот трек не из вашей библиотеки")
 		return
-	case errors.Is(err, library.ErrInboxTrack):
+	case errors.Is(err, domain.ErrInboxTrack):
 		answerCallback(ctx, b, query.ID, "Трек из Inbox нельзя расшарить")
 		return
 	case err != nil:
@@ -124,15 +127,17 @@ func (h *Handler) handleShareCallback(ctx context.Context, b *bot.Bot, query *mo
 		editKeyboard(ctx, b, query, &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{}})
 		return
 	}
-	state, err := h.Sharing.State(ctx, trackID)
-	if err != nil {
-		slog.Error("share_state", "error", err)
-		return
-	}
 	editKeyboard(ctx, b, query, shareKeyboard(state))
 }
 
-func shareResultText(result library.ShareResult) string {
+func shareOutcome(result *share_tracks.ShareResult, err error) (string, *share_tracks.ShareState, error) {
+	if err != nil {
+		return "", nil, err
+	}
+	return shareResultText(result), result.State, nil
+}
+
+func shareResultText(result *share_tracks.ShareResult) string {
 	switch {
 	case result.Created == 0 && result.AlreadyShared == 0:
 		return "Уже расшарено вами"

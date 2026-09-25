@@ -6,10 +6,10 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 )
 
-func Options(ids application.IDProvider) []bot.Option {
+func Options(ids common.IDProvider) []bot.Option {
 	return []bot.Option{
 		bot.WithAllowedUpdates(bot.AllowedUpdates{
 			"message",
@@ -29,6 +29,9 @@ func (h *Handler) Register(b *bot.Bot) {
 	b.RegisterHandlerMatchFunc(isCommand("share"), h.handleShare)
 	b.RegisterHandlerMatchFunc(isCommand("shared"), h.handleSharedFeed)
 	b.RegisterHandlerMatchFunc(isCommand("top"), h.handleTop)
+	b.RegisterHandlerMatchFunc(isCommand("zvuk"), h.handleZvuk)
+	b.RegisterHandlerMatchFunc(isCommand("zvuk_off"), h.handleZvukOff)
+	b.RegisterHandlerMatchFunc(isCommand("zvuk_import"), h.handleZvukImport)
 	b.RegisterHandlerMatchFunc(isText, h.handleText)
 	b.RegisterHandlerMatchFunc(isInlineQuery, h.handleInlineQuery)
 	b.RegisterHandlerMatchFunc(isCallbackQuery, h.handleCallbackQuery)
@@ -52,6 +55,8 @@ func (h *Handler) callbackHandler(action string) (callbackHandler, bool) {
 		return h.handleTake, true
 	case actionSendFile:
 		return h.handleSendFile, true
+	case actionStartImport:
+		return h.handleStartImport, true
 	}
 	return nil, false
 }

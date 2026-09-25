@@ -8,7 +8,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 )
 
 func updateSender(update *models.Update) *models.User {
@@ -37,14 +37,14 @@ func senderMiddleware(next bot.HandlerFunc) bot.HandlerFunc {
 
 // membersOnly keeps the bot silent to strangers: handlers may answer before
 // any interactor turns them away.
-func membersOnly(ids application.IDProvider) bot.Middleware {
+func membersOnly(ids common.IDProvider) bot.Middleware {
 	return func(next bot.HandlerFunc) bot.HandlerFunc {
 		return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 			_, err := ids.CurrentUser(ctx)
 			switch {
-			case err == nil, errors.Is(err, application.ErrNotAuthenticated) && isStart(update):
+			case err == nil, errors.Is(err, common.ErrNotAuthenticated) && isStart(update):
 				next(ctx, b, update)
-			case errors.Is(err, application.ErrNotAuthenticated):
+			case errors.Is(err, common.ErrNotAuthenticated):
 				slog.Info("access_denied", "uid", updateSender(update).ID)
 			default:
 				slog.Error("authenticate", "error", err)

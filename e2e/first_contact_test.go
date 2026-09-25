@@ -8,6 +8,8 @@ import (
 )
 
 func TestFirstContact(t *testing.T) {
+	t.Parallel()
+
 	t.Run("new user starting with inline np gets an answer", func(t *testing.T) {
 		s := newScenario(t)
 		query := s.inlineQuery(alice, "np")

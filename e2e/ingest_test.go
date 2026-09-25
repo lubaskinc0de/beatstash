@@ -7,6 +7,8 @@ import (
 )
 
 func TestIngest(t *testing.T) {
+	t.Parallel()
+
 	t.Run("tagged MP3 lands at artist/album/track path", func(t *testing.T) {
 		s := newScenario(t)
 		audio := s.uploadAudio("track.mp3")

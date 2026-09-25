@@ -38,3 +38,30 @@ type Take struct {
 
 	CreatedAt time.Time `gorm:"not null"`
 }
+
+// ShareCopy: the first to share the track counts in the Top.
+func ShareCopy(userID uint, source, copied *Track, at time.Time) *Share {
+	return &Share{TrackID: copied.ID, SourceTrackID: source.ID, UserID: userID, InTop: true, CreatedAt: at}
+}
+
+// ShareDuplicate: no second copy and no Top, but the track stays shared
+// after its author unshares.
+func ShareDuplicate(userID uint, source, duplicate *Track, at time.Time) *Share {
+	return &Share{TrackID: duplicate.ID, SourceTrackID: source.ID, UserID: userID, CreatedAt: at}
+}
+
+// Author expects Shares oldest first.
+func Author(shares []Share) *Share {
+	if len(shares) == 0 {
+		return nil
+	}
+	return &shares[0]
+}
+
+func NewTake(userID uint, copied *Track, shares []Share, at time.Time) *Take {
+	take := &Take{UserID: userID, TrackID: copied.ID, CreatedAt: at}
+	if author := Author(shares); author != nil {
+		take.AuthorID = &author.UserID
+	}
+	return take
+}

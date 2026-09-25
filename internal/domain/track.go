@@ -19,6 +19,44 @@ type Track struct {
 	UpdatedAt time.Time
 }
 
+func (t *Track) In(library *Library) bool {
+	return t.LibraryID == library.ID
+}
+
+// Shareable refuses Inbox Tracks: without artist or title nobody finds them.
+func (t *Track) Shareable() error {
+	if !t.Complete() {
+		return ErrInboxTrack
+	}
+	return nil
+}
+
+func (t *Track) Single() bool {
+	return t.Album == ""
+}
+
+func ShareableTracks(album []Track) []Track {
+	var shareable []Track
+	for _, t := range album {
+		if t.Shareable() == nil {
+			shareable = append(shareable, t)
+		}
+	}
+	return shareable
+}
+
+// CopyTo leaves the Track Refs to TrackSource.For.
+func (t *Track) CopyTo(library *Library, path string) *Track {
+	return &Track{
+		LibraryID:  library.ID,
+		Path:       path,
+		Metadata:   t.Metadata,
+		Quality:    t.Quality,
+		DurationMs: t.DurationMs,
+		Format:     t.Format,
+	}
+}
+
 // DuplicateToleranceMs: tags of the same recording from different sources
 // may round its length differently; a bigger gap means another edit.
 const DuplicateToleranceMs = 2000
@@ -67,6 +105,25 @@ type TrackSource struct {
 	TelegramFileKind TelegramFileKind
 
 	CreatedAt time.Time
+}
+
+func (s TrackSource) For(track *Track) *TrackSource {
+	s.ID = 0
+	s.TrackID = track.ID
+	s.LibraryID = track.LibraryID
+	return &s
+}
+
+// TelegramSource: a Telegram Track Ref is the file's unique ID.
+func TelegramSource(track *Track, uniqueID string, file TelegramFile) *TrackSource {
+	return &TrackSource{
+		TrackID:          track.ID,
+		LibraryID:        track.LibraryID,
+		Provider:         ProviderTelegram,
+		Ref:              uniqueID,
+		TelegramFileID:   file.ID,
+		TelegramFileKind: file.Kind,
+	}
 }
 
 func (s *TrackSource) TelegramFile() *TelegramFile {

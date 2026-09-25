@@ -6,7 +6,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 )
 
@@ -46,5 +46,9 @@ func (r *LibraryRepository) SetNavidromeID(ctx context.Context, id uint, navidro
 }
 
 func (r *LibraryRepository) first(ctx context.Context, query string, args ...any) (*domain.Library, error) {
-	return first[domain.Library](dbForContext(ctx, r.DB).Where(query, args...), application.ErrLibraryNotFound)
+	return first[domain.Library](dbForContext(ctx, r.DB).Where(query, args...), repositories.ErrLibraryNotFound)
+}
+
+func (r *LibraryRepository) Get(ctx context.Context, id uint) (*domain.Library, error) {
+	return r.first(ctx, "id = ?", id)
 }

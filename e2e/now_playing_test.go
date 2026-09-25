@@ -8,6 +8,8 @@ import (
 )
 
 func TestNowPlaying(t *testing.T) {
+	t.Parallel()
+
 	t.Run("np returns the track playing in Navidrome", func(t *testing.T) {
 		s := newScenario(t)
 		account := env.navidrome.createAccount(t, "alice")
