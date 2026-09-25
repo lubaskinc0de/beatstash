@@ -16,14 +16,14 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 )
 
-func (h *Handler) HandleInvite(
+func (h *Handler) handleInvite(
 	ctx context.Context,
 	b *bot.Bot,
 	update *models.Update,
 ) {
 	chatID := update.Message.Chat.ID
 
-	code, err := h.createInvite.Execute(ctx)
+	code, err := h.CreateInvite.Execute(ctx)
 	if errors.Is(err, application.ErrNotAdmin) {
 		sendText(ctx, b, chatID, "⛔ Приглашения выдаёт только администратор")
 		return
@@ -42,11 +42,11 @@ func (h *Handler) HandleInvite(
 	}
 	sendText(ctx, b, chatID, fmt.Sprintf(
 		"🎟 Одноразовое приглашение, действует %s:\nhttps://t.me/%s?start=%s",
-		days(h.createInvite.TTL), username, code,
+		days(h.CreateInvite.TTL), username, code,
 	))
 }
 
-func (h *Handler) HandleStart(
+func (h *Handler) handleStart(
 	ctx context.Context,
 	b *bot.Bot,
 	update *models.Update,
@@ -63,7 +63,7 @@ func (h *Handler) HandleStart(
 		return
 	}
 	from := update.Message.From
-	user, err := h.acceptInvite.Execute(ctx, code, application.TelegramProfile{ID: uint64(from.ID), Username: from.Username})
+	user, err := h.AcceptInvite.Execute(ctx, code, application.TelegramProfile{ID: uint64(from.ID), Username: from.Username})
 	if errors.Is(err, application.ErrInviteInvalid) {
 		sendText(ctx, b, chatID, "⛔ Приглашение недействительно: оно уже использовано или истекло")
 		return
@@ -84,8 +84,8 @@ func (h *Handler) sendWelcome(ctx context.Context, b *bot.Bot, chatID int64, use
 		slog.Error("get_me", "error", err)
 	}
 	inviteTTL := time.Duration(0)
-	if h.createInvite.CanInvite(user) {
-		inviteTTL = h.createInvite.TTL
+	if h.CreateInvite.CanInvite(user) {
+		inviteTTL = h.CreateInvite.TTL
 	}
 	sendText(ctx, b, chatID, welcomeText(username, inviteTTL))
 }
@@ -117,7 +117,7 @@ func welcomeText(botUsername string, inviteTTL time.Duration) string {
 
 // sendAbout answers a stranger's /start without revealing anybody's music.
 func (h *Handler) sendAbout(ctx context.Context, b *bot.Bot, chatID int64) {
-	stats, err := h.getServiceStats.Execute(ctx)
+	stats, err := h.GetServiceStats.Execute(ctx)
 	if err != nil {
 		slog.Error("get_service_stats", "error", err)
 		return
@@ -129,8 +129,8 @@ func (h *Handler) sendAbout(ctx context.Context, b *bot.Bot, chatID int64) {
 	text.WriteString("и делиться находками с остальными. Попасть сюда можно только по приглашению.\n\n")
 	fmt.Fprintf(&text, "👥 Пользователей: %d\n", stats.Users)
 	fmt.Fprintf(&text, "🎵 Треков в общей библиотеке: %d", stats.SharedTracks)
-	if h.adminContact != "" {
-		fmt.Fprintf(&text, "\n\n✉️ Попросить доступ: %s", html.EscapeString(h.adminContact))
+	if h.AdminContact != "" {
+		fmt.Fprintf(&text, "\n\n✉️ Попросить доступ: %s", html.EscapeString(h.AdminContact))
 	}
 	sendText(ctx, b, chatID, text.String())
 }

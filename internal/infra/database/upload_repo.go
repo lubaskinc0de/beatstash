@@ -9,13 +9,9 @@ import (
 )
 
 type UploadRepository struct {
-	db *gorm.DB
-}
-
-func NewUploadRepository(db *gorm.DB) *UploadRepository {
-	return &UploadRepository{db: db}
+	DB *gorm.DB
 }
 
 func (r *UploadRepository) Save(ctx context.Context, upload *domain.Upload) error {
-	return dbForContext(ctx, r.db).Omit("User", "Track", "TrackSource").Create(upload).Error
+	return dbForContext(ctx, r.DB).Omit("User", "Track", "TrackSource").Create(upload).Error
 }

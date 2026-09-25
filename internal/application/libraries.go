@@ -17,7 +17,7 @@ import (
 const sharedLibraryName = "Общая"
 
 // Libraries keeps Personal and Shared Libraries in step across the
-// database, MUSIC_DIR and Navidrome.
+// database, music_dir and Navidrome.
 type Libraries struct {
 	Repo      LibraryRepository
 	Users     UserLister
@@ -131,7 +131,7 @@ func (l *Libraries) Prepare(ctx context.Context) error {
 
 // showNewAccountsOnlyShared keeps an account that Navidrome creates, or one
 // the bot failed to grant, away from Personal Libraries: of the libraries
-// under MUSIC_DIR only the Shared Library goes to new accounts.
+// under music_dir only the Shared Library goes to new accounts.
 func (l *Libraries) showNewAccountsOnlyShared(ctx context.Context) error {
 	shared, err := l.Shared(ctx)
 	if err != nil {

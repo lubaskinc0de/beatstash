@@ -45,7 +45,7 @@ type inlineResult struct {
 	} `json:"reply_markup"`
 }
 
-func (r inlineResult) Buttons() []button {
+func (r inlineResult) buttons() []button {
 	var buttons []button
 	for _, row := range r.ReplyMarkup.Rows {
 		buttons = append(buttons, row...)
@@ -84,7 +84,7 @@ func newBotAPI(t *testing.T) *botAPI {
 	return api
 }
 
-func (a *botAPI) URL() string {
+func (a *botAPI) url() string {
 	return a.server.URL
 }
 
@@ -240,7 +240,7 @@ func (a *botAPI) forget() {
 	a.calls = nil
 }
 
-func (a *botAPI) Calls() []apiCall {
+func (a *botAPI) allCalls() []apiCall {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return append([]apiCall(nil), a.calls...)
@@ -248,7 +248,7 @@ func (a *botAPI) Calls() []apiCall {
 
 func (a *botAPI) callsTo(method string) []apiCall {
 	var result []apiCall
-	for _, call := range a.Calls() {
+	for _, call := range a.allCalls() {
 		if call.Method == method {
 			result = append(result, call)
 		}
@@ -256,21 +256,21 @@ func (a *botAPI) callsTo(method string) []apiCall {
 	return result
 }
 
-// Reactions returns the emojis the bot set on messages, in order,
+// reactions returns the emojis the bot set on messages, in order,
 // skipping calls that only clear the reaction.
-func (a *botAPI) Reactions(t *testing.T) []string {
+func (a *botAPI) reactions(t *testing.T) []string {
 	t.Helper()
-	return a.reactions(t, func(apiCall) bool { return true })
+	return a.reactionsWhere(t, func(apiCall) bool { return true })
 }
 
-func (a *botAPI) ReactionsOn(t *testing.T, messageID int) []string {
+func (a *botAPI) reactionsOn(t *testing.T, messageID int) []string {
 	t.Helper()
-	return a.reactions(t, func(call apiCall) bool {
+	return a.reactionsWhere(t, func(call apiCall) bool {
 		return call.Params["message_id"] == strconv.Itoa(messageID)
 	})
 }
 
-func (a *botAPI) reactions(t *testing.T, match func(apiCall) bool) []string {
+func (a *botAPI) reactionsWhere(t *testing.T, match func(apiCall) bool) []string {
 	t.Helper()
 
 	var emojis []string
@@ -289,7 +289,7 @@ func (a *botAPI) reactions(t *testing.T, match func(apiCall) bool) []string {
 	return emojis
 }
 
-func (a *botAPI) Replies(t *testing.T) []reply {
+func (a *botAPI) replies(t *testing.T) []reply {
 	t.Helper()
 
 	var replies []reply
@@ -307,7 +307,7 @@ func (a *botAPI) Replies(t *testing.T) []reply {
 	return replies
 }
 
-func (a *botAPI) InlineAnswers(t *testing.T) []inlineAnswer {
+func (a *botAPI) inlineAnswers(t *testing.T) []inlineAnswer {
 	t.Helper()
 
 	var answers []inlineAnswer
@@ -319,10 +319,10 @@ func (a *botAPI) InlineAnswers(t *testing.T) []inlineAnswer {
 	return answers
 }
 
-func (a *botAPI) InlineAnswerTo(t *testing.T, query *models.Update) inlineAnswer {
+func (a *botAPI) inlineAnswerTo(t *testing.T, query *models.Update) inlineAnswer {
 	t.Helper()
 
-	for _, answer := range a.InlineAnswers(t) {
+	for _, answer := range a.inlineAnswers(t) {
 		if answer.QueryID == query.InlineQuery.ID {
 			return answer
 		}
@@ -331,7 +331,7 @@ func (a *botAPI) InlineAnswerTo(t *testing.T, query *models.Update) inlineAnswer
 	return inlineAnswer{}
 }
 
-func (a *botAPI) DeletedMessages() []string {
+func (a *botAPI) deletedMessages() []string {
 	var ids []string
 	for _, call := range a.callsTo("deleteMessage") {
 		ids = append(ids, call.Params["message_id"])
@@ -339,8 +339,8 @@ func (a *botAPI) DeletedMessages() []string {
 	return ids
 }
 
-// AnsweredCallbacks returns ids of the callback queries the bot answered.
-func (a *botAPI) AnsweredCallbacks() []string {
+// answeredCallbacks returns ids of the callback queries the bot answered.
+func (a *botAPI) answeredCallbacks() []string {
 	var ids []string
 	for _, call := range a.callsTo("answerCallbackQuery") {
 		ids = append(ids, call.Params["callback_query_id"])
@@ -353,11 +353,11 @@ type button struct {
 	Data string `json:"callback_data"`
 }
 
-// Buttons returns the inline keyboard the bot sent or set last.
-func (a *botAPI) Buttons(t *testing.T) []button {
+// buttons returns the inline keyboard the bot sent or set last.
+func (a *botAPI) buttons(t *testing.T) []button {
 	t.Helper()
 
-	calls := a.Calls()
+	calls := a.allCalls()
 	for i := len(calls) - 1; i >= 0; i-- {
 		markup := calls[i].Params["reply_markup"]
 		if markup == "" {
@@ -376,8 +376,8 @@ func (a *botAPI) Buttons(t *testing.T) []button {
 	return nil
 }
 
-// CallbackAnswers returns the texts the bot showed on button presses.
-func (a *botAPI) CallbackAnswers() []string {
+// callbackAnswers returns the texts the bot showed on button presses.
+func (a *botAPI) callbackAnswers() []string {
 	var texts []string
 	for _, call := range a.callsTo("answerCallbackQuery") {
 		texts = append(texts, call.Params["text"])

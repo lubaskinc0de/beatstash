@@ -7,8 +7,6 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 )
 
-type UserContextKey struct{}
-
 type TrackRepository interface {
 	FindSource(ctx context.Context, libraryID uint, provider domain.ProviderName, ref string) (*domain.TrackSource, error)
 	FindDuplicate(ctx context.Context, libraryID uint, m domain.Metadata, durationMs int) (*domain.Track, error)
@@ -22,7 +20,7 @@ type TrackRepository interface {
 	// Album lists the library's Tracks of the album, by track number.
 	Album(ctx context.Context, libraryID uint, albumArtist, album string) ([]domain.Track, error)
 	Delete(ctx context.Context, id uint) error
-	// TelegramFile prefers files sendable as audio; ErrTrackNotFound if the Track has none.
+	// TelegramFile prefers files sendable as audio; ErrNoTelegramFile if the Track has none.
 	TelegramFile(ctx context.Context, trackID uint) (*domain.TelegramFile, error)
 }
 
@@ -77,9 +75,4 @@ type IngestQueue interface {
 
 type TxManager interface {
 	WithinTx(ctx context.Context, fn func(context.Context) error) error
-}
-
-func UserFromContext(ctx context.Context) (*domain.User, bool) {
-	user, ok := ctx.Value(UserContextKey{}).(*domain.User)
-	return user, ok
 }

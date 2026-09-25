@@ -23,7 +23,7 @@ type Library struct {
 
 	Kind    LibraryKind `gorm:"not null"`
 	OwnerID *uint       `gorm:"uniqueIndex"`
-	// Dir is relative to MUSIC_DIR.
+	// Dir is relative to music_dir.
 	Dir string `gorm:"not null;uniqueIndex"`
 	// NavidromeID stays zero until the library is created in Navidrome.
 	NavidromeID int `gorm:"not null;default:0"`

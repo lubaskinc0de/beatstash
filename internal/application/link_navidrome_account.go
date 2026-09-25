@@ -12,19 +12,10 @@ type LinkNavidromeAccount struct {
 	Libraries *Libraries
 }
 
-func NewLinkNavidromeAccount(
-	navidrome Navidrome,
-	accounts *NavidromeAccounts,
-	users UserRepository,
-	libraries *Libraries,
-) *LinkNavidromeAccount {
-	return &LinkNavidromeAccount{Navidrome: navidrome, Accounts: accounts, Users: users, Libraries: libraries}
-}
-
 func (i *LinkNavidromeAccount) Execute(ctx context.Context, creds NavidromeCredentials) error {
-	user, ok := UserFromContext(ctx)
-	if !ok {
-		return ErrNotAuthenticated
+	user, err := CurrentUser(ctx)
+	if err != nil {
+		return err
 	}
 
 	if err := i.Navidrome.Authenticate(ctx, creds); err != nil {

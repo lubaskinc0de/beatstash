@@ -18,10 +18,10 @@ func TestShare(t *testing.T) {
 
 		s.share(alice, upload, "🔗 Трек")
 
-		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.sharedFiles())
+		assert.Equal(t, []string{fixtureTrackPath}, s.sharedFiles())
 		env.navidrome.indexedTrack(t, bobAccount, s.library, fixtureTitle)
 		assert.Contains(t, lastCallbackAnswer(t, s), "В общей библиотеке")
-		assert.Equal(t, []string{"🔒 Снять Share", "🔒 Снять альбом"}, buttonTexts(s.botAPI.Buttons(t)))
+		assert.Equal(t, []string{"🔒 Снять Share", "🔒 Снять альбом"}, buttonTexts(s.botAPI.buttons(t)))
 	})
 
 	t.Run("shared album puts all its tracks into the Shared Library", func(t *testing.T) {
@@ -35,7 +35,7 @@ func TestShare(t *testing.T) {
 			"Artist/Album/02 - Song 2.mp3",
 			"Artist/Album/03 - Song 3.mp3",
 		}, s.sharedFiles())
-		assert.Equal(t, []string{"🔒 Снять Share", "🔒 Снять альбом"}, buttonTexts(s.botAPI.Buttons(t)))
+		assert.Equal(t, []string{"🔒 Снять Share", "🔒 Снять альбом"}, buttonTexts(s.botAPI.buttons(t)))
 	})
 
 	t.Run("unshared track disappears for others", func(t *testing.T) {
@@ -48,9 +48,9 @@ func TestShare(t *testing.T) {
 		s.press(alice, buttonNamed(t, s, "🔒 Снять Share"))
 
 		assert.Empty(t, s.sharedFiles())
-		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.personalFiles(alice))
+		assert.Equal(t, []string{fixtureTrackPath}, s.personalFiles(alice))
 		env.navidrome.untilGone(t, bobAccount, s.library, fixtureTitle)
-		assert.Equal(t, []string{"🔗 Трек", "💿 Альбом целиком"}, buttonTexts(s.botAPI.Buttons(t)))
+		assert.Equal(t, []string{"🔗 Трек", "💿 Альбом целиком"}, buttonTexts(s.botAPI.buttons(t)))
 	})
 
 	t.Run("second sharer learns who shared first", func(t *testing.T) {
@@ -69,7 +69,7 @@ func TestShare(t *testing.T) {
 		s := newScenario(t)
 		mp3 := makeAudio(t, "song.mp3", audioSpec{Tags: songTags})
 		s.share(alice, s.uploaded(alice, s.uploadAudioFile(mp3)), "🔗 Трек")
-		aliceButtons := s.botAPI.Buttons(t)
+		aliceButtons := s.botAPI.buttons(t)
 		s.share(bob, s.uploaded(bob, s.uploadAudioFile(mp3)), "🔗 Трек")
 
 		s.press(alice, buttonIn(t, aliceButtons, "🔒 Снять Share"))
@@ -84,7 +84,7 @@ func TestShare(t *testing.T) {
 		s.send(s.replyCommand(alice, "/share", upload))
 
 		assert.Contains(t, lastReply(t, s).Text, "из Inbox нельзя расшарить")
-		assert.Empty(t, s.botAPI.Buttons(t))
+		assert.Empty(t, s.botAPI.buttons(t))
 		assert.Empty(t, s.sharedFiles())
 	})
 
@@ -95,11 +95,11 @@ func TestShare(t *testing.T) {
 		s.send(s.textMessage(alice, "/share"))
 		s.send(s.replyCommand(alice, "/share", bobUpload))
 
-		replies := s.botAPI.Replies(t)
+		replies := s.botAPI.replies(t)
 		require.Len(t, replies, 2)
 		assert.Contains(t, replies[0].Text, "Ответьте /share")
 		assert.Contains(t, replies[1].Text, "Ответьте /share")
-		assert.Empty(t, s.botAPI.Buttons(t))
+		assert.Empty(t, s.botAPI.buttons(t))
 	})
 }
 
@@ -144,7 +144,7 @@ func (s *scenario) share(from telegramUser, upload *models.Update, name string) 
 
 func buttonNamed(t *testing.T, s *scenario, name string) button {
 	t.Helper()
-	return buttonIn(t, s.botAPI.Buttons(t), name)
+	return buttonIn(t, s.botAPI.buttons(t), name)
 }
 
 func buttonIn(t *testing.T, buttons []button, name string) button {
@@ -170,7 +170,7 @@ func buttonTexts(buttons []button) []string {
 func lastCallbackAnswer(t *testing.T, s *scenario) string {
 	t.Helper()
 
-	answers := s.botAPI.CallbackAnswers()
+	answers := s.botAPI.callbackAnswers()
 	require.NotEmpty(t, answers)
 	return answers[len(answers)-1]
 }

@@ -22,7 +22,11 @@ func setupLogger() {
 
 func main() {
 	setupLogger()
-	cfg := app.LoadConfig()
+	cfg, err := app.LoadConfig()
+	if err != nil {
+		slog.Error("config_invalid", "error", err)
+		os.Exit(1)
+	}
 	ctx, cancel := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
@@ -30,7 +34,7 @@ func main() {
 	)
 	defer cancel()
 
-	b, err := app.New(cfg)
+	b, err := app.New(ctx, cfg)
 	if err != nil {
 		slog.Error("app_initialization_failed", "error", err)
 		os.Exit(1)

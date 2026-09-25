@@ -18,7 +18,7 @@ func TestPersonalLibrary(t *testing.T) {
 		s.send(s.audioMessage(alice, s.uploadAudio("track.mp3")))
 		s.waitIngest()
 
-		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.personalFiles(alice))
+		assert.Equal(t, []string{fixtureTrackPath}, s.personalFiles(alice))
 		env.navidrome.indexedTrack(t, aliceAccount, s.library, fixtureTitle)
 		assert.Empty(t, env.navidrome.searchFor(t, bobAccount, s.library, fixtureTitle))
 	})
@@ -34,7 +34,7 @@ func TestPersonalLibrary(t *testing.T) {
 
 		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3"}, s.personalFiles(alice))
 		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3"}, s.personalFiles(bob))
-		assert.Empty(t, s.botAPI.Replies(t))
+		assert.Empty(t, s.botAPI.replies(t))
 	})
 
 	t.Run("each user has their own Inbox", func(t *testing.T) {

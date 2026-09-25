@@ -1,0 +1,42 @@
+# navidrome-tg settings. Passwords and tokens do not go here: they are
+# environment variables, see .env.example.
+#
+# Where the bot looks for this file:
+#   - run locally: config.toml in the working directory, or the path in
+#     the CONFIG_FILE environment variable;
+#   - run with docker compose: copy this file to config.docker.toml and
+#     write paths and addresses as the bot's container sees them
+#     (the "In compose" notes below).
+
+# Telegram ids of Admins: they can /invite people.
+admin_ids = [869885299]
+# Shown to strangers who write /start, e.g. "@my_contact"; empty hides it.
+admin_contact = ""
+
+[telegram]
+# Local Telegram Bot API server (lifts the 20 MB download limit);
+# empty means https://api.telegram.org. In compose: "http://telegram-bot-api:8081".
+bot_api_url = ""
+
+[library]
+# In compose: "/music".
+music_dir = "~/navidrome-tg/test_data"
+# music_dir as the Navidrome container sees it, if the path differs; empty
+# means the same. The bot keeps music_dir/shared and music_dir/users/<Telegram id>
+# as Navidrome libraries; point ND_MUSICFOLDER at music_dir/shared once it
+# exists, or Navidrome's own library shows admins every track twice.
+navidrome_music_dir = "/music"
+
+[navidrome]
+url = "http://localhost:4533"
+# Navidrome admin: the bot creates accounts for invited users with it.
+user = "admin"
+
+[invites]
+ttl = "168h"
+
+[ingest]
+workers = 2
+# Waits before each retry of a failed Ingest Job.
+retry_delays = ["10s", "1m", "5m"]
+poll_interval = "1s"

@@ -17,7 +17,7 @@ func TestMetadata(t *testing.T) {
 		s.send(s.audioMessage(alice, audio))
 		s.waitIngest()
 
-		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
+		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.reactions(t))
 		assert.Equal(t, []string{"Telegram Artist/Singles/Telegram Song.mp3"}, s.personalFiles(alice))
 		tags := readTags(t, s.personalPath(alice, "Telegram Artist/Singles/Telegram Song.mp3"))
 		assert.Equal(t, "Telegram Artist", tags["ARTIST"])
@@ -44,9 +44,9 @@ func TestMetadata(t *testing.T) {
 		s.send(msg)
 		s.waitIngest()
 
-		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
+		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.reactions(t))
 		assert.Equal(t, []string{"Inbox/audio_123.mp3"}, s.personalFiles(alice))
-		replies := s.botAPI.Replies(t)
+		replies := s.botAPI.replies(t)
 		require.Len(t, replies, 1)
 		assert.Equal(t, msg.Message.ID, replies[0].ReplyTo)
 		assert.Contains(t, replies[0].Text, "Inbox")
@@ -61,7 +61,7 @@ func TestMetadata(t *testing.T) {
 		s.send(s.audioMessage(alice, audio))
 		s.waitIngest()
 
-		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.personalFiles(alice))
+		assert.Equal(t, []string{fixtureTrackPath}, s.personalFiles(alice))
 	})
 
 	t.Run("Telegram data fills fields tags lack", func(t *testing.T) {

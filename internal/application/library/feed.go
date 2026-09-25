@@ -27,7 +27,7 @@ func (s *Sharing) Feed(ctx context.Context, limit int) ([]FeedEntry, error) {
 		switch {
 		case err == nil:
 			entry.TelegramFile = file
-		case !errors.Is(err, application.ErrTrackNotFound):
+		case !errors.Is(err, application.ErrNoTelegramFile):
 			return nil, err
 		}
 		entries = append(entries, entry)
@@ -35,7 +35,7 @@ func (s *Sharing) Feed(ctx context.Context, limit int) ([]FeedEntry, error) {
 	return entries, nil
 }
 
-// SharedFile returns ErrTrackNotFound when the Track has no Telegram file.
+// SharedFile returns ErrNoTelegramFile when the Track has no Telegram file.
 func (s *Sharing) SharedFile(ctx context.Context, sharedTrackID uint) (*domain.TelegramFile, error) {
 	shared, err := s.Libraries.Shared(ctx)
 	if err != nil {

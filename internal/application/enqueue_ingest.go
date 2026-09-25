@@ -21,14 +21,10 @@ type EnqueueIngest struct {
 	Waker Waker
 }
 
-func NewEnqueueIngest(queue IngestQueue, waker Waker) *EnqueueIngest {
-	return &EnqueueIngest{Queue: queue, Waker: waker}
-}
-
 func (i *EnqueueIngest) Execute(ctx context.Context, req IngestRequest) error {
-	user, ok := UserFromContext(ctx)
-	if !ok {
-		return ErrNotAuthenticated
+	user, err := CurrentUser(ctx)
+	if err != nil {
+		return err
 	}
 
 	payload := req.Ref.Payload

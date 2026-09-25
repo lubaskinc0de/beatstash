@@ -21,8 +21,8 @@ func TestInvite(t *testing.T) {
 		s.send(upload)
 		s.waitIngest()
 
-		assert.Contains(t, s.botAPI.Replies(t)[1].Text, "Добро пожаловать")
-		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.ReactionsOn(t, upload.Message.ID))
+		assert.Contains(t, s.botAPI.replies(t)[1].Text, "Добро пожаловать")
+		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.reactionsOn(t, upload.Message.ID))
 	})
 
 	t.Run("used invite is rejected", func(t *testing.T) {
@@ -36,7 +36,7 @@ func TestInvite(t *testing.T) {
 		s.send(upload)
 
 		assert.Contains(t, lastReply(t, s).Text, "Приглашение недействительно")
-		assert.Empty(t, s.botAPI.ReactionsOn(t, upload.Message.ID))
+		assert.Empty(t, s.botAPI.reactionsOn(t, upload.Message.ID))
 	})
 
 	t.Run("invite expires after 7 days", func(t *testing.T) {
@@ -50,7 +50,7 @@ func TestInvite(t *testing.T) {
 		s.send(upload)
 
 		assert.Contains(t, lastReply(t, s).Text, "Приглашение недействительно")
-		assert.Empty(t, s.botAPI.ReactionsOn(t, upload.Message.ID))
+		assert.Empty(t, s.botAPI.reactionsOn(t, upload.Message.ID))
 	})
 
 	t.Run("non-admin cannot invite", func(t *testing.T) {
@@ -58,7 +58,7 @@ func TestInvite(t *testing.T) {
 
 		s.send(s.textMessage(alice, "/invite"))
 
-		replies := s.botAPI.Replies(t)
+		replies := s.botAPI.replies(t)
 		require.Len(t, replies, 1)
 		assert.Contains(t, replies[0].Text, "только администратор")
 		assert.NotContains(t, replies[0].Text, "?start=")
@@ -73,7 +73,7 @@ func TestInvite(t *testing.T) {
 		s.send(s.textMessage(stranger, "hello"))
 		s.send(s.audioMessage(stranger, s.uploadAudio("track.mp3")))
 
-		assert.Empty(t, s.botAPI.Calls())
+		assert.Empty(t, s.botAPI.allCalls())
 	})
 }
 

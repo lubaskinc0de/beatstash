@@ -19,9 +19,9 @@ func TestQueue(t *testing.T) {
 		s.send(s.audioMessage(alice, audio))
 		s.waitIngest()
 
-		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
-		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.personalFiles(alice))
-		assert.Empty(t, s.botAPI.Replies(t))
+		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.reactions(t))
+		assert.Equal(t, []string{fixtureTrackPath}, s.personalFiles(alice))
+		assert.Empty(t, s.botAPI.replies(t))
 	})
 
 	t.Run("persistent Bot API failure gives up after retries", func(t *testing.T) {
@@ -34,8 +34,8 @@ func TestQueue(t *testing.T) {
 		s.waitIngest()
 
 		assert.Len(t, s.botAPI.callsTo("getFile"), 4)
-		assert.Equal(t, []string{"👀", "👎"}, s.botAPI.Reactions(t))
-		replies := s.botAPI.Replies(t)
+		assert.Equal(t, []string{"👀", "👎"}, s.botAPI.reactions(t))
+		replies := s.botAPI.replies(t)
 		require.Len(t, replies, 1)
 		assert.Equal(t, msg.Message.ID, replies[0].ReplyTo)
 		assert.Contains(t, replies[0].Text, "Telegram не отдал файл")
@@ -51,8 +51,8 @@ func TestQueue(t *testing.T) {
 		s.waitIngest()
 
 		assert.Len(t, s.botAPI.callsTo("getFile"), 1)
-		assert.Equal(t, []string{"👀", "👎"}, s.botAPI.Reactions(t))
-		replies := s.botAPI.Replies(t)
+		assert.Equal(t, []string{"👀", "👎"}, s.botAPI.reactions(t))
+		replies := s.botAPI.replies(t)
 		require.Len(t, replies, 1)
 		assert.Contains(t, replies[0].Text, "файл повреждён")
 		assert.Empty(t, s.libraryFiles())
@@ -87,7 +87,7 @@ func TestQueue(t *testing.T) {
 
 		assert.Len(t, s.personalFiles(alice), 5)
 		for _, msg := range msgs {
-			assert.Equal(t, []string{"👀", "👍"}, s.botAPI.ReactionsOn(t, msg.Message.ID))
+			assert.Equal(t, []string{"👀", "👍"}, s.botAPI.reactionsOn(t, msg.Message.ID))
 		}
 	})
 
@@ -105,9 +105,9 @@ func TestQueue(t *testing.T) {
 
 		assert.Len(t, s.personalFiles(alice), 10)
 		for _, msg := range msgs {
-			assert.Equal(t, []string{"👀", "👍"}, s.botAPI.ReactionsOn(t, msg.Message.ID))
+			assert.Equal(t, []string{"👀", "👍"}, s.botAPI.reactionsOn(t, msg.Message.ID))
 		}
-		assert.Empty(t, s.botAPI.Replies(t))
+		assert.Empty(t, s.botAPI.replies(t))
 	})
 }
 

@@ -23,23 +23,17 @@ type GetNowPlaying struct {
 	Libraries *Libraries
 }
 
-func NewGetNowPlaying(client Navidrome, repo TrackRepository, accounts *NavidromeAccounts, libraries *Libraries) *GetNowPlaying {
-	return &GetNowPlaying{
-		Client:    client,
-		Repo:      repo,
-		Accounts:  accounts,
-		Libraries: libraries,
-	}
-}
-
 func (i *GetNowPlaying) Execute(
 	ctx context.Context,
 ) (*NowPlaying, error) {
-	creds, err := i.Accounts.Credentials(ctx)
+	user, err := CurrentUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	user, _ := UserFromContext(ctx)
+	creds, err := i.Accounts.Credentials(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
 	libs, err := i.Libraries.Of(ctx, user)
 	if err != nil {
 		return nil, err
@@ -60,7 +54,7 @@ func (i *GetNowPlaying) Execute(
 	switch {
 	case err == nil:
 		nowPlaying.TelegramFile = file
-	case errors.Is(err, ErrTrackNotFound):
+	case errors.Is(err, ErrNoTelegramFile):
 		slog.Info("now_playing_track_not_in_db", "title", track.Title, "artist", track.Artist)
 	default:
 		slog.Error("find_track", "error", err)

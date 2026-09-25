@@ -24,16 +24,6 @@ type RegisterNavidromeAccount struct {
 	Admin     NavidromeCredentials
 }
 
-func NewRegisterNavidromeAccount(
-	navidrome Navidrome,
-	accounts *NavidromeAccounts,
-	users UserRepository,
-	libraries *Libraries,
-	admin NavidromeCredentials,
-) *RegisterNavidromeAccount {
-	return &RegisterNavidromeAccount{Navidrome: navidrome, Accounts: accounts, Users: users, Libraries: libraries, Admin: admin}
-}
-
 func (i *RegisterNavidromeAccount) Execute(ctx context.Context, user *domain.User, login string) (NavidromeCredentials, error) {
 	creds, err := i.register(ctx, user, login)
 	if err != nil {

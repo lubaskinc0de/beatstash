@@ -18,26 +18,22 @@ var failureTexts = map[application.FailureReason]string{
 }
 
 type Notifier struct {
-	bot *bot.Bot
-}
-
-func NewNotifier(b *bot.Bot) *Notifier {
-	return &Notifier{bot: b}
+	Bot *bot.Bot
 }
 
 func (n *Notifier) Ingested(ctx context.Context, msg application.MessageRef, outcome application.IngestOutcome) {
-	setReaction(ctx, n.bot, msg, "👍")
+	setReaction(ctx, n.Bot, msg, "👍")
 
 	switch outcome {
 	case application.IngestStoredInInbox:
-		replyTo(ctx, n.bot, msg, "Трек попал в Inbox: не удалось определить исполнителя или название")
+		replyTo(ctx, n.Bot, msg, "Трек попал в Inbox: не удалось определить исполнителя или название")
 	case application.IngestAlreadyExists:
-		replyTo(ctx, n.bot, msg, "Этот трек уже есть в библиотеке")
+		replyTo(ctx, n.Bot, msg, "Этот трек уже есть в библиотеке")
 	}
 }
 
 func (n *Notifier) IngestFailed(ctx context.Context, msg application.MessageRef, reason application.FailureReason) {
-	reject(ctx, n.bot, msg, reason)
+	reject(ctx, n.Bot, msg, reason)
 }
 
 func reject(ctx context.Context, b *bot.Bot, msg application.MessageRef, reason application.FailureReason) {

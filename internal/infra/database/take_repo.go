@@ -11,21 +11,17 @@ import (
 )
 
 type TakeRepository struct {
-	db *gorm.DB
-}
-
-func NewTakeRepository(db *gorm.DB) *TakeRepository {
-	return &TakeRepository{db: db}
+	DB *gorm.DB
 }
 
 func (r *TakeRepository) Save(ctx context.Context, take *domain.Take) error {
-	return dbForContext(ctx, r.db).Omit("User", "Track").Create(take).Error
+	return dbForContext(ctx, r.DB).Omit("User", "Track").Create(take).Error
 }
 
 func (r *TakeRepository) TopTaken(ctx context.Context, since time.Time, limit int) ([]application.TopEntry, error) {
-	query := dbForContext(ctx, r.db).
+	query := dbForContext(ctx, r.DB).
 		Model(&domain.Take{}).
 		Where("author_id IS NOT NULL AND author_id <> user_id AND created_at >= ?", since).
 		Group("author_id")
-	return topEntries(ctx, r.db, query, "author_id", limit)
+	return topEntries(ctx, r.DB, query, "author_id", limit)
 }

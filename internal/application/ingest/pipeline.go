@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -19,53 +18,31 @@ import (
 const scratchDir = ".navidrome-tg"
 
 type Pipeline struct {
-	providers *application.Providers
-	tracks    application.TrackRepository
-	uploads   application.UploadRepository
-	libraries application.LibraryRepository
-	sharing   *library.Sharing
-	lock      application.LibraryLock
-	musicDir  string
+	Providers *application.Providers
+	Tracks    application.TrackRepository
+	Uploads   application.UploadRepository
+	Libraries application.LibraryRepository
+	Shared    SharedCopier
+	Lock      application.LibraryLock
+	MusicDir  string
 }
 
-func NewPipeline(
-	providers *application.Providers,
-	tracks application.TrackRepository,
-	uploads application.UploadRepository,
-	libraries application.LibraryRepository,
-	sharing *library.Sharing,
-	lock application.LibraryLock,
-	musicDir string,
-) *Pipeline {
-	return &Pipeline{
-		providers: providers,
-		tracks:    tracks,
-		uploads:   uploads,
-		libraries: libraries,
-		sharing:   sharing,
-		lock:      lock,
-		musicDir:  musicDir,
-	}
+type SharedCopier interface {
+	CopyShared(
+		ctx context.Context,
+		track *domain.Track,
+		libs application.UserLibraries,
+		files *library.FileChanges,
+	) (copied *domain.Track, target string, err error)
 }
 
-// Result is what Process did. The file changes are already on disk, so the
-// caller runs Commit once the transaction commits and Rollback otherwise.
 type Result struct {
 	Outcome application.IngestOutcome
 	Path    string
-
-	Commit   func()
-	Rollback func()
 }
 
-func noop() {}
-
-// Commit and Rollback run after the transaction has ended, so a failure can
-// only be logged: the database already says what the Library should hold.
-func moveFile(from, to string) {
-	if err := os.Rename(from, to); err != nil {
-		slog.Error("library_move_failed", "from", from, "to", to, "error", err)
-	}
+func alreadyExists() *Result {
+	return &Result{Outcome: application.IngestAlreadyExists}
 }
 
 // incoming carries what Process learned about the audio down to the store step.
@@ -79,18 +56,20 @@ type incoming struct {
 	probe   *probe
 	meta    domain.Metadata
 	staged  string
+	files   *library.FileChanges
 }
 
 // Process turns the job's audio into a Track. Database writes go through
-// ctx's transaction; the file is moved into the Library last.
-func (p *Pipeline) Process(ctx context.Context, job *domain.IngestJob) (*Result, error) {
+// ctx's transaction; the file is moved into the Library last, and files
+// records how to make the Library follow the transaction's outcome.
+func (p *Pipeline) Process(ctx context.Context, job *domain.IngestJob, files *library.FileChanges) (*Result, error) {
 	ref := job.Ref()
 
-	personal, err := p.libraries.Personal(ctx, job.UserID)
+	personal, err := p.Libraries.Personal(ctx, job.UserID)
 	if err != nil {
 		return nil, wrapStep(stepSource, err)
 	}
-	shared, err := p.libraries.Shared(ctx)
+	shared, err := p.Libraries.Shared(ctx)
 	if err != nil {
 		return nil, wrapStep(stepSource, err)
 	}
@@ -106,13 +85,13 @@ func (p *Pipeline) Process(ctx context.Context, job *domain.IngestJob) (*Result,
 		return nil, wrapStep(stepSource, err)
 	}
 	if inShared {
-		if result, err := p.lockAndRecheck(ctx, job, libs, ref); result != nil || err != nil {
+		if result, err := p.lockAndRecheck(ctx, job, libs, ref, files); result != nil || err != nil {
 			return result, wrapStep(stepSource, err)
 		}
 	}
 
 	// A Provider without the Capability will not grow it on retry.
-	fetcher, err := p.providers.Fetcher(ref.Provider)
+	fetcher, err := p.Providers.Fetcher(ref.Provider)
 	if err != nil {
 		return nil, wrapStep(stepFetch, application.Permanent(application.ReasonInternal, err))
 	}
@@ -156,25 +135,26 @@ func (p *Pipeline) Process(ctx context.Context, job *domain.IngestJob) (*Result,
 	// path choice run one at a time per Library: otherwise two workers could
 	// both miss the duplicate and store the same track twice. Another job may
 	// also have added this source while we were fetching.
-	if result, err := p.lockAndRecheck(ctx, job, libs, ref); result != nil || err != nil {
+	if result, err := p.lockAndRecheck(ctx, job, libs, ref, files); result != nil || err != nil {
 		return result, wrapStep(stepSource, err)
 	}
 
 	in := incoming{
 		job:     job,
 		library: personal,
-		dir:     filepath.Join(p.musicDir, personal.Dir),
+		dir:     filepath.Join(p.MusicDir, personal.Dir),
 		ref:     ref,
 		audio:   audio,
 		format:  format,
 		probe:   probe,
 		meta:    meta,
 		staged:  staged,
+		files:   files,
 	}
 
 	// Inbox tracks lack the fields a Duplicate is matched by.
 	if meta.Complete() {
-		duplicate, err := p.tracks.FindDuplicate(ctx, personal.ID, meta, probe.durationMs)
+		duplicate, err := p.Tracks.FindDuplicate(ctx, personal.ID, meta, probe.durationMs)
 		switch {
 		case err == nil:
 			result, err := p.mergeDuplicate(ctx, in, duplicate)
@@ -191,7 +171,7 @@ func (p *Pipeline) Process(ctx context.Context, job *domain.IngestJob) (*Result,
 // Release is called once the job is finished for good; Providers that keep
 // nothing between attempts simply lack the Capability.
 func (p *Pipeline) Release(ctx context.Context, job *domain.IngestJob) error {
-	releaser, err := p.providers.Releaser(job.Provider)
+	releaser, err := p.Providers.Releaser(job.Provider)
 	if errors.Is(err, application.ErrCapabilityNotSupported) {
 		return nil
 	}
@@ -209,15 +189,15 @@ func (p *Pipeline) knownSource(
 	lib *domain.Library,
 	ref domain.TrackRef,
 ) (*Result, error) {
-	source, err := p.tracks.FindSource(ctx, lib.ID, ref.Provider, ref.ID)
-	if errors.Is(err, application.ErrTrackNotFound) {
+	source, err := p.Tracks.FindSource(ctx, lib.ID, ref.Provider, ref.ID)
+	if errors.Is(err, application.ErrSourceNotFound) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	err = p.uploads.Save(ctx, &domain.Upload{
+	err = p.Uploads.Save(ctx, &domain.Upload{
 		UserID:        job.UserID,
 		TrackID:       source.TrackID,
 		TrackSourceID: source.ID,
@@ -225,7 +205,7 @@ func (p *Pipeline) knownSource(
 	if err != nil {
 		return nil, err
 	}
-	return &Result{Outcome: application.IngestAlreadyExists, Commit: noop, Rollback: noop}, nil
+	return alreadyExists(), nil
 }
 
 // lockAndRecheck takes the Personal Library's lock until the transaction
@@ -238,6 +218,7 @@ func (p *Pipeline) lockAndRecheck(
 	job *domain.IngestJob,
 	libs application.UserLibraries,
 	ref domain.TrackRef,
+	files *library.FileChanges,
 ) (*Result, error) {
 	inShared, err := p.inLibrary(ctx, libs.Shared, ref)
 	if err != nil {
@@ -247,7 +228,7 @@ func (p *Pipeline) lockAndRecheck(
 	if inShared {
 		locked = append(locked, libs.Shared.ID)
 	}
-	if err := p.lock.Lock(ctx, locked...); err != nil {
+	if err := p.Lock.Lock(ctx, locked...); err != nil {
 		return nil, err
 	}
 
@@ -258,23 +239,23 @@ func (p *Pipeline) lockAndRecheck(
 		return nil, nil
 	}
 
-	source, err := p.tracks.FindSource(ctx, libs.Shared.ID, ref.Provider, ref.ID)
-	if errors.Is(err, application.ErrTrackNotFound) {
+	source, err := p.Tracks.FindSource(ctx, libs.Shared.ID, ref.Provider, ref.ID)
+	if errors.Is(err, application.ErrSourceNotFound) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	track, err := p.tracks.Get(ctx, source.TrackID)
+	track, err := p.Tracks.Get(ctx, source.TrackID)
 	if err != nil {
 		return nil, err
 	}
-	return p.linkShared(ctx, job, libs, ref, track, source.TelegramFile())
+	return p.linkShared(ctx, job, libs, ref, track, source.TelegramFile(), files)
 }
 
 func (p *Pipeline) inLibrary(ctx context.Context, library *domain.Library, ref domain.TrackRef) (bool, error) {
-	_, err := p.tracks.FindSource(ctx, library.ID, ref.Provider, ref.ID)
-	if errors.Is(err, application.ErrTrackNotFound) {
+	_, err := p.Tracks.FindSource(ctx, library.ID, ref.Provider, ref.ID)
+	if errors.Is(err, application.ErrSourceNotFound) {
 		return false, nil
 	}
 	return err == nil, err
@@ -290,28 +271,27 @@ func (p *Pipeline) linkShared(
 	ref domain.TrackRef,
 	shared *domain.Track,
 	file *domain.TelegramFile,
+	files *library.FileChanges,
 ) (*Result, error) {
-	own, err := p.tracks.FindDuplicate(ctx, libs.Personal.ID, shared.Metadata, shared.DurationMs)
+	own, err := p.Tracks.FindDuplicate(ctx, libs.Personal.ID, shared.Metadata, shared.DurationMs)
 	if err == nil {
 		if err := p.recordUpload(ctx, job.UserID, own, ref, file); err != nil {
 			return nil, err
 		}
-		return &Result{Outcome: application.IngestAlreadyExists, Commit: noop, Rollback: noop}, nil
+		return alreadyExists(), nil
 	}
 	if !errors.Is(err, application.ErrTrackNotFound) {
 		return nil, err
 	}
 
-	copied, target, err := p.sharing.CopyShared(ctx, shared, libs)
+	copied, target, err := p.Shared.CopyShared(ctx, shared, libs, files)
 	if err != nil {
 		return nil, err
 	}
-	rollback := func() { library.RemoveFile(target) }
 	if err := p.recordUpload(ctx, job.UserID, copied, ref, file); err != nil {
-		rollback()
 		return nil, err
 	}
-	return &Result{Outcome: application.IngestStored, Path: target, Commit: noop, Rollback: rollback}, nil
+	return &Result{Outcome: application.IngestStored, Path: target}, nil
 }
 
 // recordUpload reuses the Track's source for the ref if it has one.
@@ -322,15 +302,15 @@ func (p *Pipeline) recordUpload(
 	ref domain.TrackRef,
 	file *domain.TelegramFile,
 ) error {
-	source, err := p.tracks.FindSource(ctx, track.LibraryID, ref.Provider, ref.ID)
-	if errors.Is(err, application.ErrTrackNotFound) {
+	source, err := p.Tracks.FindSource(ctx, track.LibraryID, ref.Provider, ref.ID)
+	if errors.Is(err, application.ErrSourceNotFound) {
 		source = newSource(track, ref, file)
-		err = p.tracks.SaveSource(ctx, source)
+		err = p.Tracks.SaveSource(ctx, source)
 	}
 	if err != nil {
 		return err
 	}
-	return p.uploads.Save(ctx, &domain.Upload{UserID: userID, TrackID: track.ID, TrackSourceID: source.ID})
+	return p.Uploads.Save(ctx, &domain.Upload{UserID: userID, TrackID: track.ID, TrackSourceID: source.ID})
 }
 
 func newSource(track *domain.Track, ref domain.TrackRef, file *domain.TelegramFile) *domain.TrackSource {
@@ -349,7 +329,7 @@ func (p *Pipeline) storeNew(ctx context.Context, in incoming) (*Result, error) {
 	}
 
 	// Database rows first, the file last: until the transaction commits
-	// the rows are invisible, and Rollback takes the file back out.
+	// the rows are invisible, and a rollback takes the file back out.
 	track := &domain.Track{LibraryID: in.library.ID, Metadata: in.meta}
 	if err := p.saveFile(ctx, in, track, rel); err != nil {
 		return nil, err
@@ -358,21 +338,17 @@ func (p *Pipeline) storeNew(ctx context.Context, in incoming) (*Result, error) {
 		return nil, err
 	}
 
-	target, err := place(in.staged, filepath.Join(in.dir, rel))
-	if err != nil {
+	target := filepath.Join(in.dir, rel)
+	if err := library.Place(in.staged, target); err != nil {
 		return nil, err
 	}
+	in.files.OnRollback(func() { library.RemoveFile(target) })
 
 	outcome := application.IngestStored
 	if !in.meta.Complete() {
 		outcome = application.IngestStoredInInbox
 	}
-	return &Result{
-		Outcome:  outcome,
-		Path:     target,
-		Commit:   noop,
-		Rollback: func() { library.RemoveFile(target) },
-	}, nil
+	return &Result{Outcome: outcome, Path: target}, nil
 }
 
 // mergeDuplicate always keeps the new source and Upload, and swaps the file
@@ -383,7 +359,7 @@ func (p *Pipeline) mergeDuplicate(ctx context.Context, in incoming, track *domai
 		return nil, err
 	}
 	if !in.probe.quality.Better(track.Quality) {
-		return &Result{Outcome: application.IngestAlreadyExists, Commit: noop, Rollback: noop}, nil
+		return alreadyExists(), nil
 	}
 
 	oldRel := track.Path
@@ -403,15 +379,12 @@ func (p *Pipeline) mergeDuplicate(ctx context.Context, in incoming, track *domai
 	target := filepath.Join(in.dir, rel)
 	if rel != oldRel {
 		// Both files exist until commit; only then the old one goes.
-		if _, err := place(in.staged, target); err != nil {
+		if err := library.Place(in.staged, target); err != nil {
 			return nil, err
 		}
-		return &Result{
-			Outcome:  application.IngestReplaced,
-			Path:     target,
-			Commit:   func() { library.RemoveFile(old) },
-			Rollback: func() { library.RemoveFile(target) },
-		}, nil
+		in.files.OnRollback(func() { library.RemoveFile(target) })
+		in.files.AfterCommit(func() { library.RemoveFile(old) })
+		return &Result{Outcome: application.IngestReplaced, Path: target}, nil
 	}
 
 	// Same path: overwriting before commit would lose the old file if the
@@ -420,12 +393,9 @@ func (p *Pipeline) mergeDuplicate(ctx context.Context, in incoming, track *domai
 	if err := os.Rename(in.staged, pending); err != nil {
 		return nil, err
 	}
-	return &Result{
-		Outcome:  application.IngestReplaced,
-		Path:     target,
-		Commit:   func() { moveFile(pending, target) },
-		Rollback: func() { library.RemoveFile(pending) },
-	}, nil
+	in.files.OnRollback(func() { library.RemoveFile(pending) })
+	in.files.AfterCommit(func() { library.MoveFile(pending, target) })
+	return &Result{Outcome: application.IngestReplaced, Path: target}, nil
 }
 
 // saveFile writes the Track's final tags into the staged file, so any
@@ -439,34 +409,22 @@ func (p *Pipeline) saveFile(ctx context.Context, in incoming, track *domain.Trac
 	if err := writeTags(in.staged, track.Metadata); err != nil {
 		return err
 	}
-	return p.tracks.SaveTrack(ctx, track)
+	return p.Tracks.SaveTrack(ctx, track)
 }
 
 // addSource keeps the Telegram file_id, which lets inline mode resend the
 // track instantly even after its file was replaced.
 func (p *Pipeline) addSource(ctx context.Context, in incoming, track *domain.Track) error {
 	source := newSource(track, in.ref, in.audio.TelegramFile)
-	if err := p.tracks.SaveSource(ctx, source); err != nil {
+	if err := p.Tracks.SaveSource(ctx, source); err != nil {
 		return err
 	}
 
-	return p.uploads.Save(ctx, &domain.Upload{
+	return p.Uploads.Save(ctx, &domain.Upload{
 		UserID:        in.job.UserID,
 		TrackID:       track.ID,
 		TrackSourceID: source.ID,
 	})
-}
-
-// place moves the staged file into the Library in one atomic rename, so
-// Navidrome never sees a half-written file.
-func place(staged, target string) (string, error) {
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		return "", err
-	}
-	if err := os.Rename(staged, target); err != nil {
-		return "", err
-	}
-	return target, nil
 }
 
 // stage copies the Provider's stream into the scratch directory, so the
@@ -474,7 +432,7 @@ func place(staged, target string) (string, error) {
 func (p *Pipeline) stage(audio *application.FetchedAudio) (string, error) {
 	defer audio.Body.Close()
 
-	dir := filepath.Join(p.musicDir, scratchDir)
+	dir := filepath.Join(p.MusicDir, scratchDir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
@@ -495,5 +453,5 @@ func (p *Pipeline) stage(audio *application.FetchedAudio) (string, error) {
 
 // ClearScratch drops leftovers of a crashed run; call it before workers start.
 func (p *Pipeline) ClearScratch() error {
-	return os.RemoveAll(filepath.Join(p.musicDir, scratchDir))
+	return os.RemoveAll(filepath.Join(p.MusicDir, scratchDir))
 }

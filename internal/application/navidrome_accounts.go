@@ -30,17 +30,8 @@ type NavidromeAccounts struct {
 	Box  SecretBox
 }
 
-func NewNavidromeAccounts(repo NavidromeAccountRepository, box SecretBox) *NavidromeAccounts {
-	return &NavidromeAccounts{Repo: repo, Box: box}
-}
-
-func (a *NavidromeAccounts) Credentials(ctx context.Context) (NavidromeCredentials, error) {
-	user, ok := UserFromContext(ctx)
-	if !ok {
-		return NavidromeCredentials{}, ErrNotAuthenticated
-	}
-
-	account, err := a.Repo.Get(ctx, user.ID)
+func (a *NavidromeAccounts) Credentials(ctx context.Context, userID uint) (NavidromeCredentials, error) {
+	account, err := a.Repo.Get(ctx, userID)
 	if err != nil {
 		return NavidromeCredentials{}, err
 	}

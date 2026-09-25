@@ -19,7 +19,7 @@ const loginRules = "от 3 до 32 символов, латинские букв
 
 const linkUsage = "Чтобы привязать аккаунт Navidrome, отправьте: <code>/link логин пароль</code>"
 
-func (h *Handler) HandleLink(
+func (h *Handler) handleLink(
 	ctx context.Context,
 	b *bot.Bot,
 	update *models.Update,
@@ -36,7 +36,7 @@ func (h *Handler) HandleLink(
 
 	deleteMessage(ctx, b, chatID, update.Message.ID)
 
-	err := h.linkNavidromeAccount.Execute(ctx, application.NavidromeCredentials{Login: login, Password: password})
+	err := h.LinkNavidromeAccount.Execute(ctx, application.NavidromeCredentials{Login: login, Password: password})
 	switch {
 	case err == nil:
 		sendText(ctx, b, chatID, fmt.Sprintf(
@@ -72,7 +72,7 @@ func answerNoNavidromeAccount(ctx context.Context, b *bot.Bot, inlineQueryID str
 	)
 }
 
-func (h *Handler) HandleText(
+func (h *Handler) handleText(
 	ctx context.Context,
 	b *bot.Bot,
 	update *models.Update,
@@ -84,12 +84,12 @@ func (h *Handler) HandleText(
 	h.registerNavidromeAccount(ctx, b, update.Message.Chat.ID, user, strings.TrimSpace(update.Message.Text))
 }
 
-func IsText(update *models.Update) bool {
+func isText(update *models.Update) bool {
 	return update.Message != nil && update.Message.Text != "" && !strings.HasPrefix(update.Message.Text, "/")
 }
 
 func (h *Handler) registerNavidromeAccount(ctx context.Context, b *bot.Bot, chatID int64, user *domain.User, login string) {
-	creds, err := h.registerAccount.Execute(ctx, user, login)
+	creds, err := h.RegisterAccount.Execute(ctx, user, login)
 	switch {
 	case err == nil:
 		sendText(ctx, b, chatID, fmt.Sprintf(

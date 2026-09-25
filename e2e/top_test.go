@@ -78,7 +78,7 @@ func TestTop(t *testing.T) {
 
 		s.send(query)
 
-		results := s.botAPI.InlineAnswerTo(t, query).Results
+		results := s.botAPI.inlineAnswerTo(t, query).Results
 		require.Len(t, results, 1)
 		assert.Contains(t, results[0].Title, "Top")
 	})

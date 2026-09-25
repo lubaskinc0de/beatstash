@@ -3,3 +3,5 @@
 *.exe
 test_data/
 .docs/
+config.toml
+config.docker.toml

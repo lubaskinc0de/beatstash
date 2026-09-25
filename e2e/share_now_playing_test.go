@@ -12,9 +12,9 @@ func (s *scenario) nowPlayingButtons(user telegramUser) []button {
 
 	query := s.inlineQuery(user, "np")
 	s.send(query)
-	results := s.botAPI.InlineAnswerTo(s.t, query).Results
+	results := s.botAPI.inlineAnswerTo(s.t, query).Results
 	require.Len(s.t, results, 1)
-	return results[0].Buttons()
+	return results[0].buttons()
 }
 
 func TestShareNowPlaying(t *testing.T) {
@@ -27,7 +27,7 @@ func TestShareNowPlaying(t *testing.T) {
 
 		s.pressInline(alice, share)
 
-		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.sharedFiles())
+		assert.Equal(t, []string{fixtureTrackPath}, s.sharedFiles())
 		assert.Contains(t, lastCallbackAnswer(t, s), "В общей библиотеке")
 	})
 
@@ -40,9 +40,9 @@ func TestShareNowPlaying(t *testing.T) {
 
 		s.send(query)
 
-		results := s.botAPI.InlineAnswerTo(t, query).Results
+		results := s.botAPI.inlineAnswerTo(t, query).Results
 		require.Len(t, results, 1)
-		assert.Empty(t, results[0].Buttons())
+		assert.Empty(t, results[0].buttons())
 	})
 
 	t.Run("np of another user's shared track has no Share button", func(t *testing.T) {
@@ -54,8 +54,8 @@ func TestShareNowPlaying(t *testing.T) {
 
 		s.send(query)
 
-		results := s.botAPI.InlineAnswerTo(t, query).Results
+		results := s.botAPI.inlineAnswerTo(t, query).Results
 		require.Len(t, results, 1)
-		assert.Empty(t, results[0].Buttons())
+		assert.Empty(t, results[0].buttons())
 	})
 }

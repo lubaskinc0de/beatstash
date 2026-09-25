@@ -20,24 +20,18 @@ type GetRecentlyPlayed struct {
 	Libraries *Libraries
 }
 
-func NewGetRecentlyPlayed(client Navidrome, repo TrackRepository, accounts *NavidromeAccounts, libraries *Libraries) *GetRecentlyPlayed {
-	return &GetRecentlyPlayed{
-		Client:    client,
-		Repo:      repo,
-		Accounts:  accounts,
-		Libraries: libraries,
-	}
-}
-
 func (i *GetRecentlyPlayed) Execute(
 	ctx context.Context,
 	limit int,
 ) ([]RecentTrack, error) {
-	creds, err := i.Accounts.Credentials(ctx)
+	user, err := CurrentUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	user, _ := UserFromContext(ctx)
+	creds, err := i.Accounts.Credentials(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
 	libs, err := i.Libraries.Of(ctx, user)
 	if err != nil {
 		return nil, err
@@ -57,7 +51,7 @@ func (i *GetRecentlyPlayed) Execute(
 		switch {
 		case err == nil:
 			track.TelegramFile = file
-		case errors.Is(err, ErrTrackNotFound):
+		case errors.Is(err, ErrNoTelegramFile):
 		default:
 			slog.Error("find_track", "error", err)
 		}

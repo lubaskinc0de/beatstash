@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 )
 
@@ -123,63 +124,72 @@ func (w *Workers) runOnce(ctx context.Context) (worked bool) {
 		return false
 	}
 
-	var (
-		job     *domain.IngestJob
-		result  *Result
-		procErr error
-	)
-	err := w.tx.WithinTx(ctx, func(ctx context.Context) error {
-		var err error
-		job, err = w.queue.ClaimNext(ctx)
-		if err != nil || job == nil {
-			return err
-		}
-
-		job.Attempts++
-		procErr = w.tx.WithinTx(ctx, func(ctx context.Context) error {
-			result, err = w.pipeline.Process(ctx, job)
-			return err
-		})
-		if procErr != nil && result != nil {
-			result.Rollback()
-			result = nil
-		}
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-
-		w.recordAttempt(job, procErr)
-		return w.queue.Save(ctx, job)
-	})
+	var files library.FileChanges
+	a, err := w.try(ctx, &files)
+	files.Settle(errors.Join(err, a.err))
 	if err != nil {
-		if result != nil {
-			result.Rollback()
-		}
 		if !errors.Is(err, context.Canceled) {
 			slog.Error("ingest_job_commit_failed", "error", err)
 		}
 		return false
 	}
-	if job == nil {
+	if a.job == nil {
 		return false
 	}
 
-	if job.Status != domain.IngestJobPending {
-		if err := w.pipeline.Release(ctx, job); err != nil {
-			slog.Error("ingest_job_release_failed", "job_id", job.ID, "error", err)
+	w.finish(ctx, a)
+	return true
+}
+
+// attempt is one run of a job through the Pipeline; err is why it failed.
+type attempt struct {
+	job    *domain.IngestJob
+	result *Result
+	err    error
+}
+
+// try claims a due job and processes it in one transaction. The claim's
+// row lock keeps other workers off the job, and the savepoint around Process
+// lets a failed attempt still record itself. The error is the transaction's.
+func (w *Workers) try(ctx context.Context, files *library.FileChanges) (attempt, error) {
+	var a attempt
+	err := w.tx.WithinTx(ctx, func(ctx context.Context) error {
+		var err error
+		a.job, err = w.queue.ClaimNext(ctx)
+		if err != nil || a.job == nil {
+			return err
+		}
+
+		a.job.Attempts++
+		a.err = w.tx.WithinTx(ctx, func(ctx context.Context) error {
+			a.result, err = w.pipeline.Process(ctx, a.job, files)
+			return err
+		})
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		w.recordAttempt(a.job, a.err)
+		return w.queue.Save(ctx, a.job)
+	})
+	return a, err
+}
+
+func (w *Workers) finish(ctx context.Context, a attempt) {
+	if a.job.Status != domain.IngestJobPending {
+		if err := w.pipeline.Release(ctx, a.job); err != nil {
+			slog.Error("ingest_job_release_failed", "job_id", a.job.ID, "error", err)
 		}
 	}
 
-	msg := application.MessageRef{ChatID: job.ChatID, MessageID: job.MessageID}
-	switch job.Status {
+	msg := application.MessageRef{ChatID: a.job.ChatID, MessageID: a.job.MessageID}
+	switch a.job.Status {
 	case domain.IngestJobDone:
-		result.Commit()
-		slog.Info("ingest_job_done", "job_id", job.ID, "outcome", result.Outcome, "path", result.Path)
-		w.notifier.Ingested(ctx, msg, result.Outcome)
+		slog.Info("ingest_job_done", "job_id", a.job.ID, "outcome", a.result.Outcome, "path", a.result.Path)
+		w.notifier.Ingested(ctx, msg, a.result.Outcome)
 	case domain.IngestJobFailed:
-		w.notifier.IngestFailed(ctx, msg, failureReason(procErr))
+		w.notifier.IngestFailed(ctx, msg, failureReason(a.err))
 	}
-	return true
 }
 
 func (w *Workers) recordAttempt(job *domain.IngestJob, procErr error) {

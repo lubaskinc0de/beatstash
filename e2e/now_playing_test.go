@@ -20,7 +20,7 @@ func TestNowPlaying(t *testing.T) {
 
 		s.send(query)
 
-		answers := s.botAPI.InlineAnswers(t)
+		answers := s.botAPI.inlineAnswers(t)
 		require.Len(t, answers, 1)
 		assert.Equal(t, query.InlineQuery.ID, answers[0].QueryID)
 		require.Len(t, answers[0].Results, 1)

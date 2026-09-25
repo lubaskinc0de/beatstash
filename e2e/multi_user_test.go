@@ -29,10 +29,10 @@ func TestNavidromeAccount(t *testing.T) {
 		s.send(aliceQuery)
 		s.send(bobQuery)
 
-		aliceAnswer := s.botAPI.InlineAnswerTo(t, aliceQuery)
+		aliceAnswer := s.botAPI.inlineAnswerTo(t, aliceQuery)
 		require.Len(t, aliceAnswer.Results, 1)
 		assert.Equal(t, aliceAudio.FileID, aliceAnswer.Results[0].AudioFileID)
-		bobAnswer := s.botAPI.InlineAnswerTo(t, bobQuery)
+		bobAnswer := s.botAPI.inlineAnswerTo(t, bobQuery)
 		require.Len(t, bobAnswer.Results, 1)
 		assert.Equal(t, bobAudio.FileID, bobAnswer.Results[0].AudioFileID)
 	})
@@ -43,7 +43,7 @@ func TestNavidromeAccount(t *testing.T) {
 
 		link := s.link(alice, account)
 
-		assert.Equal(t, []string{strconv.Itoa(link.Message.ID)}, s.botAPI.DeletedMessages())
+		assert.Equal(t, []string{strconv.Itoa(link.Message.ID)}, s.botAPI.deletedMessages())
 		assert.Contains(t, lastReply(t, s).Text, "привязан")
 	})
 
@@ -58,7 +58,7 @@ func TestNavidromeAccount(t *testing.T) {
 
 		s.send(query)
 
-		assert.Contains(t, audioFileIDs(s.botAPI.InlineAnswerTo(t, query)), audio.FileID)
+		assert.Contains(t, audioFileIDs(s.botAPI.inlineAnswerTo(t, query)), audio.FileID)
 	})
 
 	t.Run("link with wrong password is rejected", func(t *testing.T) {
@@ -70,9 +70,9 @@ func TestNavidromeAccount(t *testing.T) {
 		query := s.inlineQuery(alice, "np")
 		s.send(query)
 
-		assert.Equal(t, []string{strconv.Itoa(link.Message.ID)}, s.botAPI.DeletedMessages())
+		assert.Equal(t, []string{strconv.Itoa(link.Message.ID)}, s.botAPI.deletedMessages())
 		assert.Contains(t, lastReply(t, s).Text, "Неверный логин или пароль")
-		assertLinkHint(t, s.botAPI.InlineAnswerTo(t, query))
+		assertLinkHint(t, s.botAPI.inlineAnswerTo(t, query))
 	})
 
 	t.Run("inline without account suggests linking", func(t *testing.T) {
@@ -83,15 +83,15 @@ func TestNavidromeAccount(t *testing.T) {
 		s.send(np)
 		s.send(recent)
 
-		assertLinkHint(t, s.botAPI.InlineAnswerTo(t, np))
-		assertLinkHint(t, s.botAPI.InlineAnswerTo(t, recent))
+		assertLinkHint(t, s.botAPI.inlineAnswerTo(t, np))
+		assertLinkHint(t, s.botAPI.inlineAnswerTo(t, recent))
 	})
 }
 
 func lastReply(t *testing.T, s *scenario) reply {
 	t.Helper()
 
-	replies := s.botAPI.Replies(t)
+	replies := s.botAPI.replies(t)
 	require.NotEmpty(t, replies)
 	return replies[len(replies)-1]
 }

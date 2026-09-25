@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/md5"
+	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -28,15 +28,21 @@ type SessionRepository interface {
 	SaveToken(ctx context.Context, username string, token string) error
 }
 
+// requestTimeout bounds a call to Navidrome: a hung server must not hang
+// startup, whose context only ends with the process.
+const requestTimeout = 30 * time.Second
+
 type Client struct {
-	BaseURL  string
-	Sessions SessionRepository
+	baseURL  string
+	sessions SessionRepository
+	http     *http.Client
 }
 
-func NewClient(baseUrl string, sessions SessionRepository) *Client {
+func NewClient(baseURL string, sessions SessionRepository) *Client {
 	return &Client{
-		BaseURL:  baseUrl,
-		Sessions: sessions,
+		baseURL:  baseURL,
+		sessions: sessions,
+		http:     &http.Client{Timeout: requestTimeout},
 	}
 }
 
@@ -113,7 +119,7 @@ func (c *Client) NowPlaying(ctx context.Context, creds application.NavidromeCred
 }
 
 func (c *Client) getNowPlaying(ctx context.Context, creds application.NavidromeCredentials) (*nowPlayingResponse, error) {
-	u, err := url.Parse(c.BaseURL + "/rest/getNowPlaying")
+	u, err := url.Parse(c.baseURL + "/rest/getNowPlaying")
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +133,7 @@ func (c *Client) getNowPlaying(ctx context.Context, creds application.NavidromeC
 		return nil, err
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -199,8 +205,13 @@ func (e *validationError) Error() string {
 	return fmt.Sprintf("navidrome validation failed: %v", e.Errors)
 }
 
+func isUnique(err error, field string) bool {
+	var invalid *validationError
+	return errors.As(err, &invalid) && invalid.Errors[field] == "ra.validation.unique"
+}
+
 func (c *Client) native(ctx context.Context, creds application.NavidromeCredentials, r nativeRequest, out any) error {
-	token, err := c.Sessions.GetToken(ctx, creds.Login)
+	token, err := c.sessions.GetToken(ctx, creds.Login)
 	if errors.Is(err, ErrSessionNotFound) {
 		token, err = c.login(ctx, creds)
 	}
@@ -221,7 +232,7 @@ func (c *Client) native(ctx context.Context, creds application.NavidromeCredenti
 }
 
 func (c *Client) doNative(ctx context.Context, creds application.NavidromeCredentials, r nativeRequest, token string, out any) error {
-	u, err := url.Parse(c.BaseURL + r.path)
+	u, err := url.Parse(c.baseURL + r.path)
 	if err != nil {
 		return err
 	}
@@ -245,7 +256,7 @@ func (c *Client) doNative(ctx context.Context, creds application.NavidromeCreden
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.http.Do(req)
 	if err != nil {
 		return err
 	}
@@ -267,7 +278,7 @@ func (c *Client) doNative(ctx context.Context, creds application.NavidromeCreden
 
 	// Navidrome sends a renewed JWT with every response, keep it so the session never expires.
 	if refreshed := resp.Header.Get(nativeAuthHeader); refreshed != "" && refreshed != token {
-		if err := c.Sessions.SaveToken(ctx, creds.Login, refreshed); err != nil {
+		if err := c.sessions.SaveToken(ctx, creds.Login, refreshed); err != nil {
 			return err
 		}
 	}
@@ -293,18 +304,21 @@ func (c *Client) CreateAccount(ctx context.Context, admin, account application.N
 		},
 	}, &created)
 
-	var invalid *validationError
-	if errors.As(err, &invalid) && invalid.Errors["userName"] == "ra.validation.unique" {
+	if isUnique(err, "userName") {
 		return application.ErrNavidromeLoginTaken
 	}
 	return err
 }
 
 type library struct {
-	ID              int    `json:"id"`
+	ID              int    `json:"id,omitempty"`
 	Name            string `json:"name"`
 	Path            string `json:"path"`
 	DefaultNewUsers bool   `json:"defaultNewUsers"`
+}
+
+func toLibrary(l application.NavidromeLibrary) library {
+	return library{Name: l.Name, Path: l.Path, DefaultNewUsers: l.DefaultNewUsers}
 }
 
 func (c *Client) Libraries(ctx context.Context, admin application.NavidromeCredentials) ([]application.NavidromeLibrary, error) {
@@ -327,11 +341,10 @@ func (c *Client) CreateLibrary(ctx context.Context, admin application.NavidromeC
 	err := c.native(ctx, admin, nativeRequest{
 		method: http.MethodPost,
 		path:   "/api/library",
-		body:   map[string]any{"name": l.Name, "path": l.Path, "defaultNewUsers": l.DefaultNewUsers},
+		body:   toLibrary(l),
 	}, &created)
 
-	var invalid *validationError
-	if errors.As(err, &invalid) && invalid.Errors["name"] == "ra.validation.unique" {
+	if isUnique(err, "name") {
 		return 0, application.ErrNavidromeNameTaken
 	}
 	if err != nil {
@@ -344,11 +357,10 @@ func (c *Client) UpdateLibrary(ctx context.Context, admin application.NavidromeC
 	err := c.native(ctx, admin, nativeRequest{
 		method: http.MethodPut,
 		path:   "/api/library/" + strconv.Itoa(l.ID),
-		body:   map[string]any{"name": l.Name, "path": l.Path, "defaultNewUsers": l.DefaultNewUsers},
+		body:   toLibrary(l),
 	}, nil)
 
-	var invalid *validationError
-	if errors.As(err, &invalid) && invalid.Errors["name"] == "ra.validation.unique" {
+	if isUnique(err, "name") {
 		return application.ErrNavidromeNameTaken
 	}
 	return err
@@ -394,13 +406,13 @@ func (c *Client) login(ctx context.Context, creds application.NavidromeCredentia
 		return "", err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/auth/login", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/auth/login", bytes.NewReader(body))
 	if err != nil {
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.http.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -423,7 +435,7 @@ func (c *Client) login(ctx context.Context, creds application.NavidromeCredentia
 		return "", errors.New("navidrome login returned empty token")
 	}
 
-	if err := c.Sessions.SaveToken(ctx, creds.Login, result.Token); err != nil {
+	if err := c.sessions.SaveToken(ctx, creds.Login, result.Token); err != nil {
 		return "", err
 	}
 
@@ -431,13 +443,5 @@ func (c *Client) login(ctx context.Context, creds application.NavidromeCredentia
 }
 
 func randomSalt() string {
-	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	b := make([]byte, 12)
-	for i := range b {
-		b[i] = chars[r.Intn(len(chars))]
-	}
-
-	return string(b)
+	return rand.Text()
 }

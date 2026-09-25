@@ -2,7 +2,6 @@ package database
 
 import (
 	"context"
-	"errors"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
@@ -11,47 +10,27 @@ import (
 )
 
 type NavidromeAccountRepository struct {
-	db *gorm.DB
-}
-
-func NewNavidromeAccountRepository(db *gorm.DB) *NavidromeAccountRepository {
-	return &NavidromeAccountRepository{db: db}
+	DB *gorm.DB
 }
 
 func (r *NavidromeAccountRepository) Get(ctx context.Context, userID uint) (*domain.NavidromeAccount, error) {
-	var account domain.NavidromeAccount
-
-	err := dbForContext(ctx, r.db).Where("user_id = ?", userID).First(&account).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, application.ErrNavidromeAccountNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &account, nil
+	q := dbForContext(ctx, r.DB).Where("user_id = ?", userID)
+	return first[domain.NavidromeAccount](q, application.ErrNavidromeAccountNotFound)
 }
 
 func (r *NavidromeAccountRepository) ByLogin(ctx context.Context, login string) (*domain.NavidromeAccount, error) {
-	var account domain.NavidromeAccount
-
-	err := dbForContext(ctx, r.db).Where("LOWER(login) = LOWER(?)", login).First(&account).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, application.ErrNavidromeAccountNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &account, nil
+	q := dbForContext(ctx, r.DB).Where("LOWER(login) = LOWER(?)", login)
+	return first[domain.NavidromeAccount](q, application.ErrNavidromeAccountNotFound)
 }
 
 func (r *NavidromeAccountRepository) All(ctx context.Context) ([]domain.NavidromeAccount, error) {
 	var accounts []domain.NavidromeAccount
-	err := dbForContext(ctx, r.db).Order("user_id").Find(&accounts).Error
+	err := dbForContext(ctx, r.DB).Order("user_id").Find(&accounts).Error
 	return accounts, err
 }
 
 func (r *NavidromeAccountRepository) Save(ctx context.Context, account *domain.NavidromeAccount) error {
-	return dbForContext(ctx, r.db).
+	return dbForContext(ctx, r.DB).
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "user_id"}},
 			DoUpdates: clause.AssignmentColumns([]string{"login", "password", "updated_at"}),

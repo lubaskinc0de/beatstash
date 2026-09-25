@@ -45,3 +45,49 @@ func RemoveFile(path string) {
 		slog.Error("library_remove_failed", "path", path, "error", err)
 	}
 }
+
+// Place moves the staged file into the Library in one atomic rename, so
+// Navidrome never sees a half-written file.
+func Place(staged, target string) error {
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return err
+	}
+	return os.Rename(staged, target)
+}
+
+// MoveFile runs once the database has already changed, so a failure can
+// only be logged.
+func MoveFile(from, to string) {
+	if err := os.Rename(from, to); err != nil {
+		slog.Error("library_move_failed", "from", from, "to", to, "error", err)
+	}
+}
+
+// FileChanges holds what makes the Library follow a transaction: files
+// change before the commit, so a rollback has to take them back, and old
+// files go only after the commit.
+type FileChanges struct {
+	onRollback  []func()
+	afterCommit []func()
+}
+
+func (c *FileChanges) OnRollback(undo func()) {
+	c.onRollback = append(c.onRollback, undo)
+}
+
+func (c *FileChanges) AfterCommit(finish func()) {
+	c.afterCommit = append(c.afterCommit, finish)
+}
+
+// Settle takes the changes back if the transaction failed with err, and
+// finishes them otherwise.
+func (c *FileChanges) Settle(err error) {
+	steps := c.afterCommit
+	if err != nil {
+		steps = c.onRollback
+	}
+	for _, step := range steps {
+		step()
+	}
+	c.onRollback, c.afterCommit = nil, nil
+}

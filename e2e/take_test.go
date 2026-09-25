@@ -17,7 +17,7 @@ func TestTake(t *testing.T) {
 
 		s.take(bob, 1)
 
-		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.personalFiles(bob))
+		assert.Equal(t, []string{fixtureTrackPath}, s.personalFiles(bob))
 		env.navidrome.indexedTrack(t, bobAccount, s.personalPath(bob, ""), fixtureTitle)
 		assert.Contains(t, lastCallbackAnswer(t, s), "в вашей библиотеке")
 	})
@@ -25,26 +25,26 @@ func TestTake(t *testing.T) {
 	t.Run("taken track stays after the author unshares", func(t *testing.T) {
 		s := newScenario(t)
 		s.share(alice, s.uploaded(alice, s.uploadAudio("track.mp3")), "🔗 Трек")
-		aliceButtons := s.botAPI.Buttons(t)
+		aliceButtons := s.botAPI.buttons(t)
 		s.take(bob, 1)
 
 		s.press(alice, buttonIn(t, aliceButtons, "🔒 Снять Share"))
 
 		assert.Empty(t, s.sharedFiles())
-		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.personalFiles(bob))
+		assert.Equal(t, []string{fixtureTrackPath}, s.personalFiles(bob))
 	})
 
 	t.Run("taker reshares after the author unshares", func(t *testing.T) {
 		s := newScenario(t)
 		audio := s.uploadAudio("track.mp3")
 		s.share(alice, s.uploaded(alice, audio), "🔗 Трек")
-		aliceButtons := s.botAPI.Buttons(t)
+		aliceButtons := s.botAPI.buttons(t)
 		s.take(bob, 1)
 		s.press(alice, buttonIn(t, aliceButtons, "🔒 Снять Share"))
 
 		s.share(bob, s.botAudio(bob, audio), "🔗 Трек")
 
-		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.sharedFiles())
+		assert.Equal(t, []string{fixtureTrackPath}, s.sharedFiles())
 		assert.Contains(t, s.feed(alice), "@bob")
 		assert.NotContains(t, s.feed(alice), "@alice")
 	})
@@ -60,9 +60,9 @@ func TestTake(t *testing.T) {
 		s.waitIngest()
 
 		assert.Empty(t, s.botAPI.callsTo("getFile"))
-		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.personalFiles(bob))
-		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.ReactionsOn(t, forward.Message.ID))
-		assert.Empty(t, s.botAPI.Replies(t))
+		assert.Equal(t, []string{fixtureTrackPath}, s.personalFiles(bob))
+		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.reactionsOn(t, forward.Message.ID))
+		assert.Empty(t, s.botAPI.replies(t))
 	})
 
 	t.Run("shared file of a track the user owns is not copied", func(t *testing.T) {
@@ -93,7 +93,7 @@ func TestTake(t *testing.T) {
 
 		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.flac"}, s.personalFiles(bob))
 		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3"}, s.sharedFiles())
-		assert.Empty(t, s.botAPI.Replies(t))
+		assert.Empty(t, s.botAPI.replies(t))
 	})
 
 	t.Run("upload of a track private to another user reveals nothing", func(t *testing.T) {
@@ -104,8 +104,8 @@ func TestTake(t *testing.T) {
 		s.uploaded(bob, s.uploadAudio("track.mp3"))
 
 		assert.NotEmpty(t, s.botAPI.callsTo("getFile"))
-		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.personalFiles(bob))
-		assert.Empty(t, s.botAPI.Replies(t))
+		assert.Equal(t, []string{fixtureTrackPath}, s.personalFiles(bob))
+		assert.Empty(t, s.botAPI.replies(t))
 	})
 
 	t.Run("send file button sends the audio", func(t *testing.T) {
@@ -134,7 +134,7 @@ func TestSharedFeed(t *testing.T) {
 
 		s.send(query)
 
-		results := s.botAPI.InlineAnswerTo(t, query).Results
+		results := s.botAPI.inlineAnswerTo(t, query).Results
 		require.Len(t, results, 3)
 		assert.Equal(t, bobAudio.FileID, results[1].AudioFileID)
 		assert.Contains(t, results[1].Caption, "@bob")

@@ -21,7 +21,7 @@ func TestDuplicates(t *testing.T) {
 		s.waitIngest()
 
 		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3"}, s.personalFiles(alice))
-		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.ReactionsOn(t, second.Message.ID))
+		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.reactionsOn(t, second.Message.ID))
 		assertAlreadyExists(t, s, second.Message.ID)
 	})
 
@@ -35,7 +35,7 @@ func TestDuplicates(t *testing.T) {
 		s.send(forward)
 		s.waitIngest()
 
-		assert.Equal(t, []string{"Fixture Artist/Fixture Album/01 - Fixture Song.mp3"}, s.personalFiles(alice))
+		assert.Equal(t, []string{fixtureTrackPath}, s.personalFiles(alice))
 		assertAlreadyExists(t, s, forward.Message.ID)
 	})
 
@@ -50,14 +50,14 @@ func TestDuplicates(t *testing.T) {
 		s.waitIngest()
 
 		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.flac"}, s.personalFiles(alice))
-		assert.Empty(t, s.botAPI.Replies(t))
+		assert.Empty(t, s.botAPI.replies(t))
 		account := env.navidrome.createAccount(t, "alice")
 		s.link(alice, account)
 		track := env.navidrome.indexedTrack(t, account, s.library, "Dup Song")
 		env.navidrome.startPlaying(t, account, track.ID)
 		query := s.inlineQuery(alice, "np")
 		s.send(query)
-		answers := s.botAPI.InlineAnswers(t)
+		answers := s.botAPI.inlineAnswers(t)
 		require.Len(t, answers, 1)
 		require.Len(t, answers[0].Results, 1)
 		assert.Equal(t, "audio", answers[0].Results[0].Type)
@@ -102,7 +102,7 @@ func TestDuplicates(t *testing.T) {
 		s.waitIngest()
 
 		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3", "Artist/Best Of/05 - Dup Song.mp3"}, s.personalFiles(alice))
-		assert.Empty(t, s.botAPI.Replies(t))
+		assert.Empty(t, s.botAPI.replies(t))
 	})
 
 	t.Run("duration off by more than 2 s is another track", func(t *testing.T) {
@@ -114,7 +114,7 @@ func TestDuplicates(t *testing.T) {
 		s.waitIngest()
 
 		assert.Len(t, s.personalFiles(alice), 2)
-		assert.Empty(t, s.botAPI.Replies(t))
+		assert.Empty(t, s.botAPI.replies(t))
 	})
 
 	t.Run("duration off by less than 2 s is a duplicate", func(t *testing.T) {
@@ -148,7 +148,7 @@ func TestDuplicates(t *testing.T) {
 func assertAlreadyExists(t *testing.T, s *scenario, messageID int) {
 	t.Helper()
 
-	replies := s.botAPI.Replies(t)
+	replies := s.botAPI.replies(t)
 	require.Len(t, replies, 1)
 	assert.Equal(t, messageID, replies[0].ReplyTo)
 	assert.Contains(t, replies[0].Text, "уже есть")

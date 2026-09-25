@@ -14,7 +14,7 @@ func TestFirstContact(t *testing.T) {
 
 		s.send(query)
 
-		answers := s.botAPI.InlineAnswers(t)
+		answers := s.botAPI.inlineAnswers(t)
 		require.Len(t, answers, 1)
 		assert.Equal(t, query.InlineQuery.ID, answers[0].QueryID)
 	})
@@ -25,6 +25,6 @@ func TestFirstContact(t *testing.T) {
 
 		s.send(press)
 
-		assert.Equal(t, []string{press.CallbackQuery.ID}, s.botAPI.AnsweredCallbacks())
+		assert.Equal(t, []string{press.CallbackQuery.ID}, s.botAPI.answeredCallbacks())
 	})
 }

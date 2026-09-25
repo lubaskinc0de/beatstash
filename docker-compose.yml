@@ -38,9 +38,9 @@ services:
       - .env
     environment:
       DB_DSN: "host=postgres user=postgres password=postgres dbname=postgres port=5432 sslmode=disable"
-      MUSIC_DIR: "/music"
-      BOT_API_URL: "http://telegram-bot-api:8081"
+      CONFIG_FILE: "/app/config.toml"
     volumes:
+      - ./config.docker.toml:/app/config.toml:ro
       - ./test_data:/music
       - telegram_bot_api_data:/var/lib/telegram-bot-api
 

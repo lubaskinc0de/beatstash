@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"errors"
 	"log"
 	"os"
 	"time"
@@ -14,11 +15,7 @@ import (
 
 type txContextKey struct{}
 type TxManager struct {
-	db *gorm.DB
-}
-
-func NewTxManager(db *gorm.DB) *TxManager {
-	return &TxManager{db}
+	DB *gorm.DB
 }
 
 func New(dsn string) (*gorm.DB, error) {
@@ -68,7 +65,7 @@ func (m *TxManager) WithinTx(
 	ctx context.Context,
 	fn func(context.Context) error,
 ) error {
-	db := m.db.WithContext(ctx)
+	db := m.DB.WithContext(ctx)
 	if tx, ok := txFromContext(ctx); ok {
 		db = tx
 	}
@@ -96,4 +93,16 @@ func withTx(ctx context.Context, tx *gorm.DB) context.Context {
 func txFromContext(ctx context.Context) (*gorm.DB, bool) {
 	tx, ok := ctx.Value(txContextKey{}).(*gorm.DB)
 	return tx, ok
+}
+
+func first[T any](q *gorm.DB, notFound error) (*T, error) {
+	var row T
+	err := q.First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, notFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &row, nil
 }

@@ -163,11 +163,10 @@ func (s *Sharing) share(ctx context.Context, sc *scope, track *domain.Track, res
 		return err
 	}
 
-	copied, target, err := s.copyTrack(ctx, track, sc.libs.Personal, sc.libs.Shared)
+	copied, _, err := s.copyTrack(ctx, track, sc.libs.Personal, sc.libs.Shared, &sc.files)
 	if err != nil {
 		return err
 	}
-	sc.onRollback = append(sc.onRollback, func() { RemoveFile(target) })
 	result.Created++
 	share.TrackID = copied.ID
 	share.InTop = true
@@ -200,7 +199,7 @@ func (s *Sharing) unshare(ctx context.Context, sc *scope, track *domain.Track) e
 		return err
 	}
 	file := filepath.Join(s.Libraries.Dir(sc.libs.Shared), shared.Path)
-	sc.afterCommit = append(sc.afterCommit, func() { RemoveFile(file) })
+	sc.files.AfterCommit(func() { RemoveFile(file) })
 	return nil
 }
 
@@ -246,17 +245,15 @@ func (s *Sharing) own(ctx context.Context, sc *scope, trackID uint) (*domain.Tra
 }
 
 type scope struct {
-	user *domain.User
-	libs application.UserLibraries
-
-	onRollback  []func()
-	afterCommit []func()
+	user  *domain.User
+	libs  application.UserLibraries
+	files FileChanges
 }
 
 func (s *Sharing) scope(ctx context.Context) (*scope, error) {
-	user, ok := application.UserFromContext(ctx)
-	if !ok {
-		return nil, application.ErrNotAuthenticated
+	user, err := application.CurrentUser(ctx)
+	if err != nil {
+		return nil, err
 	}
 	libs, err := s.Libraries.Of(ctx, user)
 	if err != nil {
@@ -278,14 +275,6 @@ func (s *Sharing) within(ctx context.Context, fn func(context.Context, *scope) e
 		}
 		return fn(ctx, sc)
 	})
-	if err != nil {
-		for _, undo := range sc.onRollback {
-			undo()
-		}
-		return err
-	}
-	for _, finish := range sc.afterCommit {
-		finish()
-	}
-	return nil
+	sc.files.Settle(err)
+	return err
 }

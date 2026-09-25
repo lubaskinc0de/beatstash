@@ -26,7 +26,7 @@ const (
 	actionUnshareAlbum = "un:a"
 )
 
-func (h *Handler) HandleShare(ctx context.Context, b *bot.Bot, update *models.Update) {
+func (h *Handler) handleShare(ctx context.Context, b *bot.Bot, update *models.Update) {
 	msg := update.Message
 	reply := msg.ReplyToMessage
 	file, _, ok := audioFile(reply)
@@ -35,13 +35,13 @@ func (h *Handler) HandleShare(ctx context.Context, b *bot.Bot, update *models.Up
 		return
 	}
 
-	state, err := h.sharing.Find(ctx, domain.TrackRef{Provider: tgprovider.Name, ID: file.UniqueID})
+	state, err := h.Sharing.Find(ctx, domain.TrackRef{Provider: tgprovider.Name, ID: file.UniqueID})
 	switch {
 	case err == nil:
 		sendKeyboard(ctx, b, msg.Chat.ID, "Что расшарить?", shareKeyboard(state))
 	case errors.Is(err, library.ErrInboxTrack):
 		sendText(ctx, b, msg.Chat.ID, "🗂 Трек из Inbox нельзя расшарить: у него нет исполнителя или названия")
-	case errors.Is(err, application.ErrTrackNotFound):
+	case errors.Is(err, application.ErrSourceNotFound):
 		sendText(ctx, b, msg.Chat.ID, shareUsage)
 	default:
 		slog.Error("find_share_state", "error", err)
@@ -82,6 +82,12 @@ func parseCallback(data string) (action string, id uint, ok bool) {
 	return data[:i], uint(n), true
 }
 
+func (h *Handler) shareCallback(action string) callbackHandler {
+	return func(ctx context.Context, b *bot.Bot, query *models.CallbackQuery, trackID uint) {
+		h.handleShareCallback(ctx, b, query, action, trackID)
+	}
+}
+
 func (h *Handler) handleShareCallback(ctx context.Context, b *bot.Bot, query *models.CallbackQuery, action string, trackID uint) {
 	var (
 		text string
@@ -91,10 +97,10 @@ func (h *Handler) handleShareCallback(ctx context.Context, b *bot.Bot, query *mo
 	switch action {
 	case actionShareTrack, actionShareAlbum:
 		var result library.ShareResult
-		result, err = h.sharing.Share(ctx, trackID, wholeAlbum)
+		result, err = h.Sharing.Share(ctx, trackID, wholeAlbum)
 		text = shareResultText(result)
 	case actionUnshareTrack, actionUnshareAlbum:
-		err = h.sharing.Unshare(ctx, trackID, wholeAlbum)
+		err = h.Sharing.Unshare(ctx, trackID, wholeAlbum)
 		text = "🔒 Share снят"
 	}
 
@@ -118,7 +124,7 @@ func (h *Handler) handleShareCallback(ctx context.Context, b *bot.Bot, query *mo
 		editKeyboard(ctx, b, query, &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{}})
 		return
 	}
-	state, err := h.sharing.State(ctx, trackID)
+	state, err := h.Sharing.State(ctx, trackID)
 	if err != nil {
 		slog.Error("share_state", "error", err)
 		return

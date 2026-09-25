@@ -11,15 +11,11 @@ import (
 )
 
 type IngestQueue struct {
-	db *gorm.DB
-}
-
-func NewIngestQueue(db *gorm.DB) *IngestQueue {
-	return &IngestQueue{db: db}
+	DB *gorm.DB
 }
 
 func (q *IngestQueue) Enqueue(ctx context.Context, job *domain.IngestJob) error {
-	return dbForContext(ctx, q.db).Omit("User").Create(job).Error
+	return dbForContext(ctx, q.DB).Omit("User").Create(job).Error
 }
 
 // ClaimNext keeps the job pending while locked, so a crashed worker's job
@@ -27,7 +23,7 @@ func (q *IngestQueue) Enqueue(ctx context.Context, job *domain.IngestJob) error 
 func (q *IngestQueue) ClaimNext(ctx context.Context) (*domain.IngestJob, error) {
 	var jobs []domain.IngestJob
 
-	err := dbForContext(ctx, q.db).
+	err := dbForContext(ctx, q.DB).
 		Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
 		Where("status = ? AND run_at <= ?", domain.IngestJobPending, time.Now()).
 		Order("run_at, id").
@@ -40,12 +36,12 @@ func (q *IngestQueue) ClaimNext(ctx context.Context) (*domain.IngestJob, error) 
 }
 
 func (q *IngestQueue) Save(ctx context.Context, job *domain.IngestJob) error {
-	return dbForContext(ctx, q.db).Omit("User").Save(job).Error
+	return dbForContext(ctx, q.DB).Omit("User").Save(job).Error
 }
 
 func (q *IngestQueue) CountUnfinished(ctx context.Context) (int64, error) {
 	var count int64
-	err := dbForContext(ctx, q.db).
+	err := dbForContext(ctx, q.DB).
 		Model(&domain.IngestJob{}).
 		Where("status = ?", domain.IngestJobPending).
 		Count(&count).Error

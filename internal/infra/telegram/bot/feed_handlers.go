@@ -26,10 +26,10 @@ const (
 
 const emptyFeed = "💤 Пока никто ничего не расшарил. Ответьте /share на аудиосообщение со своим треком, чтобы стать первым"
 
-func (h *Handler) HandleSharedFeed(ctx context.Context, b *bot.Bot, update *models.Update) {
+func (h *Handler) handleSharedFeed(ctx context.Context, b *bot.Bot, update *models.Update) {
 	chatID := update.Message.Chat.ID
 
-	entries, err := h.sharing.Feed(ctx, feedLimit)
+	entries, err := h.Sharing.Feed(ctx, feedLimit)
 	if err != nil {
 		slog.Error("shared_feed", "error", err)
 		sendText(ctx, b, chatID, "⚠️ Не удалось получить ленту, попробуйте позже")
@@ -67,7 +67,7 @@ func trackLine(track *domain.Track) string {
 func (h *Handler) handleInlineFeed(ctx context.Context, b *bot.Bot, update *models.Update) {
 	queryID := update.InlineQuery.ID
 
-	entries, err := h.sharing.Feed(ctx, feedLimit)
+	entries, err := h.Sharing.Feed(ctx, feedLimit)
 	if err != nil {
 		slog.Error("shared_feed", "error", err)
 		answerInlineArticle(ctx, b, queryID, "error", "⚠️ Лента недоступна", "Не удалось получить расшаренное", "⚠️ Не удалось получить расшаренное")
@@ -109,7 +109,7 @@ func (h *Handler) handleInlineFeed(ctx context.Context, b *bot.Bot, update *mode
 }
 
 func (h *Handler) handleTake(ctx context.Context, b *bot.Bot, query *models.CallbackQuery, sharedTrackID uint) {
-	err := h.sharing.Take(ctx, sharedTrackID)
+	err := h.Sharing.Take(ctx, sharedTrackID)
 	switch {
 	case err == nil:
 		answerCallback(ctx, b, query.ID, "➕ Трек в вашей библиотеке")
@@ -126,12 +126,12 @@ func (h *Handler) handleTake(ctx context.Context, b *bot.Bot, query *models.Call
 // handleSendFile sends to the private chat: the button may sit in a
 // message sent through inline mode, where the bot cannot post.
 func (h *Handler) handleSendFile(ctx context.Context, b *bot.Bot, query *models.CallbackQuery, sharedTrackID uint) {
-	file, err := h.sharing.SharedFile(ctx, sharedTrackID)
+	file, err := h.Sharing.SharedFile(ctx, sharedTrackID)
 	switch {
 	case errors.Is(err, library.ErrNotShared):
 		answerCallback(ctx, b, query.ID, "Трек больше не в общей библиотеке")
 		return
-	case errors.Is(err, application.ErrTrackNotFound):
+	case errors.Is(err, application.ErrNoTelegramFile):
 		answerCallback(ctx, b, query.ID, "Файла этого трека в Telegram нет")
 		return
 	case err != nil:

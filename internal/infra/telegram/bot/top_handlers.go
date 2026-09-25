@@ -13,10 +13,10 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application"
 )
 
-func (h *Handler) HandleTop(ctx context.Context, b *bot.Bot, update *models.Update) {
+func (h *Handler) handleTop(ctx context.Context, b *bot.Bot, update *models.Update) {
 	chatID := update.Message.Chat.ID
 
-	top, err := h.getTop.Execute(ctx)
+	top, err := h.GetTop.Execute(ctx)
 	if err != nil {
 		slog.Error("get_top", "error", err)
 		sendText(ctx, b, chatID, "⚠️ Не удалось посчитать Top, попробуйте позже")
@@ -28,7 +28,7 @@ func (h *Handler) HandleTop(ctx context.Context, b *bot.Bot, update *models.Upda
 func (h *Handler) handleInlineTop(ctx context.Context, b *bot.Bot, update *models.Update) {
 	queryID := update.InlineQuery.ID
 
-	top, err := h.getTop.Execute(ctx)
+	top, err := h.GetTop.Execute(ctx)
 	if err != nil {
 		slog.Error("get_top", "error", err)
 		answerInlineArticle(ctx, b, queryID, "error", "⚠️ Top недоступен", "Не удалось посчитать Top", "⚠️ Не удалось посчитать Top")

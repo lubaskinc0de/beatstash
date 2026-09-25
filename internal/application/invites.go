@@ -22,11 +22,6 @@ type InviteRepository interface {
 	GetForUpdate(ctx context.Context, code string) (*domain.Invite, error)
 }
 
-type UserRepository interface {
-	Save(ctx context.Context, user *domain.User) error
-	SetAwaitsNavidromeLogin(ctx context.Context, userID uint, awaits bool) error
-}
-
 type CreateInvite struct {
 	Invites  InviteRepository
 	AdminIDs []uint64
@@ -34,14 +29,10 @@ type CreateInvite struct {
 	Clock    func() time.Time
 }
 
-func NewCreateInvite(invites InviteRepository, adminIDs []uint64, ttl time.Duration, clock func() time.Time) *CreateInvite {
-	return &CreateInvite{Invites: invites, AdminIDs: adminIDs, TTL: ttl, Clock: clock}
-}
-
 func (i *CreateInvite) Execute(ctx context.Context) (string, error) {
-	user, ok := UserFromContext(ctx)
-	if !ok {
-		return "", ErrNotAuthenticated
+	user, err := CurrentUser(ctx)
+	if err != nil {
+		return "", err
 	}
 	if !i.CanInvite(user) {
 		return "", ErrNotAdmin
@@ -69,27 +60,12 @@ func (i *CreateInvite) CanInvite(user *domain.User) bool {
 	return slices.Contains(i.AdminIDs, user.TelegramID)
 }
 
-type TelegramProfile struct {
-	ID       uint64
-	Username string
-}
-
 type AcceptInvite struct {
 	Tx        TxManager
 	Invites   InviteRepository
 	Users     UserRepository
 	Libraries *Libraries
 	Clock     func() time.Time
-}
-
-func NewAcceptInvite(
-	tx TxManager,
-	invites InviteRepository,
-	users UserRepository,
-	libraries *Libraries,
-	clock func() time.Time,
-) *AcceptInvite {
-	return &AcceptInvite{Tx: tx, Invites: invites, Users: users, Libraries: libraries, Clock: clock}
 }
 
 func (i *AcceptInvite) Execute(ctx context.Context, code string, profile TelegramProfile) (*domain.User, error) {

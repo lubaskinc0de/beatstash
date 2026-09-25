@@ -23,7 +23,10 @@ import (
 	app "github.com/lubaskinc0de/navidrome-tg/internal/main"
 )
 
-const fixtureTitle = "Fixture Song"
+const (
+	fixtureTitle     = "Fixture Song"
+	fixtureTrackPath = "Fixture Artist/Fixture Album/01 - Fixture Song.mp3"
+)
 
 type telegramUser struct {
 	ID       int64
@@ -113,15 +116,15 @@ func prepareScenario(t *testing.T, opts ...scenarioOption) *scenario {
 		Clock:              clk.Now,
 		InviteTTL:          7 * 24 * time.Hour,
 		Token:              botToken,
-		BotApiUrl:          api.URL(),
-		DbDsn:              postgresDSN(createDatabase(t)),
+		BotAPIURL:          api.url(),
+		DBDSN:              postgresDSN(createDatabase(t)),
 		MusicDir:           library,
 		NavidromeMusicDir:  navidromeLibraryMount + "/" + filepath.Base(library),
-		AdminIds:           []uint64{uint64(adminUser.ID)},
+		AdminIDs:           []uint64{uint64(adminUser.ID)},
 		SecretKey:          secretKey,
 		NavidromeUser:      navidromeAdmin,
 		NavidromePassword:  navidromePassword,
-		NavidromeUrl:       env.navidrome.url,
+		NavidromeURL:       env.navidrome.url,
 		IngestWorkers:      2,
 		IngestRetryDelays:  []time.Duration{10 * time.Millisecond, 10 * time.Millisecond, 10 * time.Millisecond},
 		IngestPollInterval: 10 * time.Millisecond,
@@ -136,7 +139,7 @@ func prepareScenario(t *testing.T, opts ...scenarioOption) *scenario {
 func (s *scenario) start() {
 	s.t.Helper()
 
-	a, err := app.New(s.config, bot.WithSkipGetMe(), bot.WithNotAsyncHandlers())
+	a, err := app.New(s.t.Context(), s.config, bot.WithSkipGetMe(), bot.WithNotAsyncHandlers())
 	require.NoError(s.t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())

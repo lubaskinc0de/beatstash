@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,6 +39,58 @@ func TestStartup(t *testing.T) {
 		assert.NotZero(t, exit.ExitCode())
 		assert.Contains(t, out, "SECRET_KEY")
 	})
+
+	t.Run("bot names every missing secret at once", func(t *testing.T) {
+		binary := buildBot(t)
+		vars := botEnv(t)
+		delete(vars, "BOT_TOKEN")
+		delete(vars, "SECRET_KEY")
+
+		out, err := runBot(t, binary, vars)
+
+		var exit *exec.ExitError
+		require.ErrorAs(t, err, &exit)
+		assert.Contains(t, out, "BOT_TOKEN")
+		assert.Contains(t, out, "SECRET_KEY")
+	})
+
+	t.Run("bot refuses an unknown setting", func(t *testing.T) {
+		binary := buildBot(t)
+		vars := botEnv(t)
+		vars["CONFIG_FILE"] = writeConfig(t, "admin_idz = [1000]\n"+botConfig(t))
+
+		out, err := runBot(t, binary, vars)
+
+		var exit *exec.ExitError
+		require.ErrorAs(t, err, &exit)
+		assert.Contains(t, out, "unknown key admin_idz")
+	})
+
+	t.Run("bot refuses a zero poll interval", func(t *testing.T) {
+		binary := buildBot(t)
+		vars := botEnv(t)
+		vars["CONFIG_FILE"] = writeConfig(t, botConfig(t)+"\n[ingest]\npoll_interval = \"0s\"\n")
+
+		out, err := runBot(t, binary, vars)
+
+		var exit *exec.ExitError
+		require.ErrorAs(t, err, &exit)
+		assert.Contains(t, out, "ingest.poll_interval")
+	})
+
+	t.Run("bot without a config file still names missing secrets", func(t *testing.T) {
+		binary := buildBot(t)
+		vars := botEnv(t)
+		vars["CONFIG_FILE"] = filepath.Join(t.TempDir(), "missing.toml")
+		delete(vars, "SECRET_KEY")
+
+		out, err := runBot(t, binary, vars)
+
+		var exit *exec.ExitError
+		require.ErrorAs(t, err, &exit)
+		assert.Contains(t, out, "missing.toml")
+		assert.Contains(t, out, "SECRET_KEY")
+	})
 }
 
 func buildBot(t *testing.T) string {
@@ -51,16 +104,35 @@ func buildBot(t *testing.T) string {
 
 func botEnv(t *testing.T) map[string]string {
 	return map[string]string{
+		"CONFIG_FILE":        writeConfig(t, botConfig(t)),
 		"BOT_TOKEN":          botToken,
-		"BOT_API_URL":        newBotAPI(t).URL(),
 		"DB_DSN":             postgresDSN(createDatabase(t)),
-		"MUSIC_DIR":          t.TempDir(),
-		"ADMIN_IDS":          "1000",
 		"SECRET_KEY":         secretKey,
-		"NAVIDROME_URL":      env.navidrome.url,
-		"NAVIDROME_USER":     navidromeAdmin,
 		"NAVIDROME_PASSWORD": navidromePassword,
 	}
+}
+
+func botConfig(t *testing.T) string {
+	return fmt.Sprintf(`admin_ids = [1000]
+
+[telegram]
+bot_api_url = %q
+
+[library]
+music_dir = %q
+
+[navidrome]
+url = %q
+user = %q
+`, newBotAPI(t).url(), t.TempDir(), env.navidrome.url, navidromeAdmin)
+}
+
+func writeConfig(t *testing.T, content string) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "config.toml")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+	return path
 }
 
 func runBot(t *testing.T, binary string, vars map[string]string) (string, error) {

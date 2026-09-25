@@ -41,15 +41,11 @@ func Ref(file File) (domain.TrackRef, error) {
 }
 
 type Provider struct {
-	bot *bot.Bot
+	Bot *bot.Bot
 
 	// localFiles maps Track Ref ids to files a local Bot API server
 	// downloaded for them, to be removed on Release.
 	localFiles sync.Map
-}
-
-func NewProvider(b *bot.Bot) *Provider {
-	return &Provider{bot: b}
 }
 
 func (p *Provider) Name() domain.ProviderName {
@@ -62,7 +58,7 @@ func (p *Provider) Fetch(ctx context.Context, ref domain.TrackRef) (*application
 		return nil, application.Permanent(application.ReasonInternal, fmt.Errorf("decode payload: %w", err))
 	}
 
-	info, err := p.bot.GetFile(ctx, &bot.GetFileParams{FileID: file.ID})
+	info, err := p.Bot.GetFile(ctx, &bot.GetFileParams{FileID: file.ID})
 	if err != nil {
 		return nil, fmt.Errorf("get file: %w", err)
 	}
@@ -104,7 +100,7 @@ func (p *Provider) open(ctx context.Context, ref domain.TrackRef, filePath strin
 		return file, nil
 	}
 
-	url := p.bot.FileDownloadLink(&models.File{FilePath: filePath})
+	url := p.Bot.FileDownloadLink(&models.File{FilePath: filePath})
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err

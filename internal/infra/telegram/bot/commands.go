@@ -17,7 +17,7 @@ func command(update *models.Update) (name, args string, ok bool) {
 	return strings.ToLower(name), strings.TrimSpace(args), true
 }
 
-func IsCommand(name string) func(*models.Update) bool {
+func isCommand(name string) func(*models.Update) bool {
 	return func(update *models.Update) bool {
 		got, _, ok := command(update)
 		return ok && got == name

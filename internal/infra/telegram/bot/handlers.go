@@ -20,48 +20,20 @@ import (
 const recentTracksLimit = 10
 
 type Handler struct {
-	enqueueIngest        *application.EnqueueIngest
-	getNowPlaying        *application.GetNowPlaying
-	getRecentlyPlayed    *application.GetRecentlyPlayed
-	linkNavidromeAccount *application.LinkNavidromeAccount
-	createInvite         *application.CreateInvite
-	acceptInvite         *application.AcceptInvite
-	registerAccount      *application.RegisterNavidromeAccount
-	sharing              *library.Sharing
-	getTop               *application.GetTop
-	getServiceStats      *application.GetServiceStats
-	adminContact         string
+	EnqueueIngest        *application.EnqueueIngest
+	GetNowPlaying        *application.GetNowPlaying
+	GetRecentlyPlayed    *application.GetRecentlyPlayed
+	LinkNavidromeAccount *application.LinkNavidromeAccount
+	CreateInvite         *application.CreateInvite
+	AcceptInvite         *application.AcceptInvite
+	RegisterAccount      *application.RegisterNavidromeAccount
+	Sharing              *library.Sharing
+	GetTop               *application.GetTop
+	GetServiceStats      *application.GetServiceStats
+	AdminContact         string
 }
 
-func NewHandler(
-	enqueueIngest *application.EnqueueIngest,
-	nowPlaying *application.GetNowPlaying,
-	recentlyPlayed *application.GetRecentlyPlayed,
-	linkNavidromeAccount *application.LinkNavidromeAccount,
-	createInvite *application.CreateInvite,
-	acceptInvite *application.AcceptInvite,
-	registerAccount *application.RegisterNavidromeAccount,
-	sharing *library.Sharing,
-	getTop *application.GetTop,
-	getServiceStats *application.GetServiceStats,
-	adminContact string,
-) *Handler {
-	return &Handler{
-		enqueueIngest:        enqueueIngest,
-		getNowPlaying:        nowPlaying,
-		getRecentlyPlayed:    recentlyPlayed,
-		linkNavidromeAccount: linkNavidromeAccount,
-		createInvite:         createInvite,
-		acceptInvite:         acceptInvite,
-		registerAccount:      registerAccount,
-		sharing:              sharing,
-		getTop:               getTop,
-		getServiceStats:      getServiceStats,
-		adminContact:         adminContact,
-	}
-}
-
-func (h *Handler) HandleAudio(
+func (h *Handler) handleAudio(
 	ctx context.Context,
 	b *bot.Bot,
 	update *models.Update,
@@ -89,14 +61,14 @@ func (h *Handler) HandleAudio(
 
 	// 👀 goes first: a worker may finish and set 👍 before Execute returns.
 	setReaction(ctx, b, msg, "👀")
-	err = h.enqueueIngest.Execute(ctx, application.IngestRequest{Ref: ref, Message: msg})
+	err = h.EnqueueIngest.Execute(ctx, application.IngestRequest{Ref: ref, Message: msg})
 	if err != nil {
 		slog.Error("enqueue_ingest", "error", err)
 		reject(ctx, b, msg, application.ReasonInternal)
 	}
 }
 
-func HasAudio(update *models.Update) bool {
+func hasAudio(update *models.Update) bool {
 	_, _, ok := audioFile(update.Message)
 	return ok
 }
@@ -125,15 +97,11 @@ func audioFile(msg *models.Message) (file tgprovider.File, mimeType string, ok b
 	return tgprovider.File{}, "", false
 }
 
-func (h *Handler) HandleInlineQuery(
+func (h *Handler) handleInlineQuery(
 	ctx context.Context,
 	b *bot.Bot,
 	update *models.Update,
 ) {
-	if update.InlineQuery == nil {
-		return
-	}
-
 	query := strings.TrimSpace(
 		strings.ToLower(update.InlineQuery.Query),
 	)
@@ -160,42 +128,12 @@ func (h *Handler) HandleInlineQuery(
 	}
 }
 
-func (h *Handler) HandleCallbackQuery(
-	ctx context.Context,
-	b *bot.Bot,
-	update *models.Update,
-) {
-	query := update.CallbackQuery
-	if query == nil {
-		return
-	}
-
-	action, id, ok := parseCallback(query.Data)
-	switch {
-	case !ok:
-	case action == actionShareTrack, action == actionShareAlbum, action == actionUnshareTrack, action == actionUnshareAlbum:
-		h.handleShareCallback(ctx, b, query, action, id)
-		return
-	case action == actionTake:
-		h.handleTake(ctx, b, query, id)
-		return
-	case action == actionSendFile:
-		h.handleSendFile(ctx, b, query, id)
-		return
-	}
-	answerCallback(ctx, b, query.ID, "")
-}
-
 func (h *Handler) handleNowPlaying(
 	ctx context.Context,
 	b *bot.Bot,
 	update *models.Update,
 ) {
-	if update.InlineQuery == nil {
-		return
-	}
-
-	track, err := h.getNowPlaying.Execute(ctx)
+	track, err := h.GetNowPlaying.Execute(ctx)
 	if errors.Is(err, application.ErrNavidromeAccountNotFound) {
 		answerNoNavidromeAccount(ctx, b, update.InlineQuery.ID)
 		return
@@ -268,11 +206,7 @@ func (h *Handler) handleRecentlyPlayed(
 	b *bot.Bot,
 	update *models.Update,
 ) {
-	if update.InlineQuery == nil {
-		return
-	}
-
-	tracks, err := h.getRecentlyPlayed.Execute(ctx, recentTracksLimit)
+	tracks, err := h.GetRecentlyPlayed.Execute(ctx, recentTracksLimit)
 	if errors.Is(err, application.ErrNavidromeAccountNotFound) {
 		answerNoNavidromeAccount(ctx, b, update.InlineQuery.ID)
 		return

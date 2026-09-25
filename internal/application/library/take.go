@@ -28,11 +28,10 @@ func (s *Sharing) Take(ctx context.Context, sharedTrackID uint) error {
 		if err != nil {
 			return err
 		}
-		copied, target, err := s.CopyShared(ctx, track, sc.libs)
+		copied, _, err := s.CopyShared(ctx, track, sc.libs, &sc.files)
 		if err != nil {
 			return err
 		}
-		sc.onRollback = append(sc.onRollback, func() { RemoveFile(target) })
 
 		take := &domain.Take{UserID: sc.user.ID, TrackID: copied.ID, CreatedAt: s.Clock()}
 		if len(sharers) > 0 {
@@ -44,40 +43,36 @@ func (s *Sharing) Take(ctx context.Context, sharedTrackID uint) error {
 
 // CopyShared puts a Shared Library Track into the user's Personal Library
 // without a Take: Ingest uses it when the user sends the very file somebody
-// shared. The caller holds a transaction and the locks of both libraries,
-// and removes the returned file if the transaction fails.
+// shared. The caller holds a transaction and the locks of both libraries.
 func (s *Sharing) CopyShared(
 	ctx context.Context,
 	track *domain.Track,
 	libs application.UserLibraries,
-) (*domain.Track, string, error) {
-	return s.copyTrack(ctx, track, libs.Shared, libs.Personal)
+	files *FileChanges,
+) (copied *domain.Track, target string, err error) {
+	return s.copyTrack(ctx, track, libs.Shared, libs.Personal, files)
 }
 
 // copyTrack hardlinks the Track's file into another library and gives the
-// copy the same Track Refs, so a known ref still needs no download. The
-// returned file is the caller's to remove if the transaction fails.
+// copy the same Track Refs, so a known ref still needs no download.
 func (s *Sharing) copyTrack(
 	ctx context.Context,
 	track *domain.Track,
 	from, to *domain.Library,
-) (copied *domain.Track, target string, err error) {
+	files *FileChanges,
+) (*domain.Track, string, error) {
 	dir := s.Libraries.Dir(to)
 	rel, err := FreePath(dir, track.Path)
 	if err != nil {
 		return nil, "", err
 	}
-	target = filepath.Join(dir, rel)
+	target := filepath.Join(dir, rel)
 	if err := Link(filepath.Join(s.Libraries.Dir(from), track.Path), target); err != nil {
 		return nil, "", err
 	}
-	defer func() {
-		if err != nil {
-			RemoveFile(target)
-		}
-	}()
+	files.OnRollback(func() { RemoveFile(target) })
 
-	copied = &domain.Track{
+	copied := &domain.Track{
 		LibraryID:  to.ID,
 		Path:       rel,
 		Metadata:   track.Metadata,
@@ -85,7 +80,7 @@ func (s *Sharing) copyTrack(
 		DurationMs: track.DurationMs,
 		Format:     track.Format,
 	}
-	if err = s.Tracks.SaveTrack(ctx, copied); err != nil {
+	if err := s.Tracks.SaveTrack(ctx, copied); err != nil {
 		return nil, "", err
 	}
 
@@ -94,17 +89,17 @@ func (s *Sharing) copyTrack(
 		return nil, "", err
 	}
 	for _, source := range sources {
-		_, err = s.Tracks.FindSource(ctx, to.ID, source.Provider, source.Ref)
+		_, err := s.Tracks.FindSource(ctx, to.ID, source.Provider, source.Ref)
 		if err == nil {
 			continue
 		}
-		if !errors.Is(err, application.ErrTrackNotFound) {
+		if !errors.Is(err, application.ErrSourceNotFound) {
 			return nil, "", err
 		}
 		source.ID = 0
 		source.TrackID = copied.ID
 		source.LibraryID = to.ID
-		if err = s.Tracks.SaveSource(ctx, &source); err != nil {
+		if err := s.Tracks.SaveSource(ctx, &source); err != nil {
 			return nil, "", err
 		}
 	}

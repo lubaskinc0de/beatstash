@@ -25,7 +25,7 @@ func TestFormats(t *testing.T) {
 		s.send(s.documentMessage(alice, doc))
 		s.waitIngest()
 
-		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
+		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.reactions(t))
 		assert.Equal(t, []string{"Noise/Static/03 - Hiss.flac"}, s.personalFiles(alice))
 	})
 
@@ -38,7 +38,7 @@ func TestFormats(t *testing.T) {
 				s.send(s.documentMessage(alice, doc))
 				s.waitIngest()
 
-				assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
+				assert.Equal(t, []string{"👀", "👍"}, s.botAPI.reactions(t))
 				assert.Len(t, s.personalFiles(alice), 1)
 			})
 		}
@@ -52,8 +52,8 @@ func TestFormats(t *testing.T) {
 		s.send(msg)
 		s.waitIngest()
 
-		assert.Equal(t, []string{"👎"}, s.botAPI.Reactions(t))
-		replies := s.botAPI.Replies(t)
+		assert.Equal(t, []string{"👎"}, s.botAPI.reactions(t))
+		replies := s.botAPI.replies(t)
 		require.Len(t, replies, 1)
 		assert.Equal(t, msg.Message.ID, replies[0].ReplyTo)
 		assert.Contains(t, replies[0].Text, "формат не поддерживается")
@@ -69,7 +69,7 @@ func TestFormats(t *testing.T) {
 		}))
 		s.waitIngest()
 
-		assert.Empty(t, s.botAPI.Calls())
+		assert.Empty(t, s.botAPI.allCalls())
 		assert.Empty(t, s.libraryFiles())
 	})
 
@@ -81,7 +81,7 @@ func TestFormats(t *testing.T) {
 		}))
 		s.waitIngest()
 
-		assert.Empty(t, s.botAPI.Calls())
+		assert.Empty(t, s.botAPI.allCalls())
 		assert.Empty(t, s.libraryFiles())
 	})
 
@@ -93,7 +93,7 @@ func TestFormats(t *testing.T) {
 		s.send(s.audioMessage(alice, audio))
 		s.waitIngest()
 
-		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
+		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.reactions(t))
 		assert.NoFileExists(t, working)
 	})
 }
@@ -108,7 +108,7 @@ func TestWavToFlac(t *testing.T) {
 		s.send(s.audioMessage(alice, wav))
 		s.waitIngest()
 
-		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.Reactions(t))
+		assert.Equal(t, []string{"👀", "👍"}, s.botAPI.reactions(t))
 		assert.Equal(t, []string{"Wave Artist/Singles/Wave Song.flac"}, s.personalFiles(alice))
 		path := s.personalPath(alice, "Wave Artist/Singles/Wave Song.flac")
 		codec, seconds := audioCodec(t, path)

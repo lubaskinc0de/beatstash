@@ -2,7 +2,6 @@ package database
 
 import (
 	"context"
-	"errors"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/navidrome"
@@ -11,23 +10,13 @@ import (
 )
 
 type NavidromeSessionRepository struct {
-	db *gorm.DB
-}
-
-func NewNavidromeSessionRepository(db *gorm.DB) *NavidromeSessionRepository {
-	return &NavidromeSessionRepository{
-		db: db,
-	}
+	DB *gorm.DB
 }
 
 func (r *NavidromeSessionRepository) GetToken(ctx context.Context, username string) (string, error) {
-	var session domain.NavidromeSession
-
-	err := dbForContext(ctx, r.db).Where("username = ?", username).First(&session).Error
+	q := dbForContext(ctx, r.DB).Where("username = ?", username)
+	session, err := first[domain.NavidromeSession](q, navidrome.ErrSessionNotFound)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", navidrome.ErrSessionNotFound
-		}
 		return "", err
 	}
 	return session.Token, nil
@@ -39,7 +28,7 @@ func (r *NavidromeSessionRepository) SaveToken(ctx context.Context, username str
 		Token:    token,
 	}
 
-	return dbForContext(ctx, r.db).
+	return dbForContext(ctx, r.DB).
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "username"}},
 			DoUpdates: clause.AssignmentColumns([]string{"token", "updated_at"}),

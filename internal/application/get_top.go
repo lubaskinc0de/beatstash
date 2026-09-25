@@ -23,10 +23,6 @@ type GetTop struct {
 	Clock  func() time.Time
 }
 
-func NewGetTop(shares ShareRepository, takes TakeRepository, clock func() time.Time) *GetTop {
-	return &GetTop{Shares: shares, Takes: takes, Clock: clock}
-}
-
 func (i *GetTop) Execute(ctx context.Context) (*Top, error) {
 	now := i.Clock()
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())

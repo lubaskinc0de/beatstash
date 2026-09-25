@@ -9,13 +9,7 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/database"
 )
-
-func withUser(ctx context.Context, user *domain.User) context.Context {
-	return context.WithValue(ctx, application.UserContextKey{}, user)
-}
 
 func sender(update *models.Update) *models.User {
 	switch {
@@ -30,7 +24,7 @@ func sender(update *models.Update) *models.User {
 	return nil
 }
 
-func UserMiddleware(users *database.UserRepository) bot.Middleware {
+func userMiddleware(authenticate *application.Authenticate) bot.Middleware {
 	return func(next bot.HandlerFunc) bot.HandlerFunc {
 		return func(
 			ctx context.Context,
@@ -42,32 +36,23 @@ func UserMiddleware(users *database.UserRepository) bot.Middleware {
 				slog.Info("access_denied", "reason", "unknown_update_type")
 				return
 			}
-			telegramID := uint64(from.ID)
 
-			user, err := users.GetById(ctx, telegramID)
+			profile := application.TelegramProfile{ID: uint64(from.ID), Username: from.Username}
+			user, err := authenticate.Execute(ctx, profile)
 			if errors.Is(err, application.ErrUserNotFound) {
 				if isStart(update) {
 					next(ctx, b, update)
 					return
 				}
-				slog.Info("access_denied", "uid", telegramID)
+				slog.Info("access_denied", "uid", profile.ID)
 				return
 			}
 			if err != nil {
-				slog.Error("get_user", "error", err)
+				slog.Error("authenticate", "error", err)
 				return
 			}
 
-			// Admins from ADMIN_IDS start without a username, and people rename themselves.
-			if from.Username != user.Username {
-				if err := users.SetUsername(ctx, user.ID, from.Username); err != nil {
-					slog.Error("set_username", "error", err)
-				} else {
-					user.Username = from.Username
-				}
-			}
-
-			next(withUser(ctx, user), b, update)
+			next(application.WithUser(ctx, user), b, update)
 		}
 	}
 }

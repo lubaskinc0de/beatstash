@@ -74,11 +74,11 @@ func TestRegistration(t *testing.T) {
 		carol.Username = ""
 		s.send(s.textMessage(carol, "/start "+s.invite()))
 		s.link(carol, env.navidrome.createAccount(t, "carol"))
-		replies := len(s.botAPI.Replies(t))
+		replies := len(s.botAPI.replies(t))
 
 		s.send(s.textMessage(carol, uniqueLogin("carol")))
 
-		assert.Len(t, s.botAPI.Replies(t), replies)
+		assert.Len(t, s.botAPI.replies(t), replies)
 	})
 
 	t.Run("registered user sees their np", func(t *testing.T) {
@@ -93,7 +93,7 @@ func TestRegistration(t *testing.T) {
 
 		s.send(query)
 
-		answer := s.botAPI.InlineAnswerTo(t, query)
+		answer := s.botAPI.inlineAnswerTo(t, query)
 		require.Len(t, answer.Results, 1)
 		assert.Equal(t, audio.FileID, answer.Results[0].AudioFileID)
 	})
