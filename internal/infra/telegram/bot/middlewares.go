@@ -1,4 +1,4 @@
-package telegram
+package bot
 
 import (
 	"context"
@@ -9,8 +9,8 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application"
-	"github.com/lubaskinc0de/navidrome-tg/internal/database"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/database"
 )
 
 func withUser(ctx context.Context, user *domain.User) context.Context {

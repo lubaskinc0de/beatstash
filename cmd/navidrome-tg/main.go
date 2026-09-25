@@ -7,8 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/app"
-	"github.com/lubaskinc0de/navidrome-tg/internal/config"
+	app "github.com/lubaskinc0de/navidrome-tg/internal/main"
 )
 
 func setupLogger() {
@@ -23,7 +22,7 @@ func setupLogger() {
 
 func main() {
 	setupLogger()
-	config := config.LoadConfig()
+	cfg := app.LoadConfig()
 	ctx, cancel := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
@@ -31,7 +30,7 @@ func main() {
 	)
 	defer cancel()
 
-	b, err := app.New(config)
+	b, err := app.New(cfg)
 	if err != nil {
 		slog.Error("app_initialization_failed", "error", err)
 		os.Exit(1)

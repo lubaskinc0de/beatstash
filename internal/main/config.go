@@ -1,4 +1,4 @@
-package config
+package app
 
 import (
 	"log/slog"
@@ -16,7 +16,7 @@ type Config struct {
 	// NavidromeMusicDir is MUSIC_DIR as Navidrome's container sees it.
 	NavidromeMusicDir string
 	AdminIds          []uint64
-	AdminContact string
+	AdminContact      string
 	// SecretKey is a base64-encoded 32-byte AES key for stored secrets.
 	SecretKey         string
 	NavidromeUser     string

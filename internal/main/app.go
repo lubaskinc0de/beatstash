@@ -11,12 +11,11 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/ingest"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/library"
-	"github.com/lubaskinc0de/navidrome-tg/internal/config"
-	"github.com/lubaskinc0de/navidrome-tg/internal/database"
-	"github.com/lubaskinc0de/navidrome-tg/internal/navidrome"
-	tgprovider "github.com/lubaskinc0de/navidrome-tg/internal/providers/telegram"
-	"github.com/lubaskinc0de/navidrome-tg/internal/secrets"
-	"github.com/lubaskinc0de/navidrome-tg/internal/telegram"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/database"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/navidrome"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/secrets"
+	tgbot "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/bot"
+	tgprovider "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/provider"
 )
 
 type App struct {
@@ -30,13 +29,13 @@ type App struct {
 
 // New wires the whole application into a bot ready to process updates.
 // Extra options are applied after the configured ones.
-func New(config config.Config, opts ...bot.Option) (*App, error) {
-	db, err := database.New(config.DbDsn)
+func New(cfg Config, opts ...bot.Option) (*App, error) {
+	db, err := database.New(cfg.DbDsn)
 	if err != nil {
 		return nil, err
 	}
 
-	a, err := build(config, db, opts)
+	a, err := build(cfg, db, opts)
 	if err != nil {
 		_ = database.Close(db)
 		return nil, err
@@ -44,7 +43,7 @@ func New(config config.Config, opts ...bot.Option) (*App, error) {
 	return a, nil
 }
 
-func build(config config.Config, db *gorm.DB, opts []bot.Option) (*App, error) {
+func build(cfg Config, db *gorm.DB, opts []bot.Option) (*App, error) {
 	if err := database.Migrate(db); err != nil {
 		return nil, err
 	}
@@ -57,26 +56,26 @@ func build(config config.Config, db *gorm.DB, opts []bot.Option) (*App, error) {
 	uploadRepo := database.NewUploadRepository(db)
 	libraryLock := database.NewLibraryLock(db)
 	ingestQueue := database.NewIngestQueue(db)
-	navidromeClient := navidrome.NewClient(config.NavidromeUrl, sessionRepo)
-	box, err := secrets.NewBox(config.SecretKey)
+	navidromeClient := navidrome.NewClient(cfg.NavidromeUrl, sessionRepo)
+	box, err := secrets.NewBox(cfg.SecretKey)
 	if err != nil {
 		return nil, err
 	}
 	accountRepo := database.NewNavidromeAccountRepository(db)
 	navidromeAccounts := application.NewNavidromeAccounts(accountRepo, box)
 	libraryRepo := database.NewLibraryRepository(db)
-	navidromeAdmin := application.NavidromeCredentials{Login: config.NavidromeUser, Password: config.NavidromePassword}
+	navidromeAdmin := application.NavidromeCredentials{Login: cfg.NavidromeUser, Password: cfg.NavidromePassword}
 	libraries := &application.Libraries{
 		Repo:              libraryRepo,
 		Users:             userRepo,
 		Accounts:          accountRepo,
 		Navidrome:         navidromeClient,
 		Admin:             navidromeAdmin,
-		MusicDir:          config.MusicDir,
-		NavidromeMusicDir: config.NavidromeMusicDir,
+		MusicDir:          cfg.MusicDir,
+		NavidromeMusicDir: cfg.NavidromeMusicDir,
 	}
 
-	if err := userRepo.EnsureExist(context.Background(), config.AdminIds); err != nil {
+	if err := userRepo.EnsureExist(context.Background(), cfg.AdminIds); err != nil {
 		return nil, err
 	}
 	if err := libraries.Prepare(context.Background()); err != nil {
@@ -90,15 +89,15 @@ func build(config config.Config, db *gorm.DB, opts []bot.Option) (*App, error) {
 			"callback_query",
 		}),
 		bot.WithMiddlewares(
-			telegram.UserMiddleware(userRepo),
+			tgbot.UserMiddleware(userRepo),
 		),
 	}
-	if config.BotApiUrl != "" {
-		options = append(options, bot.WithServerURL(config.BotApiUrl))
+	if cfg.BotApiUrl != "" {
+		options = append(options, bot.WithServerURL(cfg.BotApiUrl))
 	}
 	options = append(options, opts...)
 
-	b, err := bot.New(config.Token, options...)
+	b, err := bot.New(cfg.Token, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -110,29 +109,29 @@ func build(config config.Config, db *gorm.DB, opts []bot.Option) (*App, error) {
 		Takes:     database.NewTakeRepository(db),
 		Libraries: libraries,
 		Lock:      libraryLock,
-		Clock:     config.Clock,
+		Clock:     cfg.Clock,
 	}
 	providers := application.NewProviders(tgprovider.NewProvider(b))
 	workers := ingest.NewWorkers(
 		txManager,
 		ingestQueue,
-		ingest.NewPipeline(providers, trackRepo, uploadRepo, libraryRepo, sharing, libraryLock, config.MusicDir),
-		telegram.NewNotifier(b),
-		config.IngestWorkers,
-		config.IngestRetryDelays,
-		config.IngestPollInterval,
+		ingest.NewPipeline(providers, trackRepo, uploadRepo, libraryRepo, sharing, libraryLock, cfg.MusicDir),
+		tgbot.NewNotifier(b),
+		cfg.IngestWorkers,
+		cfg.IngestRetryDelays,
+		cfg.IngestPollInterval,
 	)
 	enqueueIngest := application.NewEnqueueIngest(ingestQueue, workers)
 	nowPlaying := application.NewGetNowPlaying(navidromeClient, trackRepo, navidromeAccounts, libraries)
 	recentlyPlayed := application.NewGetRecentlyPlayed(navidromeClient, trackRepo, navidromeAccounts, libraries)
 
-	handler := telegram.NewHandler(
+	handler := tgbot.NewHandler(
 		enqueueIngest,
 		nowPlaying,
 		recentlyPlayed,
 		application.NewLinkNavidromeAccount(navidromeClient, navidromeAccounts, userRepo, libraries),
-		application.NewCreateInvite(inviteRepo, config.AdminIds, config.InviteTTL, config.Clock),
-		application.NewAcceptInvite(txManager, inviteRepo, userRepo, libraries, config.Clock),
+		application.NewCreateInvite(inviteRepo, cfg.AdminIds, cfg.InviteTTL, cfg.Clock),
+		application.NewAcceptInvite(txManager, inviteRepo, userRepo, libraries, cfg.Clock),
 		application.NewRegisterNavidromeAccount(
 			navidromeClient,
 			navidromeAccounts,
@@ -141,19 +140,19 @@ func build(config config.Config, db *gorm.DB, opts []bot.Option) (*App, error) {
 			navidromeAdmin,
 		),
 		sharing,
-		application.NewGetTop(sharing.Shares, sharing.Takes, config.Clock),
+		application.NewGetTop(sharing.Shares, sharing.Takes, cfg.Clock),
 		&application.GetServiceStats{Users: userRepo, Tracks: trackRepo, Libraries: libraryRepo},
-		config.AdminContact,
+		cfg.AdminContact,
 	)
 
-	b.RegisterHandlerMatchFunc(telegram.HasAudio, handler.HandleAudio)
-	b.RegisterHandlerMatchFunc(telegram.IsCommand("link"), handler.HandleLink)
-	b.RegisterHandlerMatchFunc(telegram.IsCommand("invite"), handler.HandleInvite)
-	b.RegisterHandlerMatchFunc(telegram.IsCommand("start"), handler.HandleStart)
-	b.RegisterHandlerMatchFunc(telegram.IsCommand("share"), handler.HandleShare)
-	b.RegisterHandlerMatchFunc(telegram.IsCommand("shared"), handler.HandleSharedFeed)
-	b.RegisterHandlerMatchFunc(telegram.IsCommand("top"), handler.HandleTop)
-	b.RegisterHandlerMatchFunc(telegram.IsText, handler.HandleText)
+	b.RegisterHandlerMatchFunc(tgbot.HasAudio, handler.HandleAudio)
+	b.RegisterHandlerMatchFunc(tgbot.IsCommand("link"), handler.HandleLink)
+	b.RegisterHandlerMatchFunc(tgbot.IsCommand("invite"), handler.HandleInvite)
+	b.RegisterHandlerMatchFunc(tgbot.IsCommand("start"), handler.HandleStart)
+	b.RegisterHandlerMatchFunc(tgbot.IsCommand("share"), handler.HandleShare)
+	b.RegisterHandlerMatchFunc(tgbot.IsCommand("shared"), handler.HandleSharedFeed)
+	b.RegisterHandlerMatchFunc(tgbot.IsCommand("top"), handler.HandleTop)
+	b.RegisterHandlerMatchFunc(tgbot.IsText, handler.HandleText)
 	b.RegisterHandlerMatchFunc(
 		func(update *models.Update) bool {
 			return update.InlineQuery != nil

@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
-	"github.com/lubaskinc0de/navidrome-tg/internal/navidrome"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/navidrome"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

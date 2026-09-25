@@ -1,4 +1,4 @@
-package telegram
+package bot
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
-	tgprovider "github.com/lubaskinc0de/navidrome-tg/internal/providers/telegram"
+	tgprovider "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/provider"
 )
 
 const shareUsage = "Ответьте /share на аудиосообщение с треком из вашей библиотеки: я предложу расшарить его или весь альбом"

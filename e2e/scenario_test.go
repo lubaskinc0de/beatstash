@@ -20,8 +20,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/app"
-	"github.com/lubaskinc0de/navidrome-tg/internal/config"
+	app "github.com/lubaskinc0de/navidrome-tg/internal/main"
 )
 
 const fixtureTitle = "Fixture Song"
@@ -67,7 +66,7 @@ func (c *clock) advance(d time.Duration) {
 type scenario struct {
 	t       *testing.T
 	clock   *clock
-	config  config.Config
+	config  app.Config
 	app     *app.App
 	stop    func()
 	botAPI  *botAPI
@@ -78,14 +77,14 @@ type scenario struct {
 	uploads  int
 }
 
-type scenarioOption func(*config.Config)
+type scenarioOption func(*app.Config)
 
 func withAdminContact(contact string) scenarioOption {
-	return func(c *config.Config) { c.AdminContact = contact }
+	return func(c *app.Config) { c.AdminContact = contact }
 }
 
 func withoutWorkers() scenarioOption {
-	return func(c *config.Config) { c.IngestWorkers = 0 }
+	return func(c *app.Config) { c.IngestWorkers = 0 }
 }
 
 func newScenario(t *testing.T, opts ...scenarioOption) *scenario {
@@ -110,7 +109,7 @@ func prepareScenario(t *testing.T, opts ...scenarioOption) *scenario {
 	require.NoError(t, os.Chmod(library, 0o755))
 
 	clk := &clock{now: time.Now()}
-	cfg := config.Config{
+	cfg := app.Config{
 		Clock:              clk.Now,
 		InviteTTL:          7 * 24 * time.Hour,
 		Token:              botToken,
