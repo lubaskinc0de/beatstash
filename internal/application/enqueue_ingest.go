@@ -17,12 +17,13 @@ type Waker interface {
 }
 
 type EnqueueIngest struct {
+	IDs   IDProvider
 	Queue IngestQueue
 	Waker Waker
 }
 
 func (i *EnqueueIngest) Execute(ctx context.Context, req IngestRequest) error {
-	user, err := CurrentUser(ctx)
+	user, err := i.IDs.CurrentUser(ctx)
 	if err != nil {
 		return err
 	}

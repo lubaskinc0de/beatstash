@@ -23,6 +23,7 @@ type InviteRepository interface {
 }
 
 type CreateInvite struct {
+	IDs      IDProvider
 	Invites  InviteRepository
 	AdminIDs []uint64
 	TTL      time.Duration
@@ -30,11 +31,11 @@ type CreateInvite struct {
 }
 
 func (i *CreateInvite) Execute(ctx context.Context) (string, error) {
-	user, err := CurrentUser(ctx)
+	user, err := i.IDs.CurrentUser(ctx)
 	if err != nil {
 		return "", err
 	}
-	if !i.CanInvite(user) {
+	if !i.canInvite(user) {
 		return "", ErrNotAdmin
 	}
 
@@ -56,11 +57,20 @@ func (i *CreateInvite) Execute(ctx context.Context) (string, error) {
 	return invite.Code, nil
 }
 
-func (i *CreateInvite) CanInvite(user *domain.User) bool {
+func (i *CreateInvite) CanInvite(ctx context.Context) (bool, error) {
+	user, err := i.IDs.CurrentUser(ctx)
+	if err != nil {
+		return false, err
+	}
+	return i.canInvite(user), nil
+}
+
+func (i *CreateInvite) canInvite(user *domain.User) bool {
 	return slices.Contains(i.AdminIDs, user.TelegramID)
 }
 
 type AcceptInvite struct {
+	IDs       IDProvider
 	Tx        TxManager
 	Invites   InviteRepository
 	Users     UserRepository
@@ -68,12 +78,14 @@ type AcceptInvite struct {
 	Clock     func() time.Time
 }
 
-func (i *AcceptInvite) Execute(ctx context.Context, code string, profile TelegramProfile) (*domain.User, error) {
-	var (
-		user    *domain.User
-		library *domain.Library
-	)
-	err := i.Tx.WithinTx(ctx, func(ctx context.Context) error {
+func (i *AcceptInvite) Execute(ctx context.Context, code string) (*domain.User, error) {
+	user, err := i.IDs.NewUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var library *domain.Library
+	err = i.Tx.WithinTx(ctx, func(ctx context.Context) error {
 		invite, err := i.Invites.GetForUpdate(ctx, code)
 		if err != nil {
 			return err
@@ -85,7 +97,8 @@ func (i *AcceptInvite) Execute(ctx context.Context, code string, profile Telegra
 		}
 
 		// Awaiting from the start: a crash before the account exists must not strand the User.
-		user = &domain.User{TelegramID: profile.ID, Username: profile.Username, CreatedAt: now, AwaitsNavidromeLogin: true}
+		user.CreatedAt = now
+		user.AwaitsNavidromeLogin = true
 		if err := i.Users.Save(ctx, user); err != nil {
 			return err
 		}

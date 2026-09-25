@@ -18,12 +18,17 @@ type Rating struct {
 }
 
 type GetTop struct {
+	IDs    IDProvider
 	Shares ShareRepository
 	Takes  TakeRepository
 	Clock  func() time.Time
 }
 
 func (i *GetTop) Execute(ctx context.Context) (*Top, error) {
+	if _, err := i.IDs.CurrentUser(ctx); err != nil {
+		return nil, err
+	}
+
 	now := i.Clock()
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 

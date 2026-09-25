@@ -18,6 +18,7 @@ var (
 )
 
 type Sharing struct {
+	IDs       application.IDProvider
 	Tx        application.TxManager
 	Tracks    application.TrackRepository
 	Shares    application.ShareRepository
@@ -251,7 +252,7 @@ type scope struct {
 }
 
 func (s *Sharing) scope(ctx context.Context) (*scope, error) {
-	user, err := application.CurrentUser(ctx)
+	user, err := s.IDs.CurrentUser(ctx)
 	if err != nil {
 		return nil, err
 	}

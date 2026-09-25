@@ -9,14 +9,14 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application"
 )
 
-func Options(authenticate *application.Authenticate) []bot.Option {
+func Options(ids application.IDProvider) []bot.Option {
 	return []bot.Option{
 		bot.WithAllowedUpdates(bot.AllowedUpdates{
 			"message",
 			"inline_query",
 			"callback_query",
 		}),
-		bot.WithMiddlewares(userMiddleware(authenticate)),
+		bot.WithMiddlewares(senderMiddleware, membersOnly(ids)),
 	}
 }
 

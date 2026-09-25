@@ -11,7 +11,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application"
 )
 
-func sender(update *models.Update) *models.User {
+func updateSender(update *models.Update) *models.User {
 	switch {
 	case update.Message != nil:
 		return update.Message.From
@@ -24,35 +24,31 @@ func sender(update *models.Update) *models.User {
 	return nil
 }
 
-func userMiddleware(authenticate *application.Authenticate) bot.Middleware {
+func senderMiddleware(next bot.HandlerFunc) bot.HandlerFunc {
+	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		from := updateSender(update)
+		if from == nil {
+			slog.Info("access_denied", "reason", "unknown_update_type")
+			return
+		}
+		next(withSender(ctx, from), b, update)
+	}
+}
+
+// membersOnly keeps the bot silent to strangers: handlers may answer before
+// any interactor turns them away.
+func membersOnly(ids application.IDProvider) bot.Middleware {
 	return func(next bot.HandlerFunc) bot.HandlerFunc {
-		return func(
-			ctx context.Context,
-			b *bot.Bot,
-			update *models.Update,
-		) {
-			from := sender(update)
-			if from == nil {
-				slog.Info("access_denied", "reason", "unknown_update_type")
-				return
-			}
-
-			profile := application.TelegramProfile{ID: uint64(from.ID), Username: from.Username}
-			user, err := authenticate.Execute(ctx, profile)
-			if errors.Is(err, application.ErrUserNotFound) {
-				if isStart(update) {
-					next(ctx, b, update)
-					return
-				}
-				slog.Info("access_denied", "uid", profile.ID)
-				return
-			}
-			if err != nil {
+		return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+			_, err := ids.CurrentUser(ctx)
+			switch {
+			case err == nil, errors.Is(err, application.ErrNotAuthenticated) && isStart(update):
+				next(ctx, b, update)
+			case errors.Is(err, application.ErrNotAuthenticated):
+				slog.Info("access_denied", "uid", updateSender(update).ID)
+			default:
 				slog.Error("authenticate", "error", err)
-				return
 			}
-
-			next(application.WithUser(ctx, user), b, update)
 		}
 	}
 }

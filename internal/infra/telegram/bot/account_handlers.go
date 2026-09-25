@@ -12,7 +12,6 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 )
 
 const loginRules = "от 3 до 32 символов, латинские буквы, цифры, точка, дефис или подчёркивание"
@@ -77,20 +76,17 @@ func (h *Handler) handleText(
 	b *bot.Bot,
 	update *models.Update,
 ) {
-	user, ok := application.UserFromContext(ctx)
-	if !ok || !user.AwaitsNavidromeLogin {
-		return
-	}
-	h.registerNavidromeAccount(ctx, b, update.Message.Chat.ID, user, strings.TrimSpace(update.Message.Text))
+	h.registerNavidromeAccount(ctx, b, update.Message.Chat.ID, strings.TrimSpace(update.Message.Text))
 }
 
 func isText(update *models.Update) bool {
 	return update.Message != nil && update.Message.Text != "" && !strings.HasPrefix(update.Message.Text, "/")
 }
 
-func (h *Handler) registerNavidromeAccount(ctx context.Context, b *bot.Bot, chatID int64, user *domain.User, login string) {
-	creds, err := h.RegisterAccount.Execute(ctx, user, login)
+func (h *Handler) registerNavidromeAccount(ctx context.Context, b *bot.Bot, chatID int64, login string) {
+	creds, err := h.RegisterAccount.Execute(ctx, login)
 	switch {
+	case errors.Is(err, application.ErrNotAwaitingLogin):
 	case err == nil:
 		sendText(ctx, b, chatID, fmt.Sprintf(
 			"🎧 Аккаунт Navidrome создан, входите в любом клиенте Navidrome или Subsonic\n\n"+

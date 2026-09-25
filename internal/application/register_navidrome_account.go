@@ -10,13 +10,17 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 )
 
-var ErrNavidromeLoginInvalid = errors.New("navidrome login is not allowed")
+var (
+	ErrNavidromeLoginInvalid = errors.New("navidrome login is not allowed")
+	ErrNotAwaitingLogin      = errors.New("user does not await a navidrome login")
+)
 
 var navidromeLoginPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{3,32}$`)
 
 // RegisterNavidromeAccount creates a Navidrome Account for a new User. When
 // the login is empty, malformed or taken, the User is left awaiting another one.
 type RegisterNavidromeAccount struct {
+	IDs       IDProvider
 	Navidrome Navidrome
 	Accounts  *NavidromeAccounts
 	Users     UserRepository
@@ -24,7 +28,15 @@ type RegisterNavidromeAccount struct {
 	Admin     NavidromeCredentials
 }
 
-func (i *RegisterNavidromeAccount) Execute(ctx context.Context, user *domain.User, login string) (NavidromeCredentials, error) {
+func (i *RegisterNavidromeAccount) Execute(ctx context.Context, login string) (NavidromeCredentials, error) {
+	user, err := i.IDs.CurrentUser(ctx)
+	if err != nil {
+		return NavidromeCredentials{}, err
+	}
+	if !user.AwaitsNavidromeLogin {
+		return NavidromeCredentials{}, ErrNotAwaitingLogin
+	}
+
 	creds, err := i.register(ctx, user, login)
 	if err != nil {
 		if awaitErr := i.Users.SetAwaitsNavidromeLogin(ctx, user.ID, true); awaitErr != nil {

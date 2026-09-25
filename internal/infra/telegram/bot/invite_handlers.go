@@ -13,7 +13,6 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 )
 
 func (h *Handler) handleInvite(
@@ -52,8 +51,13 @@ func (h *Handler) handleStart(
 	update *models.Update,
 ) {
 	chatID := update.Message.Chat.ID
-	if user, ok := application.UserFromContext(ctx); ok {
-		h.sendWelcome(ctx, b, chatID, user)
+	canInvite, err := h.CreateInvite.CanInvite(ctx)
+	switch {
+	case err == nil:
+		h.sendWelcome(ctx, b, chatID, canInvite)
+		return
+	case !errors.Is(err, application.ErrNotAuthenticated):
+		slog.Error("can_invite", "error", err)
 		return
 	}
 
@@ -62,8 +66,7 @@ func (h *Handler) handleStart(
 		h.sendAbout(ctx, b, chatID)
 		return
 	}
-	from := update.Message.From
-	user, err := h.AcceptInvite.Execute(ctx, code, application.TelegramProfile{ID: uint64(from.ID), Username: from.Username})
+	user, err := h.AcceptInvite.Execute(ctx, code)
 	if errors.Is(err, application.ErrInviteInvalid) {
 		sendText(ctx, b, chatID, "⛔ Приглашение недействительно: оно уже использовано или истекло")
 		return
@@ -73,18 +76,21 @@ func (h *Handler) handleStart(
 		sendText(ctx, b, chatID, "⚠️ Не удалось принять приглашение, попробуйте позже")
 		return
 	}
-	h.sendWelcome(ctx, b, chatID, user)
+	if canInvite, err = h.CreateInvite.CanInvite(ctx); err != nil {
+		slog.Error("can_invite", "error", err)
+	}
+	h.sendWelcome(ctx, b, chatID, canInvite)
 
-	h.registerNavidromeAccount(ctx, b, chatID, user, from.Username)
+	h.registerNavidromeAccount(ctx, b, chatID, user.Username)
 }
 
-func (h *Handler) sendWelcome(ctx context.Context, b *bot.Bot, chatID int64, user *domain.User) {
+func (h *Handler) sendWelcome(ctx context.Context, b *bot.Bot, chatID int64, canInvite bool) {
 	username, err := botUsername(ctx, b)
 	if err != nil {
 		slog.Error("get_me", "error", err)
 	}
 	inviteTTL := time.Duration(0)
-	if h.CreateInvite.CanInvite(user) {
+	if canInvite {
 		inviteTTL = h.CreateInvite.TTL
 	}
 	sendText(ctx, b, chatID, welcomeText(username, inviteTTL))

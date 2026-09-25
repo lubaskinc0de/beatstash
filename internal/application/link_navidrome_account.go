@@ -6,6 +6,7 @@ import (
 )
 
 type LinkNavidromeAccount struct {
+	IDs       IDProvider
 	Navidrome Navidrome
 	Accounts  *NavidromeAccounts
 	Users     UserRepository
@@ -13,7 +14,7 @@ type LinkNavidromeAccount struct {
 }
 
 func (i *LinkNavidromeAccount) Execute(ctx context.Context, creds NavidromeCredentials) error {
-	user, err := CurrentUser(ctx)
+	user, err := i.IDs.CurrentUser(ctx)
 	if err != nil {
 		return err
 	}

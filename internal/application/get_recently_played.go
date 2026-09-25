@@ -14,6 +14,7 @@ type RecentTrack struct {
 }
 
 type GetRecentlyPlayed struct {
+	IDs       IDProvider
 	Client    Navidrome
 	Repo      TrackRepository
 	Accounts  *NavidromeAccounts
@@ -24,7 +25,7 @@ func (i *GetRecentlyPlayed) Execute(
 	ctx context.Context,
 	limit int,
 ) ([]RecentTrack, error) {
-	user, err := CurrentUser(ctx)
+	user, err := i.IDs.CurrentUser(ctx)
 	if err != nil {
 		return nil, err
 	}

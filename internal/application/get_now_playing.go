@@ -17,6 +17,7 @@ type NowPlaying struct {
 }
 
 type GetNowPlaying struct {
+	IDs       IDProvider
 	Client    Navidrome
 	Repo      TrackRepository
 	Accounts  *NavidromeAccounts
@@ -26,7 +27,7 @@ type GetNowPlaying struct {
 func (i *GetNowPlaying) Execute(
 	ctx context.Context,
 ) (*NowPlaying, error) {
-	user, err := CurrentUser(ctx)
+	user, err := i.IDs.CurrentUser(ctx)
 	if err != nil {
 		return nil, err
 	}

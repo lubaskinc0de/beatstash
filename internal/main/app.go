@@ -78,7 +78,8 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		return nil, err
 	}
 
-	options := tgbot.Options(&application.Authenticate{Users: users})
+	ids := &tgbot.IDProvider{Users: users}
+	options := tgbot.Options(ids)
 	if cfg.BotAPIURL != "" {
 		options = append(options, bot.WithServerURL(cfg.BotAPIURL))
 	}
@@ -88,6 +89,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	}
 
 	sharing := &library.Sharing{
+		IDs:       ids,
 		Tx:        txManager,
 		Tracks:    tracks,
 		Shares:    &database.ShareRepository{DB: db},
@@ -115,23 +117,26 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		cfg.IngestPollInterval,
 	)
 	invites := &database.InviteRepository{DB: db}
-	createInvite := &application.CreateInvite{Invites: invites, AdminIDs: cfg.AdminIDs, TTL: cfg.InviteTTL, Clock: cfg.Clock}
+	createInvite := &application.CreateInvite{IDs: ids, Invites: invites, AdminIDs: cfg.AdminIDs, TTL: cfg.InviteTTL, Clock: cfg.Clock}
 
 	handler := &tgbot.Handler{
-		EnqueueIngest: &application.EnqueueIngest{Queue: ingestQueue, Waker: workers},
+		EnqueueIngest: &application.EnqueueIngest{IDs: ids, Queue: ingestQueue, Waker: workers},
 		GetNowPlaying: &application.GetNowPlaying{
+			IDs:       ids,
 			Client:    navidromeClient,
 			Repo:      tracks,
 			Accounts:  accounts,
 			Libraries: libraries,
 		},
 		GetRecentlyPlayed: &application.GetRecentlyPlayed{
+			IDs:       ids,
 			Client:    navidromeClient,
 			Repo:      tracks,
 			Accounts:  accounts,
 			Libraries: libraries,
 		},
 		LinkNavidromeAccount: &application.LinkNavidromeAccount{
+			IDs:       ids,
 			Navidrome: navidromeClient,
 			Accounts:  accounts,
 			Users:     users,
@@ -139,6 +144,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		},
 		CreateInvite: createInvite,
 		AcceptInvite: &application.AcceptInvite{
+			IDs:       ids,
 			Tx:        txManager,
 			Invites:   invites,
 			Users:     users,
@@ -146,6 +152,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Clock:     cfg.Clock,
 		},
 		RegisterAccount: &application.RegisterNavidromeAccount{
+			IDs:       ids,
 			Navidrome: navidromeClient,
 			Accounts:  accounts,
 			Users:     users,
@@ -153,7 +160,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Admin:     navidromeAdmin,
 		},
 		Sharing:         sharing,
-		GetTop:          &application.GetTop{Shares: sharing.Shares, Takes: sharing.Takes, Clock: cfg.Clock},
+		GetTop:          &application.GetTop{IDs: ids, Shares: sharing.Shares, Takes: sharing.Takes, Clock: cfg.Clock},
 		GetServiceStats: &application.GetServiceStats{Users: users, Tracks: tracks, Libraries: libraryRepo},
 		AdminContact:    cfg.AdminContact,
 	}

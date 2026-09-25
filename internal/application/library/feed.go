@@ -15,6 +15,9 @@ type FeedEntry struct {
 }
 
 func (s *Sharing) Feed(ctx context.Context, limit int) ([]FeedEntry, error) {
+	if _, err := s.IDs.CurrentUser(ctx); err != nil {
+		return nil, err
+	}
 	shares, err := s.Shares.Feed(ctx, limit)
 	if err != nil {
 		return nil, err
@@ -37,6 +40,9 @@ func (s *Sharing) Feed(ctx context.Context, limit int) ([]FeedEntry, error) {
 
 // SharedFile returns ErrNoTelegramFile when the Track has no Telegram file.
 func (s *Sharing) SharedFile(ctx context.Context, sharedTrackID uint) (*domain.TelegramFile, error) {
+	if _, err := s.IDs.CurrentUser(ctx); err != nil {
+		return nil, err
+	}
 	shared, err := s.Libraries.Shared(ctx)
 	if err != nil {
 		return nil, err
