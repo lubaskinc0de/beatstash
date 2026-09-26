@@ -145,7 +145,7 @@ func (p *Poller) answerJobs(ctx context.Context) error {
 }
 
 func (p *Poller) answer(ctx context.Context, msg messageRef, job *ingest.IngestJob) {
-	if job.Status == ingest.IngestJobFailed {
+	if job.Failed() {
 		reject(ctx, p.Bot, msg, failureTexts[job.FailureReason])
 		return
 	}
@@ -256,7 +256,7 @@ func (p *Poller) noticeInvalidAccounts(ctx context.Context) error {
 
 // rememberFile makes the file the user sent the Track's, for inline mode.
 func (p *Poller) rememberFile(ctx context.Context, m store.JobMessage, job *ingest.IngestJob) error {
-	if job.Status != ingest.IngestJobDone || job.TrackID == nil || m.FileID == "" {
+	if !job.Done() || job.TrackID == nil || m.FileID == "" {
 		return nil
 	}
 	return p.Files.Remember(ctx, store.File{TrackID: *job.TrackID, ID: m.FileID, UniqueID: m.FileUniqueID, Kind: m.FileKind})

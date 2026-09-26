@@ -83,8 +83,7 @@ func (i *StartImport) startBatch(
 			return err
 		}
 		for _, track := range tracks {
-			job := ingest.NewJob(userID, track.Ref, track.DisplayName, time.Now())
-			job.BatchID = &batch.ID
+			job := batch.NewJob(track.Ref, track.DisplayName, time.Now())
 			if err := i.Queue.Enqueue(ctx, job); err != nil {
 				return err
 			}

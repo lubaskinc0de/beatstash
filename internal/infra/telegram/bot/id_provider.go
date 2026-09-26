@@ -66,7 +66,7 @@ func (p *IDProvider) CurrentUser(ctx context.Context) (*access.User, error) {
 		if err := p.Users.SetUsername(ctx, user.ID, s.from.Username); err != nil {
 			slog.Error("set_username", "error", err)
 		} else {
-			user.Username = s.from.Username
+			user.Rename(s.from.Username)
 		}
 	}
 	s.user = user

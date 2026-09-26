@@ -16,7 +16,7 @@ type BatchState struct {
 }
 
 func (s *BatchState) Finished() bool {
-	return s.Batch.FinishedAt != nil
+	return s.Batch.Finished()
 }
 
 // GetIngestBatches lets a Channel follow the progress of the batches it

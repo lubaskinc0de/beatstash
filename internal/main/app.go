@@ -27,6 +27,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/start_app"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/sync_collection"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/audio"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/background"
@@ -121,7 +122,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 
 	audioSender := &tgbot.AudioSender{Bot: b, MaxPostSize: cfg.MaxPostSize}
 	telegramFiles := &store.Files{DB: db}
-	shares := &database.ShareRepository{DB: db}
+	sharedTracks := &database.SharedTrackRepository{DB: db}
 	takes := &database.TakeRepository{DB: db}
 	providerAccountRepo := &database.ProviderAccountRepository{DB: db}
 	providerAccounts := &accounts.ProviderTokens{Repo: providerAccountRepo, Box: box}
@@ -141,24 +142,24 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	inFlight := &ingest_track.InFlight{}
 	workers := &background.IngestWorkers{
 		ProcessIngestJob: &ingest_track.ProcessIngestJob{
-			Tx:          txManager,
-			Queue:       ingestQueue,
-			Providers:   providers,
-			Tracks:      tracks,
-			Uploads:     uploads,
-			Libraries:   libraryRepo,
-			Lock:        libraryLock,
-			Disk:        fileDisk,
-			Tags:        audio.Tags{},
-			Remuxer:     audio.FFmpeg{},
-			Batches:     batchRepo,
-			InFlight:    inFlight,
-			MusicDir:    cfg.MusicDir,
-			RetryDelays: cfg.IngestRetryDelays,
+			Tx:        txManager,
+			Queue:     ingestQueue,
+			Providers: providers,
+			Tracks:    tracks,
+			Uploads:   uploads,
+			Libraries: libraryRepo,
+			Lock:      libraryLock,
+			Disk:      fileDisk,
+			Tags:      audio.Tags{},
+			Remuxer:   audio.FFmpeg{},
+			Batches:   batchRepo,
+			InFlight:  inFlight,
+			MusicDir:  cfg.MusicDir,
+			Retry:     ingest.RetryPolicy{Delays: cfg.IngestRetryDelays},
 		},
 		InFlight:      inFlight,
 		Queue:         ingestQueue,
-		SettleBatches: &ingest_track.SettleIngestBatches{Queue: ingestQueue, Batches: batchRepo},
+		SettleBatches: &ingest_track.SettleIngestBatches{Tx: txManager, Queue: ingestQueue, Batches: batchRepo},
 		Disk:          fileDisk,
 		Waker:         waker,
 		Lanes: []background.Lane{
@@ -229,30 +230,30 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Libraries: navidromeLibraries,
 			Admin:     navidromeAdmin,
 		},
-		ShowShareOptions: &share_tracks.ShowShareOptions{IDs: ids, Tracks: tracks, Shares: shares, Libraries: libs},
+		ShowShareOptions: &share_tracks.ShowShareOptions{IDs: ids, Tracks: tracks, Shared: sharedTracks, Libraries: libs},
 		ShareTrack: &share_tracks.ShareTrack{
-			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shares: shares,
+			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks,
 			Libraries: libs, Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,
 		},
 		ShareAlbum: &share_tracks.ShareAlbum{
-			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shares: shares,
+			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks,
 			Libraries: libs, Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,
 		},
 		UnshareTrack: &share_tracks.UnshareTrack{
-			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shares: shares,
+			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks,
 			Libraries: libs, Disk: fileDisk, MusicDir: cfg.MusicDir,
 		},
 		UnshareAlbum: &share_tracks.UnshareAlbum{
-			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shares: shares,
+			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks,
 			Libraries: libs, Disk: fileDisk, MusicDir: cfg.MusicDir,
 		},
-		ViewFeed: &browse_shared.ViewFeed{IDs: ids, Shares: shares},
+		ViewFeed: &browse_shared.ViewFeed{IDs: ids, Shared: sharedTracks},
 		TakeTrack: &browse_shared.TakeTrack{
-			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shares: shares, Takes: takes,
+			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks, Takes: takes,
 			Libraries: libs, Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,
 		},
-		GetTrackAudio:   &browse_shared.GetTrackAudio{IDs: ids, Tracks: tracks, Libraries: libs},
-		GetTop:          &view_top.GetTop{IDs: ids, Shares: shares, Takes: takes, Clock: cfg.Clock},
+		GetTrackAudio:   &browse_shared.GetTrackAudio{IDs: ids, Shared: sharedTracks, Libraries: libs},
+		GetTop:          &view_top.GetTop{IDs: ids, Shared: sharedTracks, Takes: takes, Clock: cfg.Clock},
 		GetServiceStats: &greet_stranger.GetServiceStats{Users: users, Tracks: tracks, Libraries: libraryRepo},
 		ConnectProviderAccount: &connect_provider.ConnectProviderAccount{
 			IDs: ids, Tx: txManager, Providers: providers, Accounts: providerAccountRepo, Box: box,

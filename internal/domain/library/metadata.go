@@ -1,10 +1,8 @@
 package library
 
-import (
-	"path/filepath"
-	"strings"
-)
+import "strings"
 
+// Metadata is a value object: artist, title, album and the like.
 type Metadata struct {
 	AlbumArtist string
 	Artist      string
@@ -39,19 +37,6 @@ func (m Metadata) Normalize() Metadata {
 
 func (m Metadata) Complete() bool {
 	return m.Artist != "" && m.Title != ""
-}
-
-func MetadataFromFileName(name string) Metadata {
-	stem := strings.TrimSuffix(name, filepath.Ext(name))
-	artist, title, ok := strings.Cut(stem, " - ")
-	if !ok {
-		return Metadata{}
-	}
-	artist, title = collapseSpaces(artist), collapseSpaces(title)
-	if artist == "" || title == "" {
-		return Metadata{}
-	}
-	return Metadata{Artist: artist, Title: title}
 }
 
 func collapseSpaces(s string) string {

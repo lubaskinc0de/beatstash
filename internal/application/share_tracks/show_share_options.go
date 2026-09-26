@@ -12,7 +12,7 @@ import (
 type ShowShareOptions struct {
 	IDs       common.IDProvider
 	Tracks    repositories.Tracks
-	Shares    repositories.Shares
+	Shared    repositories.SharedTracks
 	Libraries *libraries.Libraries
 }
 
@@ -29,8 +29,8 @@ func (i *ShowShareOptions) Execute(ctx context.Context, ref provider.TrackRef) (
 	if err != nil {
 		return nil, err
 	}
-	if err := track.Shareable(); err != nil {
+	if err := track.ShareableBy(libs.Personal); err != nil {
 		return nil, err
 	}
-	return shareState(ctx, i.Tracks, i.Shares, libs.Personal, track)
+	return shareState(ctx, i.Tracks, i.Shared, libs.Personal, track)
 }

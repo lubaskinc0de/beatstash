@@ -10,7 +10,8 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
-// CopyTrack expects a transaction holding both libraries.
+// CopyTrack expects a transaction holding both libraries. The copy gets the
+// Track's Sources the target Library lacks.
 func CopyTrack(
 	ctx context.Context,
 	tracks repositories.Tracks,
@@ -26,35 +27,23 @@ func CopyTrack(
 		return nil, "", err
 	}
 	target = filepath.Join(dir, rel)
-	if err := disk.Link(filepath.Join(Dir(musicDir, from), track.Path), target); err != nil {
+	if err := changes.Link(filepath.Join(Dir(musicDir, from), track.Path), target); err != nil {
 		return nil, "", err
 	}
-	changes.OnRollback(func() { disk.Remove(target) })
 
 	copied = track.CopyTo(to, rel)
+	for _, source := range track.Sources {
+		_, err := tracks.FindSource(ctx, to.ID, source.Provider, source.Ref)
+		if err == nil {
+			continue
+		}
+		if !errors.Is(err, repositories.ErrSourceNotFound) {
+			return nil, "", err
+		}
+		copied.AddSource(source.TrackRef())
+	}
 	if err := tracks.SaveTrack(ctx, copied); err != nil {
 		return nil, "", err
 	}
-
-	sources, err := tracks.Sources(ctx, track.ID)
-	if err != nil {
-		return nil, "", err
-	}
-	for _, source := range sources {
-		if err := saveSource(ctx, tracks, source.For(copied)); err != nil {
-			return nil, "", err
-		}
-	}
 	return copied, target, nil
-}
-
-func saveSource(ctx context.Context, tracks repositories.Tracks, source *library.TrackSource) error {
-	_, err := tracks.FindSource(ctx, source.LibraryID, source.Provider, source.Ref)
-	if err == nil {
-		return nil
-	}
-	if !errors.Is(err, repositories.ErrSourceNotFound) {
-		return err
-	}
-	return tracks.SaveSource(ctx, source)
 }

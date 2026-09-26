@@ -2,7 +2,7 @@ package database
 
 import (
 	"context"
-	"time"
+	"gorm.io/gorm/clause"
 
 	"gorm.io/gorm"
 
@@ -43,10 +43,7 @@ func (r *IngestBatchRepository) Running(
 	return count > 0, err
 }
 
-func (r *IngestBatchRepository) Finish(ctx context.Context, id uint, at time.Time) (bool, error) {
-	result := dbForContext(ctx, r.DB).
-		Model(&ingest.IngestBatch{}).
-		Where("id = ? AND finished_at IS NULL", id).
-		Update("finished_at", at)
-	return result.RowsAffected == 1, result.Error
+func (r *IngestBatchRepository) GetForUpdate(ctx context.Context, id uint) (*ingest.IngestBatch, error) {
+	q := dbForContext(ctx, r.DB).Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id)
+	return first[ingest.IngestBatch](q, repositories.ErrBatchNotFound)
 }

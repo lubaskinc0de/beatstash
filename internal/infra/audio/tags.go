@@ -13,7 +13,7 @@ import (
 
 type Tags struct{}
 
-func (Tags) Probe(path string) (*ingest_track.AudioProbe, error) {
+func (Tags) Probe(path string) (*library.Probe, error) {
 	props, err := taglib.ReadProperties(path)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ingest_track.ErrCorruptAudio, err)
@@ -27,7 +27,7 @@ func (Tags) Probe(path string) (*ingest_track.AudioProbe, error) {
 		return nil, fmt.Errorf("%w: %w", ingest_track.ErrCorruptAudio, err)
 	}
 
-	return &ingest_track.AudioProbe{
+	return &library.Probe{
 		Tags:       metadataFromTags(tags),
 		DurationMs: int(props.Length.Milliseconds()),
 		Quality: library.Quality{

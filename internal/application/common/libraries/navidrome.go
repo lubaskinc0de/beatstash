@@ -61,11 +61,8 @@ func (n *Navidrome) Create(ctx context.Context, lib *library.Library) error {
 		}
 	}
 
-	if err := n.Libraries.Repo.SetNavidromeID(ctx, lib.ID, id); err != nil {
-		return err
-	}
-	lib.NavidromeID = id
-	return nil
+	lib.LinkNavidrome(id)
+	return n.Libraries.Repo.Save(ctx, lib)
 }
 
 // ShowNewAccountsOnlyShared keeps an account that Navidrome creates, or one

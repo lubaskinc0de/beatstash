@@ -11,7 +11,7 @@ import (
 
 type GetTrackAudio struct {
 	IDs       common.IDProvider
-	Tracks    repositories.Tracks
+	Shared    repositories.SharedTracks
 	Libraries *libraries.Libraries
 }
 
@@ -19,17 +19,13 @@ func (i *GetTrackAudio) Execute(ctx context.Context, sharedTrackID uint) (*libra
 	if _, err := i.IDs.CurrentUser(ctx); err != nil {
 		return nil, "", err
 	}
-	shared, err := i.Libraries.Shared(ctx)
+	shared, err := i.Shared.Get(ctx, sharedTrackID)
 	if err != nil {
 		return nil, "", err
 	}
-	track, err := sharedTrack(ctx, i.Tracks, shared, sharedTrackID)
+	path, err := i.Libraries.FilePath(ctx, shared.Track)
 	if err != nil {
 		return nil, "", err
 	}
-	path, err := i.Libraries.FilePath(ctx, track)
-	if err != nil {
-		return nil, "", err
-	}
-	return track, path, nil
+	return shared.Track, path, nil
 }

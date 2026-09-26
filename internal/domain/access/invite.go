@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+// Invite is an aggregate root: a code that lets one person join. It works
+// once and only until ExpiresAt.
 type Invite struct {
 	Code      string `gorm:"primaryKey"`
 	CreatedBy uint   `gorm:"not null"`

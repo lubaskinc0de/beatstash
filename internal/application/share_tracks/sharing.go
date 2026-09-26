@@ -34,7 +34,7 @@ type ShareResult struct {
 // operation runs under libraries.Within.
 type operation struct {
 	tracks   repositories.Tracks
-	shares   repositories.Shares
+	shared   repositories.SharedTracks
 	disk     common.Disk
 	musicDir string
 	user     *access.User
@@ -44,25 +44,26 @@ type operation struct {
 }
 
 func (op *operation) share(ctx context.Context, track *library.Track, result *ShareResult) error {
-	if err := track.Shareable(); err != nil {
+	if err := track.ShareableBy(op.libs.Personal); err != nil {
 		return err
 	}
-	if shared, err := isShared(ctx, op.shares, track.ID); err != nil || shared {
+	if shared, err := isShared(ctx, op.shared, track.ID); err != nil || shared {
 		return err
 	}
 
 	duplicate, err := op.tracks.FindDuplicate(ctx, op.libs.Shared.ID, track.Metadata, track.DurationMs)
 	switch {
 	case err == nil:
-		sharers, err := op.shares.ForTrack(ctx, duplicate.ID)
+		shared, err := op.shared.Get(ctx, duplicate.ID)
 		if err != nil {
 			return err
 		}
-		if author := sharing.Author(sharers); result.AlreadyShared == 0 && author != nil {
+		if author := shared.Author(); result.AlreadyShared == 0 && author != nil {
 			result.Author = &author.User
 		}
 		result.AlreadyShared++
-		return op.shares.Save(ctx, sharing.ShareDuplicate(op.user.ID, track, duplicate, op.now))
+		shared.ShareBy(op.user, track, op.now)
+		return op.shared.Save(ctx, shared)
 	case !errors.Is(err, repositories.ErrTrackNotFound):
 		return err
 	}
@@ -72,36 +73,25 @@ func (op *operation) share(ctx context.Context, track *library.Track, result *Sh
 		return err
 	}
 	result.Created++
-	return op.shares.Save(ctx, sharing.ShareCopy(op.user.ID, track, copied, op.now))
+	return op.shared.Save(ctx, sharing.NewSharedTrack(copied, op.user, track, op.now))
 }
 
-// unshare drops the user's Share; the Track leaves the Shared Library only
-// with its last sharer.
 func (op *operation) unshare(ctx context.Context, track *library.Track) error {
-	share, err := op.shares.BySource(ctx, track.ID)
-	if errors.Is(err, repositories.ErrShareNotFound) {
+	shared, err := op.shared.BySource(ctx, track.ID)
+	if errors.Is(err, sharing.ErrNotShared) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	if err := op.shares.Delete(ctx, share.ID); err != nil {
+	if !shared.Unshare(track) {
+		return op.shared.Save(ctx, shared)
+	}
+	if err := op.shared.Delete(ctx, shared); err != nil {
 		return err
 	}
-
-	rest, err := op.shares.ForTrack(ctx, share.TrackID)
-	if err != nil || len(rest) > 0 {
-		return err
-	}
-	shared, err := op.tracks.Get(ctx, share.TrackID)
-	if err != nil {
-		return err
-	}
-	if err := op.tracks.Delete(ctx, shared.ID); err != nil {
-		return err
-	}
-	file := filepath.Join(libraries.Dir(op.musicDir, op.libs.Shared), shared.Path)
-	op.changes.AfterCommit(func() { op.disk.Remove(file) })
+	file := filepath.Join(libraries.Dir(op.musicDir, op.libs.Shared), shared.Track.Path)
+	op.changes.RemoveAfterCommit(file)
 	return nil
 }
 
@@ -113,8 +103,8 @@ func own(ctx context.Context, tracks repositories.Tracks, personal *library.Libr
 	if err != nil {
 		return nil, err
 	}
-	if !track.In(personal) {
-		return nil, library.ErrNotOwnTrack
+	if err := track.OwnedBy(personal); err != nil {
+		return nil, err
 	}
 	return track, nil
 }
@@ -129,12 +119,18 @@ func album(ctx context.Context, tracks repositories.Tracks, personal *library.Li
 	if err != nil {
 		return nil, err
 	}
-	return library.ShareableTracks(all), nil
+	var shareable []library.Track
+	for _, t := range all {
+		if t.ShareableBy(personal) == nil {
+			shareable = append(shareable, t)
+		}
+	}
+	return shareable, nil
 }
 
-func isShared(ctx context.Context, shares repositories.Shares, trackID uint) (bool, error) {
-	_, err := shares.BySource(ctx, trackID)
-	if errors.Is(err, repositories.ErrShareNotFound) {
+func isShared(ctx context.Context, shared repositories.SharedTracks, trackID uint) (bool, error) {
+	_, err := shared.BySource(ctx, trackID)
+	if errors.Is(err, sharing.ErrNotShared) {
 		return false, nil
 	}
 	return err == nil, err
@@ -143,11 +139,11 @@ func isShared(ctx context.Context, shares repositories.Shares, trackID uint) (bo
 func shareState(
 	ctx context.Context,
 	tracks repositories.Tracks,
-	shares repositories.Shares,
+	sharedTracks repositories.SharedTracks,
 	personal *library.Library,
 	track *library.Track,
 ) (*ShareState, error) {
-	shared, err := isShared(ctx, shares, track.ID)
+	shared, err := isShared(ctx, sharedTracks, track.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +158,7 @@ func shareState(
 	}
 	state.AlbumShared = true
 	for _, t := range album {
-		shared, err := isShared(ctx, shares, t.ID)
+		shared, err := isShared(ctx, sharedTracks, t.ID)
 		if err != nil {
 			return nil, err
 		}

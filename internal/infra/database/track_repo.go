@@ -30,7 +30,10 @@ func (r *TrackRepository) FindDuplicate(
 	m library.Metadata,
 	durationMs int,
 ) (*library.Track, error) {
-	q := dbForContext(ctx, r.DB).
+	if !m.Complete() {
+		return nil, repositories.ErrTrackNotFound
+	}
+	q := tracks(ctx, r.DB).
 		Where("library_id = ?", libraryID).
 		Where("LOWER(artist) = LOWER(?)", m.Artist).
 		Where("LOWER(title) = LOWER(?)", m.Title).
@@ -44,36 +47,22 @@ func (r *TrackRepository) SaveTrack(ctx context.Context, track *library.Track) e
 	return dbForContext(ctx, r.DB).Save(track).Error
 }
 
-func (r *TrackRepository) SaveSource(ctx context.Context, source *library.TrackSource) error {
-	return dbForContext(ctx, r.DB).Omit("Track").Create(source).Error
-}
-
 func (r *TrackRepository) Get(ctx context.Context, id uint) (*library.Track, error) {
-	return first[library.Track](dbForContext(ctx, r.DB).Where("id = ?", id), repositories.ErrTrackNotFound)
+	return first[library.Track](tracks(ctx, r.DB).Where("id = ?", id), repositories.ErrTrackNotFound)
 }
 
-func (r *TrackRepository) Sources(ctx context.Context, trackID uint) ([]library.TrackSource, error) {
-	var sources []library.TrackSource
-	err := dbForContext(ctx, r.DB).Where("track_id = ?", trackID).Order("id").Find(&sources).Error
-	return sources, err
-}
-
-func (r *TrackRepository) Album(ctx context.Context, libraryID uint, albumArtist, album string) ([]library.Track, error) {
-	var tracks []library.Track
-	err := dbForContext(ctx, r.DB).
+func (r *TrackRepository) Album(ctx context.Context, libraryID uint, albumArtist, albumTitle string) ([]library.Track, error) {
+	var album []library.Track
+	err := tracks(ctx, r.DB).
 		Where("library_id = ?", libraryID).
-		Where("LOWER(album_artist) = LOWER(?) AND LOWER(album) = LOWER(?)", albumArtist, album).
+		Where("LOWER(album_artist) = LOWER(?) AND LOWER(album) = LOWER(?)", albumArtist, albumTitle).
 		Order("track_number, id").
-		Find(&tracks).Error
-	return tracks, err
-}
-
-func (r *TrackRepository) Delete(ctx context.Context, id uint) error {
-	return dbForContext(ctx, r.DB).Delete(&library.Track{}, id).Error
+		Find(&album).Error
+	return album, err
 }
 
 func (r *TrackRepository) FindByMetadata(ctx context.Context, libraryIDs []uint, m library.Metadata) (*library.Track, error) {
-	q := dbForContext(ctx, r.DB).
+	q := tracks(ctx, r.DB).
 		Where("library_id IN ?", libraryIDs).
 		Where("LOWER(artist) = LOWER(TRIM(?))", m.Artist).
 		Where("LOWER(title) = LOWER(TRIM(?))", m.Title).
@@ -125,4 +114,9 @@ func (r *TrackRepository) SourcePaths(
 		paths[row.Ref] = row.Path
 	}
 	return paths, nil
+}
+
+// tracks loads Tracks whole, with their Sources.
+func tracks(ctx context.Context, db *gorm.DB) *gorm.DB {
+	return dbForContext(ctx, db).Preload("Sources", func(q *gorm.DB) *gorm.DB { return q.Order("id") })
 }

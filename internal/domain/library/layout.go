@@ -12,11 +12,15 @@ const (
 	inboxDir   = "Inbox"
 	singlesDir = "Singles"
 
-	// Leaves room for a collision suffix and an extension within the
-	// 255-byte file name limit.
+	// Leaves room for a " (2)" suffix and an extension within the 255-byte
+	// file name limit.
 	maxComponentBytes = 200
 )
 
+// LayoutPath returns the file's path in a Library:
+//   - "Album Artist/Album (Year)/NN - Title" for an album track;
+//   - "Artist/Singles/Title" for a single;
+//   - "Inbox/<original name>" when artist or title is missing.
 func LayoutPath(m Metadata, format Format, originalName string) string {
 	ext := format.Ext()
 
@@ -39,9 +43,9 @@ func LayoutPath(m Metadata, format Format, originalName string) string {
 	return filepath.Join(sanitize(m.AlbumArtist), sanitize(album), sanitize(name)+ext)
 }
 
-// sanitize makes a single path component out of any string: no separators
-// or characters Windows clients choke on, no leading dots that would hide
-// the entry from Navidrome, no trailing dots or spaces.
+// sanitize turns any string into one path component. It replaces path
+// separators and characters Windows does not allow, and trims dots and
+// spaces at the ends: a leading dot would hide the file from Navidrome.
 func sanitize(s string) string {
 	s = strings.Map(func(r rune) rune {
 		switch {

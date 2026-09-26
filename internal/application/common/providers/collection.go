@@ -46,18 +46,19 @@ func (c *Collection) Tracks() []ListedTrack {
 }
 
 func (c *Collection) Snapshot() *provider.CollectionSnapshot {
-	snapshot := &provider.CollectionSnapshot{
-		Tracks: RefIDs(c.Tracks()),
-		Liked:  c.LikedRefs,
-	}
+	var playlists []provider.PlaylistSnapshot
 	for _, playlist := range c.Playlists {
-		snapshot.Playlists = append(snapshot.Playlists, provider.PlaylistSnapshot{
+		playlists = append(playlists, provider.PlaylistSnapshot{
 			ID:     playlist.ID,
 			Title:  playlist.Title,
 			Tracks: RefIDs(playlist.Tracks),
 		})
 	}
-	return snapshot
+	return &provider.CollectionSnapshot{
+		Tracks:    RefIDs(c.Tracks()),
+		Liked:     c.LikedRefs,
+		Playlists: playlists,
+	}
 }
 
 func RefIDs(tracks []ListedTrack) []string {

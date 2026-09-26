@@ -16,14 +16,14 @@ type FeedEntry struct {
 
 type ViewFeed struct {
 	IDs    common.IDProvider
-	Shares repositories.Shares
+	Shared repositories.SharedTracks
 }
 
 func (i *ViewFeed) Execute(ctx context.Context, limit int) ([]FeedEntry, error) {
 	if _, err := i.IDs.CurrentUser(ctx); err != nil {
 		return nil, err
 	}
-	shares, err := i.Shares.Feed(ctx, limit)
+	shares, err := i.Shared.Feed(ctx, limit)
 	if err != nil {
 		return nil, err
 	}

@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+// Format is a value object: the audio file format.
 type Format string
 
 const (

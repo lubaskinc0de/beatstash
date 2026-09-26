@@ -9,38 +9,69 @@ import (
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/sharing"
 )
 
-type ShareRepository struct {
+type SharedTrackRepository struct {
 	DB *gorm.DB
 }
 
-func (r *ShareRepository) Save(ctx context.Context, share *sharing.Share) error {
-	return dbForContext(ctx, r.DB).Omit("Track", "SourceTrack", "User").Create(share).Error
-}
-
-func (r *ShareRepository) BySource(ctx context.Context, sourceTrackID uint) (*sharing.Share, error) {
-	q := dbForContext(ctx, r.DB).Where("source_track_id = ?", sourceTrackID)
-	return first[sharing.Share](q, repositories.ErrShareNotFound)
-}
-
-func (r *ShareRepository) ForTrack(ctx context.Context, trackID uint) ([]sharing.Share, error) {
+func (r *SharedTrackRepository) Get(ctx context.Context, trackID uint) (*sharing.SharedTrack, error) {
+	db := dbForContext(ctx, r.DB)
+	track, err := first[library.Track](tracks(ctx, r.DB).Where("id = ?", trackID), sharing.ErrNotShared)
+	if err != nil {
+		return nil, err
+	}
 	var shares []sharing.Share
-	err := dbForContext(ctx, r.DB).
-		Preload("User").
-		Where("track_id = ?", trackID).
-		Order("created_at, id").
-		Find(&shares).Error
-	return shares, err
+	err = db.Preload("User").Where("track_id = ?", trackID).Order("created_at, id").Find(&shares).Error
+	if err != nil {
+		return nil, err
+	}
+	if len(shares) == 0 {
+		return nil, sharing.ErrNotShared
+	}
+	return &sharing.SharedTrack{Track: track, Shares: shares}, nil
 }
 
-func (r *ShareRepository) Delete(ctx context.Context, id uint) error {
-	return dbForContext(ctx, r.DB).Delete(&sharing.Share{}, id).Error
+func (r *SharedTrackRepository) BySource(ctx context.Context, sourceTrackID uint) (*sharing.SharedTrack, error) {
+	q := dbForContext(ctx, r.DB).Where("source_track_id = ?", sourceTrackID)
+	share, err := first[sharing.Share](q, sharing.ErrNotShared)
+	if err != nil {
+		return nil, err
+	}
+	return r.Get(ctx, share.TrackID)
+}
+
+func (r *SharedTrackRepository) Save(ctx context.Context, shared *sharing.SharedTrack) error {
+	db := dbForContext(ctx, r.DB)
+	kept := []uint{0}
+	for _, share := range shared.Shares {
+		kept = append(kept, share.ID)
+	}
+	err := db.Where("track_id = ? AND id NOT IN ?", shared.Track.ID, kept).Delete(&sharing.Share{}).Error
+	if err != nil {
+		return err
+	}
+	for n := range shared.Shares {
+		share := &shared.Shares[n]
+		if share.ID != 0 {
+			continue
+		}
+		if err := db.Omit("Track", "SourceTrack", "User").Create(share).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Delete relies on the Shares cascading with their Track.
+func (r *SharedTrackRepository) Delete(ctx context.Context, shared *sharing.SharedTrack) error {
+	return dbForContext(ctx, r.DB).Delete(&library.Track{}, shared.Track.ID).Error
 }
 
 // Feed takes the oldest Share of each Track: its sharer is the author.
-func (r *ShareRepository) Feed(ctx context.Context, limit int) ([]sharing.Share, error) {
+func (r *SharedTrackRepository) Feed(ctx context.Context, limit int) ([]sharing.Share, error) {
 	var shares []sharing.Share
 	err := dbForContext(ctx, r.DB).
 		Preload("User").
@@ -56,7 +87,7 @@ func (r *ShareRepository) Feed(ctx context.Context, limit int) ([]sharing.Share,
 	return shares, err
 }
 
-func (r *ShareRepository) TopSharers(ctx context.Context, since time.Time, limit int) ([]repositories.TopEntry, error) {
+func (r *SharedTrackRepository) TopSharers(ctx context.Context, since time.Time, limit int) ([]repositories.TopEntry, error) {
 	query := dbForContext(ctx, r.DB).
 		Model(&sharing.Share{}).
 		Where("in_top AND created_at >= ?", since).

@@ -1,11 +1,11 @@
 package library
 
 import (
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
-
 	"path/filepath"
 	"strconv"
 	"time"
+
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 )
 
 const (
@@ -13,13 +13,8 @@ const (
 	PersonalLibrariesDir = "users"
 )
 
-type LibraryKind string
-
-const (
-	LibraryPersonal LibraryKind = "personal"
-	LibraryShared   LibraryKind = "shared"
-)
-
+// Library is an aggregate root. It does not hold its Tracks: Tracks refer to
+// it by LibraryID, so loading a Library never loads them.
 type Library struct {
 	ID uint `gorm:"primaryKey"`
 
@@ -27,11 +22,19 @@ type Library struct {
 	OwnerID *uint       `gorm:"uniqueIndex"`
 	// Dir is relative to music_dir.
 	Dir string `gorm:"not null;uniqueIndex"`
-	// NavidromeID stays zero until the library is created in Navidrome.
+	// NavidromeID is zero until the library is created in Navidrome.
 	NavidromeID int `gorm:"not null;default:0"`
 
 	CreatedAt time.Time
 }
+
+// LibraryKind is a value object: personal or shared.
+type LibraryKind string
+
+const (
+	LibraryPersonal LibraryKind = "personal"
+	LibraryShared   LibraryKind = "shared"
+)
 
 func SharedLibrary() *Library {
 	return &Library{Kind: LibraryShared, Dir: SharedLibraryDir}
@@ -43,4 +46,8 @@ func PersonalLibrary(owner *access.User) *Library {
 		OwnerID: &owner.ID,
 		Dir:     filepath.Join(PersonalLibrariesDir, strconv.FormatUint(uint64(owner.ID), 10)),
 	}
+}
+
+func (l *Library) LinkNavidrome(id int) {
+	l.NavidromeID = id
 }

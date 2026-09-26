@@ -13,7 +13,7 @@ type UnshareAlbum struct {
 	Tx        repositories.TxManager
 	Lock      repositories.LibraryLock
 	Tracks    repositories.Tracks
-	Shares    repositories.Shares
+	Shared    repositories.SharedTracks
 	Libraries *libraries.Libraries
 	Disk      common.Disk
 	MusicDir  string
@@ -25,10 +25,10 @@ func (i *UnshareAlbum) Execute(ctx context.Context, trackID uint) (*ShareState, 
 		return nil, err
 	}
 	var state *ShareState
-	err = libraries.Within(ctx, i.Tx, i.Lock, libs, func(ctx context.Context, changes *libraries.FileChanges) error {
+	err = libraries.Within(ctx, i.Tx, i.Lock, i.Disk, libs, func(ctx context.Context, changes *libraries.FileChanges) error {
 		op := &operation{
 			tracks:   i.Tracks,
-			shares:   i.Shares,
+			shared:   i.Shared,
 			disk:     i.Disk,
 			musicDir: i.MusicDir,
 			user:     user,
@@ -48,7 +48,7 @@ func (i *UnshareAlbum) Execute(ctx context.Context, trackID uint) (*ShareState, 
 				return err
 			}
 		}
-		state, err = shareState(ctx, i.Tracks, i.Shares, libs.Personal, track)
+		state, err = shareState(ctx, i.Tracks, i.Shared, libs.Personal, track)
 		return err
 	})
 	return state, err

@@ -22,7 +22,7 @@ type Rating struct {
 
 type GetTop struct {
 	IDs    common.IDProvider
-	Shares repositories.Shares
+	Shared repositories.SharedTracks
 	Takes  repositories.Takes
 	Clock  func() time.Time
 }
@@ -41,8 +41,8 @@ func (i *GetTop) Execute(ctx context.Context) (*Top, error) {
 		since time.Time
 		into  *[]repositories.TopEntry
 	}{
-		{i.Shares.TopSharers, time.Time{}, &top.Sharers.AllTime},
-		{i.Shares.TopSharers, monthStart, &top.Sharers.ThisMonth},
+		{i.Shared.TopSharers, time.Time{}, &top.Sharers.AllTime},
+		{i.Shared.TopSharers, monthStart, &top.Sharers.ThisMonth},
 		{i.Takes.TopTaken, time.Time{}, &top.TakenAuthors.AllTime},
 		{i.Takes.TopTaken, monthStart, &top.TakenAuthors.ThisMonth},
 	} {

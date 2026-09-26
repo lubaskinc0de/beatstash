@@ -9,7 +9,6 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/sharing"
 )
 
 type TakeTrack struct {
@@ -17,7 +16,7 @@ type TakeTrack struct {
 	Tx        repositories.TxManager
 	Lock      repositories.LibraryLock
 	Tracks    repositories.Tracks
-	Shares    repositories.Shares
+	Shared    repositories.SharedTracks
 	Takes     repositories.Takes
 	Libraries *libraries.Libraries
 	Disk      common.Disk
@@ -30,11 +29,12 @@ func (i *TakeTrack) Execute(ctx context.Context, sharedTrackID uint) error {
 	if err != nil {
 		return err
 	}
-	return libraries.Within(ctx, i.Tx, i.Lock, libs, func(ctx context.Context, changes *libraries.FileChanges) error {
-		track, err := sharedTrack(ctx, i.Tracks, libs.Shared, sharedTrackID)
+	return libraries.Within(ctx, i.Tx, i.Lock, i.Disk, libs, func(ctx context.Context, changes *libraries.FileChanges) error {
+		shared, err := i.Shared.Get(ctx, sharedTrackID)
 		if err != nil {
 			return err
 		}
+		track := shared.Track
 
 		_, err = i.Tracks.FindDuplicate(ctx, libs.Personal.ID, track.Metadata, track.DurationMs)
 		if err == nil {
@@ -44,14 +44,10 @@ func (i *TakeTrack) Execute(ctx context.Context, sharedTrackID uint) error {
 			return err
 		}
 
-		sharers, err := i.Shares.ForTrack(ctx, track.ID)
-		if err != nil {
-			return err
-		}
 		copied, _, err := libraries.CopyTrack(ctx, i.Tracks, i.Disk, i.MusicDir, track, libs.Shared, libs.Personal, changes)
 		if err != nil {
 			return err
 		}
-		return i.Takes.Save(ctx, sharing.NewTake(user.ID, copied, sharers, i.Clock()))
+		return i.Takes.Save(ctx, shared.TakeBy(user, copied, i.Clock()))
 	})
 }

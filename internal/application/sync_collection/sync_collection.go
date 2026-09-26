@@ -1,11 +1,9 @@
 package sync_collection
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"log/slog"
-	"maps"
 	"slices"
 	"time"
 
@@ -123,18 +121,15 @@ func (i *SyncCollection) remember(ctx context.Context, userID uint, providerName
 	return i.Accounts.Save(ctx, account)
 }
 
-// invalidate leaves alone an account whose token changed since Sync read it:
-// the user may have sent a new one while the old one was being refused.
 func (i *SyncCollection) invalidate(ctx context.Context, account *provider.ProviderAccount) error {
 	return i.Tx.WithinTx(ctx, func(ctx context.Context) error {
 		locked, err := i.Accounts.GetForUpdate(ctx, account.UserID, account.Provider)
 		if err != nil {
 			return err
 		}
-		if locked.Status != provider.ProviderAccountActive || !bytes.Equal(locked.Token, account.Token) {
+		if !locked.Invalidate(account.Token, time.Now()) {
 			return nil
 		}
-		locked.Invalidate(time.Now())
 		return i.Accounts.Save(ctx, locked)
 	})
 }
@@ -170,21 +165,46 @@ func (i *SyncCollection) mirror(ctx context.Context, account *provider.ProviderA
 	if err != nil {
 		return err
 	}
-	resolver, err := i.resolver(ctx, account, creds)
-	if err != nil || resolver == nil {
+	songs, err := i.songs(ctx, account, creds)
+	if err != nil || songs == nil {
 		return err
 	}
 
-	err = i.star(ctx, creds, account.Collection, &account.Mirror, resolver)
-	if err == nil {
-		err = i.playlists(ctx, creds, account.Collection, &account.Mirror, resolver)
-	}
-	return errors.Join(err, i.save(ctx, account, err != nil || resolver.waiting))
+	wanted, complete := account.WantedMirror(songs.found, songs.coming)
+	done, err := i.apply(ctx, creds, wanted.ChangesFrom(account.Mirror))
+	return errors.Join(err, i.save(ctx, account, account.Mirror.Apply(done), err == nil && complete))
 }
 
-// save keeps the mirror wanted if an Import or a Sync remembered a new
-// collection meanwhile.
-func (i *SyncCollection) save(ctx context.Context, mirrored *provider.ProviderAccount, wanted bool) error {
+// apply stops at the first error; done is what went through.
+func (i *SyncCollection) apply(ctx context.Context, creds navidrome.Credentials, change provider.MirrorChange) (done provider.MirrorChange, err error) {
+	for _, star := range change.Star {
+		if err := i.Navidrome.Star(ctx, creds, []string{star.Song}); err != nil {
+			return done, err
+		}
+		done.Star = append(done.Star, star)
+	}
+
+	unstarred := make([]string, 0, len(change.Unstar))
+	for _, star := range change.Unstar {
+		unstarred = append(unstarred, star.Song)
+	}
+	if err := i.Navidrome.Unstar(ctx, creds, unstarred); err != nil {
+		return done, err
+	}
+	done.Unstar = change.Unstar
+
+	for _, playlist := range change.Playlists {
+		id, err := i.Navidrome.SavePlaylist(ctx, creds, playlist.NavidromeID, playlist.Title, playlist.Songs)
+		if err != nil {
+			return done, err
+		}
+		playlist.NavidromeID = id
+		done.Playlists = append(done.Playlists, playlist)
+	}
+	return done, nil
+}
+
+func (i *SyncCollection) save(ctx context.Context, mirrored *provider.ProviderAccount, state provider.MirrorState, complete bool) error {
 	return i.Tx.WithinTx(ctx, func(ctx context.Context) error {
 		account, err := i.Accounts.GetForUpdate(ctx, mirrored.UserID, mirrored.Provider)
 		if errors.Is(err, repositories.ErrProviderAccountNotFound) {
@@ -193,102 +213,23 @@ func (i *SyncCollection) save(ctx context.Context, mirrored *provider.ProviderAc
 		if err != nil {
 			return err
 		}
-		account.Mirrored(mirrored.Mirror, wanted || !sameTime(account.SyncedAt, mirrored.SyncedAt))
+		account.Mirrored(state, complete, mirrored.SyncedAt)
 		return i.Accounts.Save(ctx, account)
 	})
 }
 
-func sameTime(a, b *time.Time) bool {
-	return a == nil && b == nil || a != nil && b != nil && a.Equal(*b)
+type songLookup struct {
+	found  map[string]string
+	coming map[string]bool
 }
 
-func (i *SyncCollection) star(
-	ctx context.Context,
-	creds navidrome.Credentials,
-	collection *provider.CollectionSnapshot,
-	state *provider.MirrorState,
-	songs *songResolver,
-) error {
-	if state.Starred == nil {
-		state.Starred = map[string]string{}
-	}
-
-	liked := make([]string, len(collection.Liked))
-	for n, ref := range collection.Liked {
-		liked[n] = songs.resolve(ref)
-	}
-
-	// Navidrome sorts stars by the time they were set, and the Provider
-	// lists likes newest first: stars go on one by one from the oldest like.
-	// Until every liked track has its song they wait, or their order would
-	// follow the downloads.
-	if !songs.waiting {
-		for n := len(liked) - 1; n >= 0; n-- {
-			ref, song := collection.Liked[n], liked[n]
-			if song == "" || state.Starred[ref] == song {
-				continue
-			}
-			if err := i.Navidrome.Star(ctx, creds, []string{song}); err != nil {
-				return err
-			}
-			state.Starred[ref] = song
-		}
-	}
-
-	stillLiked := providers.RefSet(collection.Liked)
-	unliked := map[string]string{}
-	for ref, song := range state.Starred {
-		if !stillLiked[ref] {
-			unliked[ref] = song
-		}
-	}
-	if err := i.Navidrome.Unstar(ctx, creds, slices.Collect(maps.Values(unliked))); err != nil {
-		return err
-	}
-	for ref := range unliked {
-		delete(state.Starred, ref)
-	}
-	return nil
-}
-
-func (i *SyncCollection) playlists(
-	ctx context.Context,
-	creds navidrome.Credentials,
-	collection *provider.CollectionSnapshot,
-	state *provider.MirrorState,
-	songs *songResolver,
-) error {
-	if state.Playlists == nil {
-		state.Playlists = map[string]provider.MirroredPlaylist{}
-	}
-
-	for _, playlist := range collection.Playlists {
-		var ids []string
-		for _, ref := range playlist.Tracks {
-			song := songs.resolve(ref)
-			if song != "" {
-				ids = append(ids, song)
-			}
-		}
-
-		mirrored, exists := state.Playlists[playlist.ID]
-		if (exists && slices.Equal(mirrored.Songs, ids)) || (!exists && len(ids) == 0) {
-			continue
-		}
-		id, err := i.Navidrome.SavePlaylist(ctx, creds, mirrored.NavidromeID, playlist.Title, ids)
-		if err != nil {
-			return err
-		}
-		state.Playlists[playlist.ID] = provider.MirroredPlaylist{NavidromeID: id, Songs: ids}
-	}
-	return nil
-}
-
-func (i *SyncCollection) resolver(
+// songs finds the Navidrome songs of the Collection's tracks by the paths of
+// their Tracks' files; nil until the Personal Library is in Navidrome.
+func (i *SyncCollection) songs(
 	ctx context.Context,
 	account *provider.ProviderAccount,
 	creds navidrome.Credentials,
-) (*songResolver, error) {
+) (*songLookup, error) {
 	library, err := i.Libraries.Personal(ctx, account.UserID)
 	if err != nil {
 		return nil, err
@@ -296,7 +237,7 @@ func (i *SyncCollection) resolver(
 	if library.NavidromeID == 0 {
 		return nil, nil
 	}
-	songs, err := i.Navidrome.Songs(ctx, creds, library.NavidromeID)
+	indexed, err := i.Navidrome.Songs(ctx, creds, library.NavidromeID)
 	if err != nil {
 		return nil, err
 	}
@@ -312,28 +253,18 @@ func (i *SyncCollection) resolver(
 	if err != nil {
 		return nil, err
 	}
-	return &songResolver{paths: paths, songs: songs, pending: providers.RefSet(pending)}, nil
-}
+	queued := providers.RefSet(pending)
 
-type songResolver struct {
-	paths   map[string]string
-	songs   map[string]string
-	pending map[string]bool
-
-	// waiting is set once a track turned out to be still on its way to
-	// Navidrome: queued for Ingest, or stored but not indexed yet.
-	waiting bool
-}
-
-// resolve returns "" for a track without a song; a track whose Ingest
-// failed for good has none and never will.
-func (r *songResolver) resolve(ref string) string {
-	path, stored := r.paths[ref]
-	if !stored {
-		r.waiting = r.waiting || r.pending[ref]
-		return ""
+	s := &songLookup{found: map[string]string{}, coming: map[string]bool{}}
+	for _, ref := range refs {
+		path, stored := paths[ref]
+		song, ok := indexed[path]
+		switch {
+		case stored && ok:
+			s.found[ref] = song
+		case stored || queued[ref]:
+			s.coming[ref] = true
+		}
 	}
-	song, indexed := r.songs[path]
-	r.waiting = r.waiting || !indexed
-	return song
+	return s, nil
 }

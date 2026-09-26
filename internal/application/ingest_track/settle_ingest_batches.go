@@ -8,6 +8,7 @@ import (
 
 // SettleIngestBatches finishes batches whose last job ended right before a crash.
 type SettleIngestBatches struct {
+	Tx      repositories.TxManager
 	Queue   repositories.IngestQueue
 	Batches repositories.IngestBatches
 }
@@ -18,7 +19,7 @@ func (i *SettleIngestBatches) Execute(ctx context.Context) error {
 		return err
 	}
 	for _, batch := range batches {
-		if err := finishBatch(ctx, i.Queue, i.Batches, batch.ID); err != nil {
+		if err := finishBatch(ctx, i.Tx, i.Queue, i.Batches, batch.ID); err != nil {
 			return err
 		}
 	}

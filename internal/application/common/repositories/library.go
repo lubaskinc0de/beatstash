@@ -14,7 +14,7 @@ type Libraries interface {
 	Personal(ctx context.Context, userID uint) (*library.Library, error)
 	Get(ctx context.Context, id uint) (*library.Library, error)
 	All(ctx context.Context) ([]library.Library, error)
-	SetNavidromeID(ctx context.Context, id uint, navidromeID int) error
+	Save(ctx context.Context, lib *library.Library) error
 }
 
 var ErrLibraryNotFound = errors.New("library not found")

@@ -8,26 +8,8 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
-type IngestJobStatus string
-
-const (
-	IngestJobPending IngestJobStatus = "pending"
-	IngestJobDone    IngestJobStatus = "done"
-	IngestJobFailed  IngestJobStatus = "failed"
-)
-
-type FailureReason string
-
-const (
-	ReasonUnsupportedFormat FailureReason = "unsupported_format"
-	ReasonCorruptFile       FailureReason = "corrupt_file"
-	ReasonFetchFailed       FailureReason = "fetch_failed"
-	ReasonNoProviderAccount FailureReason = "no_provider_account"
-	ReasonTokenRejected     FailureReason = "token_rejected"
-	ReasonInternal          FailureReason = "internal"
-)
-
-// IngestJob keeps no address to answer to: a Channel reads its outcome.
+// IngestJob is an aggregate root: a state machine that goes from pending to
+// done or failed. It stores no chat or message: a Channel reads the result.
 type IngestJob struct {
 	ID uint `gorm:"primaryKey"`
 
@@ -47,8 +29,9 @@ type IngestJob struct {
 	RunAt     time.Time       `gorm:"not null;index:idx_ingest_job_due"`
 	LastError string
 
-	// Outcome and TrackID, the Track the audio became or turned out to be,
-	// are set once the job is done; FailureReason once it failed.
+	// Outcome and TrackID are set when the job is done. TrackID is the
+	// Track that was stored or already existed. FailureReason is set when
+	// the job failed.
 	Outcome       library.Outcome
 	TrackID       *uint
 	FailureReason FailureReason
@@ -56,6 +39,15 @@ type IngestJob struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time `gorm:"index:idx_ingest_job_served,priority:3"`
 }
+
+// IngestJobStatus is a value object.
+type IngestJobStatus string
+
+const (
+	IngestJobPending IngestJobStatus = "pending"
+	IngestJobDone    IngestJobStatus = "done"
+	IngestJobFailed  IngestJobStatus = "failed"
+)
 
 func NewJob(userID uint, ref provider.TrackRef, displayName string, now time.Time) *IngestJob {
 	payload := ref.Payload
@@ -79,4 +71,37 @@ func (j *IngestJob) Ref() provider.TrackRef {
 
 func (j *IngestJob) Finished() bool {
 	return j.Status != IngestJobPending
+}
+
+func (j *IngestJob) Done() bool {
+	return j.Status == IngestJobDone
+}
+
+func (j *IngestJob) Failed() bool {
+	return j.Status == IngestJobFailed
+}
+
+func (j *IngestJob) Succeed(outcome library.Outcome, trackID uint) {
+	j.Attempts++
+	j.Status = IngestJobDone
+	j.Outcome = outcome
+	j.TrackID = &trackID
+	j.LastError = ""
+}
+
+// Fail records a failed attempt. The job is retried later, unless the
+// error is permanent or the policy has no retries left. final is true
+// when the job will not be retried.
+func (j *IngestJob) Fail(reason FailureReason, err error, permanent bool, policy RetryPolicy, now time.Time) (final bool) {
+	j.Attempts++
+	j.LastError = err.Error()
+
+	delay, ok := policy.Delay(j.Attempts)
+	if permanent || !ok {
+		j.Status = IngestJobFailed
+		j.FailureReason = reason
+		return true
+	}
+	j.RunAt = now.Add(delay)
+	return false
 }

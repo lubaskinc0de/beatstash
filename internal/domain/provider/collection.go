@@ -1,13 +1,16 @@
 package provider
 
+// CollectionSnapshot is a value object: a Provider Collection at the moment
+// of the last Import or Sync.
 type CollectionSnapshot struct {
-	// Tracks lists every track once: liked ones, then those of saved
-	// albums, then those of playlists.
+	// Tracks lists every track once: liked tracks first, then saved
+	// albums, then playlists.
 	Tracks    []string           `json:"tracks"`
 	Liked     []string           `json:"liked"`
 	Playlists []PlaylistSnapshot `json:"playlists"`
 }
 
+// PlaylistSnapshot is a value object: a playlist in a CollectionSnapshot.
 type PlaylistSnapshot struct {
 	ID     string   `json:"id"`
 	Title  string   `json:"title"`
@@ -29,16 +32,4 @@ func (c *CollectionSnapshot) Added(earlier *CollectionSnapshot) []string {
 		}
 	}
 	return added
-}
-
-type MirrorState struct {
-	// Starred maps liked tracks to the songs the bot has starred for them.
-	Starred   map[string]string           `json:"starred,omitempty"`
-	Playlists map[string]MirroredPlaylist `json:"playlists,omitempty"`
-}
-
-type MirroredPlaylist struct {
-	NavidromeID string `json:"navidrome_id"`
-	// Songs are the Navidrome song ids the playlist got last time.
-	Songs []string `json:"songs"`
 }

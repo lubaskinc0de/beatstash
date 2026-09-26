@@ -23,14 +23,14 @@ func (a *ProviderTokens) Token(ctx context.Context, userID uint, providerName pr
 	if err != nil {
 		return "", err
 	}
-	switch account.Status {
-	case provider.ProviderAccountActive:
-		return a.Box.Open(account.Token)
-	case provider.ProviderAccountDisconnected:
+	sealed, err := account.UsableToken()
+	switch {
+	case errors.Is(err, provider.ErrAccountDisconnected):
 		return "", repositories.ErrProviderAccountNotFound
-	default:
+	case errors.Is(err, provider.ErrTokenRejected):
 		return "", providers.ErrUnauthorized
 	}
+	return a.Box.Open(sealed)
 }
 
 // LockIdle locks the Provider Account unless its Import is running;

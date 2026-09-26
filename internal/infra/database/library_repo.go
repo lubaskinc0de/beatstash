@@ -38,11 +38,8 @@ func (r *LibraryRepository) All(ctx context.Context) ([]library.Library, error) 
 	return libraries, err
 }
 
-func (r *LibraryRepository) SetNavidromeID(ctx context.Context, id uint, navidromeID int) error {
-	return dbForContext(ctx, r.DB).
-		Model(&library.Library{}).
-		Where("id = ?", id).
-		Update("navidrome_id", navidromeID).Error
+func (r *LibraryRepository) Save(ctx context.Context, lib *library.Library) error {
+	return dbForContext(ctx, r.DB).Save(lib).Error
 }
 
 func (r *LibraryRepository) first(ctx context.Context, query string, args ...any) (*library.Library, error) {
