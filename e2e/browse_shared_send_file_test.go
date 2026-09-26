@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/go-telegram/bot/models"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 

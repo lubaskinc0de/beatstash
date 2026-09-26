@@ -81,7 +81,7 @@ func (q *IngestQueue) claimForIdleUser(ctx context.Context, filter repositories.
 func (q *IngestQueue) takeUserSlot(db *gorm.DB, user uint, slots int) (bool, error) {
 	for slot := range slots {
 		var free bool
-		err := db.Raw("SELECT pg_try_advisory_xact_lock(?, ?)", userLockKey+slot, int32(user)).Scan(&free).Error
+		err := db.Raw("SELECT pg_try_advisory_xact_lock(?, ?)", userLockKey+slot, int32(user)).Scan(&free).Error //nolint:gosec // G115: lock key only; wraparound merely shares a slot
 		if err != nil || free {
 			return free, err
 		}

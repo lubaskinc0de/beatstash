@@ -12,5 +12,7 @@ fixtures:
     ./e2e/testdata/audio/generate.sh
 
 lint:
-    unformatted=$(gofmt -l cmd internal e2e); if [ -n "$unformatted" ]; then echo "gofmt:"; echo "$unformatted"; exit 1; fi
     "$(go env GOPATH)/bin/golangci-lint" run ./...
+
+fmt:
+    "$(go env GOPATH)/bin/golangci-lint" fmt ./...

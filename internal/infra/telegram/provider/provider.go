@@ -86,7 +86,7 @@ func (p *Provider) Recognize(ctx context.Context, ref provider.TrackRef) ([]uint
 	return p.Files.Recognize(ctx, ref.ID)
 }
 
-func (p *Provider) Release(ctx context.Context, ref provider.TrackRef) error {
+func (p *Provider) Release(_ context.Context, ref provider.TrackRef) error {
 	path, ok := p.localFiles.LoadAndDelete(ref.ID)
 	if !ok {
 		return nil
@@ -101,7 +101,7 @@ func (p *Provider) Release(ctx context.Context, ref provider.TrackRef) error {
 // volume, or downloads it from a regular one.
 func (p *Provider) open(ctx context.Context, ref provider.TrackRef, filePath string) (io.ReadCloser, error) {
 	if filepath.IsAbs(filePath) {
-		file, err := os.Open(filePath)
+		file, err := os.Open(filePath) //nolint:gosec // G304: path comes from our storage
 		if err != nil {
 			return nil, fmt.Errorf("open local file: %w", err)
 		}

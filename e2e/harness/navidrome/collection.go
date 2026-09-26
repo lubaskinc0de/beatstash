@@ -1,6 +1,7 @@
 package navidrome
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -45,7 +46,7 @@ func (n *Server) UntilStarred(t *testing.T, account Account, names []string) {
 
 	var got []string
 	require.Eventually(t, func() bool {
-		_ = n.subsonic("startScan", nil, nil)
+		_ = n.startScan()
 		got = n.Starred(t, account)
 		return slices.Equal(got, names)
 	}, time.Minute, 200*time.Millisecond, "starred: %v", &got)
@@ -58,7 +59,7 @@ func (n *Server) UntilStarredByDate(t *testing.T, account Account, names []strin
 
 	var got []string
 	require.Eventually(t, func() bool {
-		_ = n.subsonic("startScan", nil, nil)
+		_ = n.startScan()
 		got = n.starredByDate(t, account)
 		return slices.Equal(got, names)
 	}, time.Minute, 200*time.Millisecond, "starred: %v", &got)
@@ -69,7 +70,7 @@ func (n *Server) starredByDate(t *testing.T, account Account) []string {
 
 	token, err := n.login(account)
 	require.NoError(t, err)
-	req, err := http.NewRequest(http.MethodGet, n.URL+`/api/song?_sort=starred_at&_order=DESC&_start=0&_end=100&starred=true`, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, n.URL+`/api/song?_sort=starred_at&_order=DESC&_start=0&_end=100&starred=true`, nil)
 	require.NoError(t, err)
 	req.Header.Set("X-Nd-Authorization", "Bearer "+token)
 	resp, err := http.DefaultClient.Do(req)
@@ -134,7 +135,7 @@ func (n *Server) UntilPlaylist(t *testing.T, account Account, name string, songs
 
 	var got []string
 	require.Eventually(t, func() bool {
-		_ = n.subsonic("startScan", nil, nil)
+		_ = n.startScan()
 		got = n.playlist(t, account, name)
 		return slices.Equal(got, songs)
 	}, time.Minute, 200*time.Millisecond, "playlist %s: %v", name, &got)

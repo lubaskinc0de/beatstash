@@ -140,7 +140,7 @@ func LoadConfig() (Config, error) {
 		navidromeMusicDir = file.Library.MusicDir
 	}
 
-	var pauseMin, pauseMax time.Duration
+	var pauseMin, pauseMax time.Duration //nolint:revive // Min is minimum, not minutes
 	if len(file.Zvuk.Pause) == 2 {
 		pauseMin, pauseMax = file.Zvuk.Pause[0], file.Zvuk.Pause[1]
 	}

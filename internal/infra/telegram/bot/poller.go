@@ -156,6 +156,8 @@ func (p *Poller) answer(ctx context.Context, msg messageRef, job *ingest.IngestJ
 		replyTo(ctx, p.Bot, msg, "Трек попал в Inbox: не удалось определить исполнителя или название")
 	case library.AlreadyExists:
 		replyTo(ctx, p.Bot, msg, "Этот трек уже есть в библиотеке")
+	case library.Stored, library.Replaced:
+		// The reaction alone reports success.
 	}
 }
 

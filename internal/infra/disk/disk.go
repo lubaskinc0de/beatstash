@@ -63,7 +63,7 @@ func (d *Disk) Move(from, to string) {
 }
 
 func (d *Disk) MakeDir(dir string) error {
-	return os.MkdirAll(dir, 0o755)
+	return os.MkdirAll(dir, 0o755) //nolint:gosec // G301: Navidrome reads the library
 }
 
 func (d *Disk) Stage(audio io.Reader, ext string) (string, error) {

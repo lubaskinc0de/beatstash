@@ -20,7 +20,7 @@ import (
 	app "github.com/lubaskinc0de/navidrome-tg/internal/main"
 )
 
-const SecretKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+const SecretKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=" //nolint:gosec // G101: test-only key
 
 type Clock struct {
 	mu  sync.Mutex
@@ -83,7 +83,7 @@ func prepare(t *testing.T, opts ...Option) *Scenario {
 
 	library, err := os.MkdirTemp(env.libraryRoot, "scenario-")
 	require.NoError(t, err)
-	require.NoError(t, os.Chmod(library, 0o755))
+	require.NoError(t, os.Chmod(library, 0o755)) //nolint:gosec // G302: Navidrome container reads the library
 
 	clk := &Clock{now: time.Now()}
 	cfg := app.Config{

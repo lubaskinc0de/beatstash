@@ -3,9 +3,10 @@ package database
 import (
 	"context"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/navidrome"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/navidrome"
 )
 
 type NavidromeSessionRepository struct {

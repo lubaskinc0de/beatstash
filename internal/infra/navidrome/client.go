@@ -3,7 +3,7 @@ package navidrome
 import (
 	"bytes"
 	"context"
-	"crypto/md5"
+	"crypto/md5" //nolint:gosec // G501: Subsonic token auth is md5 by spec
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -84,7 +84,7 @@ type nowPlayingResponse struct {
 func addAuth(q url.Values, creds appnd.Credentials) {
 	salt := randomSalt()
 
-	hash := md5.Sum([]byte(creds.Password + salt))
+	hash := md5.Sum([]byte(creds.Password + salt)) //nolint:gosec // G401: Subsonic token auth is md5 by spec
 	token := hex.EncodeToString(hash[:])
 
 	q.Set("u", creds.Login)

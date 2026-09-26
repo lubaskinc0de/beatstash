@@ -34,7 +34,7 @@ func (s *AudioSender) Send(ctx context.Context, chatID int64, file *store.File) 
 // it: it may take a format it cannot play as a document. ErrFileTooLarge if
 // Telegram would not take it.
 func (s *AudioSender) Post(ctx context.Context, chatID int64, path string, track *library.Track) (*store.File, error) {
-	file, err := os.Open(path)
+	file, err := os.Open(path) //nolint:gosec // G304: path comes from our storage
 	if err != nil {
 		return nil, err
 	}

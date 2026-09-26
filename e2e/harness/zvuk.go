@@ -8,7 +8,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/zvuk"
 )
 
-const ZvukToken = "zvuk-token-alice"
+const ZvukToken = "zvuk-token-alice" //nolint:gosec // G101: test-only token
 
 // ConnectZvuk creates the Zvuk account anew, with a subscription and an
 // empty collection, and connects it to the bot.

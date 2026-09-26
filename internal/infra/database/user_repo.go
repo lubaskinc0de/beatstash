@@ -3,9 +3,10 @@ package database
 import (
 	"context"
 
+	"gorm.io/gorm"
+
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
-	"gorm.io/gorm"
 )
 
 type UserRepository struct {

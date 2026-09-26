@@ -33,12 +33,12 @@ func Run(m *testing.M) int {
 		return 1
 	}
 	defer os.RemoveAll(libraryRoot)
-	if err := os.Chmod(libraryRoot, 0o755); err != nil {
+	if err := os.Chmod(libraryRoot, 0o755); err != nil { //nolint:gosec // G302: Navidrome container reads the library
 		log.Printf("chmod library root: %v", err)
 		return 1
 	}
 	env.libraryRoot = libraryRoot
-	if err := os.Mkdir(filepath.Join(libraryRoot, navidrome.RootLibrary), 0o755); err != nil {
+	if err := os.Mkdir(filepath.Join(libraryRoot, navidrome.RootLibrary), 0o755); err != nil { //nolint:gosec // G301: Navidrome container reads the library
 		log.Printf("create navidrome root library: %v", err)
 		return 1
 	}

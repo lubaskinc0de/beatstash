@@ -22,10 +22,14 @@ func setupLogger() {
 
 func main() {
 	setupLogger()
+	os.Exit(run())
+}
+
+func run() int {
 	cfg, err := app.LoadConfig()
 	if err != nil {
 		slog.Error("config_invalid", "error", err)
-		os.Exit(1)
+		return 1
 	}
 	ctx, cancel := signal.NotifyContext(
 		context.Background(),
@@ -37,10 +41,11 @@ func main() {
 	b, err := app.New(ctx, cfg)
 	if err != nil {
 		slog.Error("app_initialization_failed", "error", err)
-		os.Exit(1)
+		return 1
 	}
 
 	slog.Info("bot_started")
 	b.Run(ctx)
 	_ = b.Close()
+	return 0
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/add_track"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/browse_shared"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
@@ -456,7 +457,6 @@ func answerInline(
 		CacheTime:     1,
 		IsPersonal:    true,
 	})
-
 	if err != nil {
 		slog.Error("answer_inline_query", "error", err)
 	}

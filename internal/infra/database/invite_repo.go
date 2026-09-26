@@ -3,9 +3,10 @@ package database
 import (
 	"context"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 )
 
 type InviteRepository struct {

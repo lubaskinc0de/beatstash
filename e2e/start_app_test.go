@@ -135,7 +135,7 @@ func buildBot(t *testing.T) string {
 	t.Helper()
 
 	binary := filepath.Join(t.TempDir(), "navidrome-tg")
-	out, err := exec.Command("go", "build", "-o", binary, "../cmd/navidrome-tg").CombinedOutput()
+	out, err := exec.CommandContext(t.Context(), "go", "build", "-o", binary, "../cmd/navidrome-tg").CombinedOutput() //nolint:gosec // G204: builds the app under test
 	require.NoError(t, err, string(out))
 	return binary
 }
@@ -169,7 +169,7 @@ func writeConfig(t *testing.T, content string) string {
 	t.Helper()
 
 	path := filepath.Join(t.TempDir(), "config.toml")
-	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644)) //nolint:gosec // G306: test config, no secrets
 	return path
 }
 

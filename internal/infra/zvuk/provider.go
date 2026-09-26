@@ -300,7 +300,7 @@ func (p *Pacer) Take(ctx context.Context, userID uint) (rest func(), err error) 
 func (p *Pacer) pause() time.Duration {
 	pause := p.Min
 	if p.Max > p.Min {
-		pause += rand.N(p.Max - p.Min)
+		pause += rand.N(p.Max - p.Min) //nolint:gosec // G404: jitter needs no crypto randomness
 	}
 	return pause
 }

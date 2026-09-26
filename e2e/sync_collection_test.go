@@ -179,7 +179,7 @@ func TestZvukSync(t *testing.T) {
 	})
 }
 
-const tokenRejected = "Звук перестал принимать токен"
+const tokenRejected = "Звук перестал принимать токен" //nolint:gosec // G101: message text, not a credential
 
 func untilTokenRejected(t *testing.T, s *harness.Scenario) {
 	t.Helper()

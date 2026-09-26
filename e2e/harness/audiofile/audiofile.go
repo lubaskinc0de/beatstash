@@ -61,7 +61,7 @@ func Generate(t *testing.T, name string, spec Spec) string {
 	}
 	args = append(args, path)
 
-	out, err := exec.Command("ffmpeg", args...).CombinedOutput()
+	out, err := exec.CommandContext(t.Context(), "ffmpeg", args...).CombinedOutput() //nolint:gosec // G204: fixture generation with test-controlled args
 	require.NoError(t, err, string(out))
 	return path
 }
@@ -69,7 +69,7 @@ func Generate(t *testing.T, name string, spec Spec) string {
 func WriteFile(t *testing.T, name string, content []byte) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), name)
-	require.NoError(t, os.WriteFile(path, content, 0o644))
+	require.NoError(t, os.WriteFile(path, content, 0o644)) //nolint:gosec // G306: Navidrome container reads fixtures
 	return path
 }
 
@@ -89,7 +89,7 @@ func Tags(t *testing.T, path string) map[string]string {
 func Codec(t *testing.T, path string) (codec string, seconds float64) {
 	t.Helper()
 
-	out, err := exec.Command(
+	out, err := exec.CommandContext(t.Context(), //nolint:gosec // G204: fixture generation with test-controlled args
 		"ffprobe", "-v", "error", "-select_streams", "a:0",
 		"-show_entries", "stream=codec_name:format=duration",
 		"-of", "default=noprint_wrappers=1:nokey=1", path,
@@ -104,7 +104,7 @@ func Codec(t *testing.T, path string) (codec string, seconds float64) {
 func BitrateKbps(t *testing.T, path string) int {
 	t.Helper()
 
-	out, err := exec.Command(
+	out, err := exec.CommandContext(t.Context(), //nolint:gosec // G204: fixture generation with test-controlled args
 		"ffprobe", "-v", "error", "-select_streams", "a:0",
 		"-show_entries", "stream=bit_rate", "-of", "default=noprint_wrappers=1:nokey=1", path,
 	).Output()

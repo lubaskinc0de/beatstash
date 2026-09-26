@@ -63,7 +63,7 @@ func (a *API) AddFile(t *testing.T, fileID, source string) string {
 	t.Helper()
 
 	path := filepath.Join(a.workDir, "music", fileID+filepath.Ext(source))
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755)) //nolint:gosec // G301: Navidrome container reads the library
 	copyFile(t, source, path)
 
 	a.mu.Lock()
@@ -104,7 +104,7 @@ func (a *API) handle(w http.ResponseWriter, r *http.Request) {
 
 	params := map[string]string{}
 	if r.ContentLength != 0 {
-		if err := r.ParseMultipartForm(32 << 20); err != nil {
+		if err := r.ParseMultipartForm(32 << 20); err != nil { //nolint:gosec // G120: fake Bot API serves only the test
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -248,11 +248,11 @@ func writeError(w http.ResponseWriter, code int, description string) {
 func copyFile(t *testing.T, from, to string) {
 	t.Helper()
 
-	src, err := os.Open(from)
+	src, err := os.Open(from) //nolint:gosec // G304: paths come from the harness
 	require.NoError(t, err)
 	defer src.Close()
 
-	dst, err := os.Create(to)
+	dst, err := os.Create(to) //nolint:gosec // G304: paths come from the harness
 	require.NoError(t, err)
 	defer dst.Close()
 

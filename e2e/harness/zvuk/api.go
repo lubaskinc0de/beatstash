@@ -296,8 +296,8 @@ func (z *API) handle(w http.ResponseWriter, r *http.Request) {
 // came back with its cookie.
 func (z *API) tiny(w http.ResponseWriter, r *http.Request) {
 	if _, err := r.Cookie(antiBotCookie); err != nil {
-		http.SetCookie(w, &http.Cookie{Name: antiBotCookie, Value: "passed", Path: "/"})
-		http.Redirect(w, r, r.URL.RequestURI(), http.StatusTemporaryRedirect)
+		http.SetCookie(w, &http.Cookie{Name: antiBotCookie, Value: "passed", Path: "/"}) //nolint:gosec // G124: imitates the anti-bot cookie as is
+		http.Redirect(w, r, r.URL.RequestURI(), http.StatusTemporaryRedirect)            //nolint:gosec // G710: redirects to its own request URI
 		return
 	}
 	account, ok := z.account(r)
@@ -402,7 +402,7 @@ func (z *API) cdn(w http.ResponseWriter, r *http.Request) {
 	}
 
 	path := map[string]string{"flac": track.Audio.flac, "high": track.Audio.high, "mid": track.Audio.mid}[quality]
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // G304: paths come from the harness
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -585,7 +585,7 @@ func NewAudio(t *testing.T, seconds float64) Audio {
 
 	flac := filepath.Join(t.TempDir(), "flac.mp4")
 	source := fmt.Sprintf("anoisesrc=duration=%g:sample_rate=44100", seconds)
-	out, err := exec.Command(
+	out, err := exec.CommandContext(t.Context(), //nolint:gosec // G204: fixture generation with test-controlled args
 		"ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", source,
 		"-ac", "2", "-c:a", "flac", "-f", "mp4", flac,
 	).CombinedOutput()

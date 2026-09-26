@@ -1,8 +1,64 @@
 version: "2"
 
 linters:
+  enable:
+    - bodyclose
+    - noctx
+    - errorlint
+    - nilerr
+    - contextcheck
+    - copyloopvar
+    - unconvert
+    - wastedassign
+    - misspell
+    - usestdlibvars
+    - revive
+    - gocritic
+    - unparam
+    - exhaustive
+    - gosec
+    - depguard
+  settings:
+    revive:
+      enable-default-rules: true
+      rules:
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
+    exhaustive:
+      default-signifies-exhaustive: true
+    depguard:
+      rules:
+        domain:
+          files: ["**/internal/domain/**"]
+          deny:
+            - pkg: github.com/lubaskinc0de/navidrome-tg/internal/application
+              desc: domain must not depend on application
+            - pkg: github.com/lubaskinc0de/navidrome-tg/internal/infra
+              desc: domain must not depend on infra
+            - pkg: github.com/lubaskinc0de/navidrome-tg/internal/main
+              desc: domain must not depend on composition root
+        application:
+          files: ["**/internal/application/**"]
+          deny:
+            - pkg: github.com/lubaskinc0de/navidrome-tg/internal/infra
+              desc: application must not depend on infra
+            - pkg: github.com/lubaskinc0de/navidrome-tg/internal/main
+              desc: application must not depend on composition root
   exclusions:
     rules:
       # Cleanup in defer has no caller left to handle its error.
       - linters: [errcheck]
         source: '^\s*defer '
+
+formatters:
+  enable:
+    - gofumpt
+    - gci
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - localmodule

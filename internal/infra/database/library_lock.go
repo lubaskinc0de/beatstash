@@ -19,7 +19,7 @@ func (l *LibraryLock) Lock(ctx context.Context, libraryIDs ...uint) error {
 	ids := slices.Clone(libraryIDs)
 	slices.Sort(ids)
 	for _, id := range slices.Compact(ids) {
-		err := dbForContext(ctx, l.DB).Exec("SELECT pg_advisory_xact_lock(?, ?)", libraryLockKey, int32(id)).Error
+		err := dbForContext(ctx, l.DB).Exec("SELECT pg_advisory_xact_lock(?, ?)", libraryLockKey, int32(id)).Error //nolint:gosec // G115: lock key only; wraparound merely shares a lock
 		if err != nil {
 			return err
 		}

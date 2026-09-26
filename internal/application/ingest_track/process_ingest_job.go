@@ -459,7 +459,7 @@ func (i *ProcessIngestJob) stillShared(
 	ref provider.TrackRef,
 	recognized *library.Track,
 ) (*library.Track, error) {
-	trackID := uint(0)
+	var trackID uint
 	source, err := i.Tracks.FindSource(ctx, shared.ID, ref.Provider, ref.ID)
 	switch {
 	case err == nil:

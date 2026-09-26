@@ -7,22 +7,25 @@ import (
 	"os"
 	"time"
 
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"gorm.io/gorm/logger"
+
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/sharing"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/navidrome"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-	"gorm.io/gorm/logger"
 )
 
-type txContextKey struct{}
-type TxManager struct {
-	DB *gorm.DB
-}
+type (
+	txContextKey struct{}
+	TxManager    struct {
+		DB *gorm.DB
+	}
+)
 
 func New(dsn string) (*gorm.DB, error) {
 	gormLogger := logger.New(

@@ -22,7 +22,7 @@ func (FFmpeg) UnpackFlac(ctx context.Context, mp4 string) (string, error) {
 func toFlac(ctx context.Context, path, codec string) (string, error) {
 	flac := strings.TrimSuffix(path, filepath.Ext(path)) + ".flac"
 
-	out, err := exec.CommandContext(ctx,
+	out, err := exec.CommandContext(ctx, //nolint:gosec // G204: args are built here, not taken from users
 		"ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
 		"-i", path, "-map", "0:a", "-map_metadata", "0", "-c:a", codec, flac,
 	).CombinedOutput()
@@ -34,7 +34,7 @@ func toFlac(ctx context.Context, path, codec string) (string, error) {
 }
 
 func (FFmpeg) Codec(ctx context.Context, path string) string {
-	out, err := exec.CommandContext(ctx,
+	out, err := exec.CommandContext(ctx, //nolint:gosec // G204: args are built here, not taken from users
 		"ffprobe", "-v", "error", "-select_streams", "a:0",
 		"-show_entries", "stream=codec_name", "-of", "default=noprint_wrappers=1:nokey=1", path,
 	).Output()

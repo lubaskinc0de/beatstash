@@ -103,8 +103,8 @@ type Track struct {
 	Path   string `json:"path"`
 }
 
-func (n *Server) subsonic(endpoint string, params url.Values, out any) error {
-	return n.subsonicAs(adminAccount, endpoint, params, out)
+func (n *Server) startScan() error {
+	return n.subsonicAs(adminAccount, "startScan", nil, nil)
 }
 
 func (n *Server) subsonicAs(user Account, endpoint string, params url.Values, out any) error {
@@ -118,7 +118,11 @@ func (n *Server) subsonicAs(user Account, endpoint string, params url.Values, ou
 	q.Set("c", "e2e")
 	q.Set("f", "json")
 
-	resp, err := http.Get(n.URL + "/rest/" + endpoint + "?" + q.Encode())
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, n.URL+"/rest/"+endpoint+"?"+q.Encode(), nil)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -160,7 +164,7 @@ func (n *Server) IndexedTrack(t *testing.T, account Account, libraryDir string, 
 
 	var found Track
 	require.Eventually(t, func() bool {
-		_ = n.subsonic("startScan", nil, nil)
+		_ = n.startScan()
 		songs, err := n.search(account, libraryDir, title)
 		if err != nil || len(songs) == 0 {
 			return false
@@ -265,7 +269,7 @@ func (n *Server) callAdminAPI(method, path string, body, out any) error {
 		}
 		reader = bytes.NewReader(data)
 	}
-	req, err := http.NewRequest(method, n.URL+path, reader)
+	req, err := http.NewRequestWithContext(context.Background(), method, n.URL+path, reader)
 	if err != nil {
 		return err
 	}
@@ -335,7 +339,7 @@ func (n *Server) CreateAccount(t *testing.T, prefix string) Account {
 		"password": user.Password,
 		"isAdmin":  false,
 	})
-	req, err := http.NewRequest(http.MethodPost, n.URL+"/api/user", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, n.URL+"/api/user", bytes.NewReader(body))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Nd-Authorization", "Bearer "+token)
@@ -354,7 +358,12 @@ func (n *Server) CanLogin(user Account) bool {
 
 func (n *Server) login(user Account) (string, error) {
 	body, _ := json.Marshal(map[string]string{"username": user.Login, "password": user.Password})
-	resp, err := http.Post(n.URL+"/auth/login", "application/json", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, n.URL+"/auth/login", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -438,7 +447,7 @@ func (n *Server) UntilGone(t *testing.T, account Account, libraryDir string, tit
 	t.Helper()
 
 	require.Eventually(t, func() bool {
-		_ = n.subsonic("startScan", nil, nil)
+		_ = n.startScan()
 		songs, err := n.search(account, libraryDir, title)
 		return err == nil && len(songs) == 0
 	}, time.Minute, 200*time.Millisecond, "%s still finds %q in %s", account.Login, title, libraryDir)
@@ -446,5 +455,5 @@ func (n *Server) UntilGone(t *testing.T, account Account, libraryDir string, tit
 
 func (n *Server) Scan(t *testing.T) {
 	t.Helper()
-	require.NoError(t, n.subsonic("startScan", nil, nil))
+	require.NoError(t, n.startScan())
 }
