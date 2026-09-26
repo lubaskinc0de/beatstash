@@ -19,7 +19,7 @@ func TestTelegramFileOfZvukTrack(t *testing.T) {
 	t.Run("send file button uploads the file once", func(t *testing.T) {
 		s := harness.New(t)
 		sharedZvukSong(t, s, alice, "Uploaded Song")
-		s.Send(s.TextMessage(bob, "/shared"))
+		s.Open(bob, "🎵 Лента")
 		send := s.Button("1. ▶️ Прислать файл")
 
 		s.Press(bob, send)
@@ -36,7 +36,7 @@ func TestTelegramFileOfZvukTrack(t *testing.T) {
 	t.Run("file over the upload limit is not sent", func(t *testing.T) {
 		s := harness.New(t, harness.WithMaxUpload(1024))
 		sharedZvukSong(t, s, alice, "Huge Song")
-		s.Send(s.TextMessage(bob, "/shared"))
+		s.Open(bob, "🎵 Лента")
 
 		s.Press(bob, s.Button("1. ▶️ Прислать файл"))
 
@@ -47,7 +47,7 @@ func TestTelegramFileOfZvukTrack(t *testing.T) {
 	t.Run("inline shared sends the uploaded file", func(t *testing.T) {
 		s := harness.New(t)
 		sharedZvukSong(t, s, alice, "Inline Song")
-		s.Send(s.TextMessage(bob, "/shared"))
+		s.Open(bob, "🎵 Лента")
 		s.Press(bob, s.Button("1. ▶️ Прислать файл"))
 		query := s.InlineQuery(bob, "shared")
 
@@ -61,7 +61,7 @@ func TestTelegramFileOfZvukTrack(t *testing.T) {
 		sharedZvukSong(t, s, alice, "Taken Song")
 		bobAccount := s.LinkNewAccount(bob)
 		s.Take(bob, 1)
-		s.Send(s.TextMessage(bob, "/shared"))
+		s.Open(bob, "🎵 Лента")
 		s.Press(bob, s.Button("1. ▶️ Прислать файл"))
 		song := s.Navidrome.IndexedTrack(t, bobAccount, s.PersonalPath(bob, ""), "Taken Song")
 		s.Navidrome.StartPlaying(t, bobAccount, song.ID)
@@ -90,7 +90,7 @@ func TestTelegramFileOfZvukTrack(t *testing.T) {
 	t.Run("audio the bot sent from the feed is stored without download", func(t *testing.T) {
 		s := harness.New(t)
 		sharedZvukSong(t, s, alice, "Forwarded Song")
-		s.Send(s.TextMessage(bob, "/shared"))
+		s.Open(bob, "🎵 Лента")
 		s.Press(bob, s.Button("1. ▶️ Прислать файл"))
 		s.Telegram.Forget()
 		forward := s.AudioMessage(bob, uploadedAudio(s, 0))
@@ -158,6 +158,6 @@ func sharedZvukSong(t *testing.T, s *harness.Scenario, user harness.User, title 
 	song := s.Navidrome.IndexedTrack(t, account, s.PersonalPath(user, ""), title)
 	s.Navidrome.StartPlaying(t, account, song.ID)
 
-	s.PressInline(user, telegram.ButtonNamed(t, s.NowPlayingButtons(user), "🔗 Share"))
+	s.PressInline(user, telegram.ButtonNamed(t, s.NowPlayingButtons(user), "🔗 Поделиться"))
 	require.Len(t, s.SharedFiles(), 1)
 }

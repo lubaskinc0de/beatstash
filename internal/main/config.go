@@ -30,11 +30,18 @@ type Config struct {
 	// Admins are Identities such as telegram:123; StartApp makes them Admins.
 	Admins       []access.Identity
 	AdminContact string
+	ServiceName  string
+	// TranslationsDir adds or overrides language files; empty: built-in only.
+	TranslationsDir string
+	// DefaultLanguage is for clients whose language has no file.
+	DefaultLanguage string
 	// SecretKey is a base64-encoded 32-byte AES key for stored secrets.
 	SecretKey         string
 	NavidromeUser     string
 	NavidromePassword string
 	NavidromeURL      string
+	// NavidromePublicURL is where users open Navidrome; empty hides it.
+	NavidromePublicURL string
 
 	InviteTTL time.Duration
 	Clock     func() time.Time
@@ -60,6 +67,12 @@ type Config struct {
 type fileConfig struct {
 	Admins       []string `toml:"admins"`
 	AdminContact string   `toml:"admin_contact"`
+	ServiceName  string   `toml:"service_name"`
+
+	I18n struct {
+		Dir             string `toml:"dir"`
+		DefaultLanguage string `toml:"default_language"`
+	} `toml:"i18n"`
 
 	Telegram struct {
 		BotAPIURL     string        `toml:"bot_api_url"`
@@ -73,8 +86,9 @@ type fileConfig struct {
 	} `toml:"library"`
 
 	Navidrome struct {
-		URL  string `toml:"url"`
-		User string `toml:"user"`
+		URL       string `toml:"url"`
+		PublicURL string `toml:"public_url"`
+		User      string `toml:"user"`
 	} `toml:"navidrome"`
 
 	Invites struct {
@@ -99,6 +113,8 @@ type fileConfig struct {
 
 func defaultFileConfig() fileConfig {
 	var f fileConfig
+	f.ServiceName = "navidrome-tg"
+	f.I18n.DefaultLanguage = "en"
 	f.Telegram.PollInterval = 2 * time.Second
 	f.Invites.TTL = 7 * 24 * time.Hour
 	f.Ingest.Workers = 2
@@ -156,10 +172,14 @@ func LoadConfig() (Config, error) {
 		NavidromeMusicDir:    navidromeMusicDir,
 		Admins:               parseIdentities(file.Admins, &problems),
 		AdminContact:         strings.TrimSpace(file.AdminContact),
+		ServiceName:          strings.TrimSpace(file.ServiceName),
+		TranslationsDir:      file.I18n.Dir,
+		DefaultLanguage:      file.I18n.DefaultLanguage,
 		SecretKey:            secret("SECRET_KEY"),
 		NavidromeUser:        file.Navidrome.User,
 		NavidromePassword:    secret("NAVIDROME_PASSWORD"),
 		NavidromeURL:         file.Navidrome.URL,
+		NavidromePublicURL:   strings.TrimSpace(file.Navidrome.PublicURL),
 
 		InviteTTL: file.Invites.TTL,
 		Clock:     time.Now,

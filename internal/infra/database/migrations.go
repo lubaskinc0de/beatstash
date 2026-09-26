@@ -16,6 +16,15 @@ var migrations = []*gormigrate.Migration{
 			return tx.AutoMigrate(append(models, store.Models...)...)
 		},
 	},
+	{
+		ID: "0002_telegram_window",
+		Migrate: func(tx *gorm.DB) error {
+			if err := tx.Migrator().DropTable("telegram_dialogs", "telegram_batch_messages"); err != nil {
+				return err
+			}
+			return tx.AutoMigrate(&store.Window{}, &store.User{}, &store.FollowedBatch{})
+		},
+	},
 }
 
 func Migrate(db *gorm.DB) error {

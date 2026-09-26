@@ -2,6 +2,7 @@ package providers
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
@@ -28,6 +29,18 @@ func (r *Registry) TokenChecker(name provider.ProviderName) (TokenChecker, error
 
 func (r *Registry) CollectionLister(name provider.ProviderName) (CollectionLister, error) {
 	return capability[CollectionLister](r, name)
+}
+
+// CollectionListers returns names sorted.
+func (r *Registry) CollectionListers() []provider.ProviderName {
+	var names []provider.ProviderName
+	for name, p := range r.byName {
+		if _, ok := p.(CollectionLister); ok {
+			names = append(names, name)
+		}
+	}
+	slices.Sort(names)
+	return names
 }
 
 func NewRegistry(providers ...Provider) *Registry {

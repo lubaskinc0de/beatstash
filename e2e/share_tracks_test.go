@@ -19,7 +19,7 @@ func TestShareNowPlaying(t *testing.T) {
 		account := s.LinkNewAccount(alice)
 		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 		s.Navidrome.StartPlaying(t, account, s.Navidrome.IndexedTrack(t, account, s.Library, audiofile.FixtureTitle).ID)
-		share := telegram.ButtonNamed(t, s.NowPlayingButtons(alice), "🔗 Share")
+		share := telegram.ButtonNamed(t, s.NowPlayingButtons(alice), "🔗 Поделиться")
 
 		s.PressInline(alice, share)
 
@@ -69,7 +69,7 @@ func TestShare(t *testing.T) {
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.SharedFiles())
 		s.Navidrome.IndexedTrack(t, bobAccount, s.Library, audiofile.FixtureTitle)
 		assert.Contains(t, s.LastCallbackAnswer(), "В общей библиотеке")
-		assert.Equal(t, []string{"🔒 Снять Share", "🔒 Снять альбом"}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
+		assert.Equal(t, []string{"🔒 Убрать трек из общей", "🔒 Убрать альбом из общей"}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
 	})
 
 	t.Run("shared album puts all its tracks into the Shared Library", func(t *testing.T) {
@@ -83,7 +83,7 @@ func TestShare(t *testing.T) {
 			"Artist/Album/02 - Song 2.mp3",
 			"Artist/Album/03 - Song 3.mp3",
 		}, s.SharedFiles())
-		assert.Equal(t, []string{"🔒 Снять Share", "🔒 Снять альбом"}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
+		assert.Equal(t, []string{"🔒 Убрать трек из общей", "🔒 Убрать альбом из общей"}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
 	})
 
 	t.Run("unshared track disappears for others", func(t *testing.T) {
@@ -93,7 +93,7 @@ func TestShare(t *testing.T) {
 		s.Share(alice, upload, "🔗 Трек")
 		s.Navidrome.IndexedTrack(t, bobAccount, s.Library, audiofile.FixtureTitle)
 
-		s.Press(alice, s.Button("🔒 Снять Share"))
+		s.Press(alice, s.Button("🔒 Убрать трек из общей"))
 
 		assert.Empty(t, s.SharedFiles())
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.PersonalFiles(alice))
@@ -109,7 +109,7 @@ func TestShare(t *testing.T) {
 
 		s.Share(bob, bobUpload, "🔗 Трек")
 
-		assert.Contains(t, s.LastCallbackAnswer(), "уже в общей, расшарил @alice")
+		assert.Contains(t, s.LastCallbackAnswer(), "уже в общей, им поделился @alice")
 		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3"}, s.SharedFiles())
 	})
 
@@ -120,7 +120,7 @@ func TestShare(t *testing.T) {
 		aliceButtons := s.Telegram.Buttons(t)
 		s.Share(bob, s.Uploaded(bob, s.UploadAudioFile(mp3)), "🔗 Трек")
 
-		s.Press(alice, telegram.ButtonNamed(t, aliceButtons, "🔒 Снять Share"))
+		s.Press(alice, telegram.ButtonNamed(t, aliceButtons, "🔒 Убрать трек из общей"))
 
 		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3"}, s.SharedFiles())
 	})
@@ -131,7 +131,7 @@ func TestShare(t *testing.T) {
 
 		s.Send(s.ReplyCommand(alice, "/share", upload))
 
-		assert.Contains(t, s.LastReply().Text, "из Inbox нельзя расшарить")
+		assert.Contains(t, s.LastReply().Text, "из «Входящих» нельзя поделиться")
 		assert.Empty(t, s.Telegram.Buttons(t))
 		assert.Empty(t, s.SharedFiles())
 	})

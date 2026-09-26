@@ -29,6 +29,12 @@ func (r *IngestBatchRepository) Unfinished(ctx context.Context) ([]ingest.Ingest
 	return batches, err
 }
 
+func (r *IngestBatchRepository) UnfinishedOf(ctx context.Context, userID uint) ([]ingest.IngestBatch, error) {
+	var batches []ingest.IngestBatch
+	err := dbForContext(ctx, r.DB).Where("user_id = ? AND finished_at IS NULL", userID).Order("id").Find(&batches).Error
+	return batches, err
+}
+
 func (r *IngestBatchRepository) Running(
 	ctx context.Context,
 	userID uint,

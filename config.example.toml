@@ -13,6 +13,18 @@
 admins = ["telegram:869885299"]
 # Shown to strangers who write /start, e.g. "@my_contact"; empty hides it.
 admin_contact = ""
+# What the bot calls the service in its texts.
+service_name = "navidrome-tg"
+
+[i18n]
+# Folder with extra language files: <language>.yaml, e.g. de.yaml or
+# pt-BR.yaml. Take internal/infra/telegram/i18n/locales/en.yaml as the
+# template and translate the texts; a file named like a built-in language
+# (en.yaml, ru.yaml) overrides the texts it has. Texts a language lacks
+# are shown in English. Empty uses the built-in English and Russian only.
+dir = ""
+# Language of users whose Telegram language has no file.
+default_language = "en"
 
 [telegram]
 # Local Telegram Bot API server (lifts the 20 MB download limit);
@@ -37,6 +49,9 @@ navidrome_music_dir = "/music"
 
 [navidrome]
 url = "http://localhost:4533"
+# Address users open Navidrome at, in a browser or a player app; the bot
+# shows it in its instructions. Empty leaves it out.
+public_url = ""
 # Navidrome admin: the bot creates accounts for invited users with it.
 user = "admin"
 

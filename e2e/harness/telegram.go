@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -19,31 +18,6 @@ import (
 
 func fileIDFor(name string, n int) string {
 	return fmt.Sprintf("%s-%d", strings.ReplaceAll(filepath.Base(name), ".", "-"), n)
-}
-
-type Progress struct {
-	ID    int
-	Text  string
-	Edits int
-}
-
-// ProgressMessage follows the last message the bot kept editing: its
-// latest text and how many times it changed.
-func (s *Scenario) ProgressMessage(t *testing.T) Progress {
-	t.Helper()
-
-	edited := s.Telegram.CallsTo("editMessageText")
-	require.NotEmpty(t, edited, "the bot edited no message")
-
-	last := edited[len(edited)-1]
-	msg := Progress{Text: last.Params["text"]}
-	msg.ID, _ = strconv.Atoi(last.Params["message_id"])
-	for _, call := range edited {
-		if call.Params["message_id"] == last.Params["message_id"] {
-			msg.Edits++
-		}
-	}
-	return msg
 }
 
 func AssertAlreadyExists(t *testing.T, s *Scenario, messageID int) {
@@ -60,9 +34,15 @@ var inviteLink = regexp.MustCompile(`https://t\.me/` + telegram.BotUsername + `\
 func (s *Scenario) Invite() string {
 	s.t.Helper()
 
-	s.Send(s.TextMessage(Admin, "/invite"))
-	match := inviteLink.FindStringSubmatch(s.LastReply().Text)
-	require.NotNil(s.t, match, "no invite link in the reply")
+	s.Open(Admin, "🎟 Пригласить")
+	return s.InviteCode()
+}
+
+func (s *Scenario) InviteCode() string {
+	s.t.Helper()
+
+	match := inviteLink.FindStringSubmatch(s.WindowText())
+	require.NotNil(s.t, match, "no invite link in the window")
 	return match[1]
 }
 
@@ -137,16 +117,18 @@ func (s *Scenario) Message(from User, fill func(*models.Message)) *models.Update
 	s.messages++
 	msg := &models.Message{
 		ID:   s.messages,
-		From: &models.User{ID: from.ID, Username: from.Username},
+		From: from.telegram(),
 		Chat: models.Chat{ID: from.ID, Type: models.ChatTypePrivate},
 	}
 	fill(msg)
 	return &models.Update{ID: s.nextUpdateID(), Message: msg}
 }
 
+// join leaves the user Home, without a Navidrome Account.
 func (s *Scenario) join(user User) {
 	s.t.Helper()
 	s.Send(s.TextMessage(user, "/start "+s.Invite()))
+	s.Open(user)
 }
 
 func (s *Scenario) TextMessage(from User, text string) *models.Update {
@@ -165,12 +147,12 @@ func (s *Scenario) InlineQuery(from User, query string) *models.Update {
 	}
 }
 
-// Press taps a button of the bot's message in the user's private chat.
+// Press taps the button on the latest message that has it.
 func (s *Scenario) Press(from User, b telegram.Button) *models.Update {
 	update := s.CallbackQuery(from, b.Data)
 	update.CallbackQuery.Message = models.MaybeInaccessibleMessage{
 		Type:    models.MaybeInaccessibleMessageTypeMessage,
-		Message: &models.Message{ID: 1, Chat: models.Chat{ID: from.ID, Type: models.ChatTypePrivate}},
+		Message: &models.Message{ID: s.Telegram.MessageWith(b), Chat: models.Chat{ID: from.ID, Type: models.ChatTypePrivate}},
 	}
 	s.Send(update)
 	return update
@@ -265,4 +247,27 @@ func (s *Scenario) SentMessagesContaining(text string) []string {
 		}
 	}
 	return texts
+}
+
+func (s *Scenario) WindowText() string {
+	s.t.Helper()
+
+	window := s.Telegram.Window()
+	require.NotEmpty(s.t, window.Method, "the bot showed no window")
+	return window.Params["text"]
+}
+
+func (s *Scenario) Open(user User, buttons ...string) {
+	s.t.Helper()
+
+	s.Send(s.TextMessage(user, "/start"))
+	s.Go(user, buttons...)
+}
+
+func (s *Scenario) Go(user User, buttons ...string) {
+	s.t.Helper()
+
+	for _, name := range buttons {
+		s.Press(user, s.Button(name))
+	}
 }

@@ -55,3 +55,11 @@ func WithAdmins(users ...User) Option {
 		}
 	}
 }
+
+func WithServiceName(name string) Option {
+	return func(c *app.Config) { c.ServiceName = name }
+}
+
+func WithTranslations(dir string) Option {
+	return func(c *app.Config) { c.TranslationsDir = dir }
+}

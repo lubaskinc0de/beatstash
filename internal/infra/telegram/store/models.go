@@ -3,9 +3,10 @@
 package store
 
 var Models = []any{
-	&Dialog{},
+	&Window{},
+	&User{},
 	&JobMessage{},
-	&BatchMessage{},
+	&FollowedBatch{},
 	&AccountNotice{},
 	&File{},
 }

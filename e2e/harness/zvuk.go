@@ -3,6 +3,7 @@ package harness
 import (
 	"fmt"
 
+	"github.com/go-telegram/bot/models"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/zvuk"
@@ -16,9 +17,23 @@ func (s *Scenario) ConnectZvuk(user User, token string) *zvuk.Account {
 	s.t.Helper()
 
 	account := s.Zvuk.AddAccount(token, true)
-	s.Send(s.TextMessage(user, "/zvuk "+token))
-	assert.Contains(s.t, s.LastReply().Text, "Звук подключён")
+	s.SendZvukToken(user, token)
+	assert.Contains(s.t, s.WindowText(), "Звук подключён")
 	return account
+}
+
+func (s *Scenario) SendZvukToken(user User, token string) *models.Update {
+	s.t.Helper()
+
+	s.OpenZvuk(user, "🔌 Подключить")
+	return s.SendText(user, token)
+}
+
+func (s *Scenario) OpenZvuk(user User, buttons ...string) {
+	s.t.Helper()
+
+	s.Open(user, "📥 Импорт из музыкального сервиса", "🟣 Звук")
+	s.Go(user, buttons...)
 }
 
 type ZvukCollection struct {
@@ -53,8 +68,7 @@ func (s *Scenario) AddZvukCollection(token string) ZvukCollection {
 func (s *Scenario) ImportZvuk(user User) {
 	s.t.Helper()
 
-	s.Send(s.TextMessage(user, "/zvuk_import"))
-	s.Press(user, s.Button("▶️ Начать Import"))
+	s.OpenZvuk(user, "📥 Импортировать", "▶️ Начать")
 }
 
 func (s *Scenario) LikeOnZvuk(ids ...string) {

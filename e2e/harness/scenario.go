@@ -20,6 +20,8 @@ import (
 	app "github.com/lubaskinc0de/navidrome-tg/internal/main"
 )
 
+const NavidromePublicURL = "https://music.example.com"
+
 const SecretKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=" //nolint:gosec // G101: test-only key
 
 type Clock struct {
@@ -96,6 +98,9 @@ func prepare(t *testing.T, opts ...Option) *Scenario {
 		MusicDir:             library,
 		NavidromeMusicDir:    navidrome.LibraryMount + "/" + filepath.Base(library),
 		Admins:               []access.Identity{tgbot.Identity(Admin.ID)},
+		ServiceName:          "navidrome-tg",
+		DefaultLanguage:      "en",
+		NavidromePublicURL:   NavidromePublicURL,
 		SecretKey:            SecretKey,
 		NavidromeUser:        navidrome.AdminUser,
 		NavidromePassword:    navidrome.AdminPassword,

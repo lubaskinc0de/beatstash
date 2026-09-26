@@ -19,10 +19,17 @@ type senderContextKey struct{}
 type sender struct {
 	from *models.User
 	user *access.User
+	// recipient: the Poller acts for the user; from has only the id.
+	recipient bool
 }
 
 func withSender(ctx context.Context, from *models.User) context.Context {
 	return context.WithValue(ctx, senderContextKey{}, &sender{from: from})
+}
+
+// asRecipient lets the Poller run interactors as the user it writes to.
+func asRecipient(ctx context.Context, telegramID int64) context.Context {
+	return context.WithValue(ctx, senderContextKey{}, &sender{from: &models.User{ID: telegramID}, recipient: true})
 }
 
 func senderFrom(ctx context.Context) (*sender, error) {
@@ -62,7 +69,7 @@ func (p *IDProvider) CurrentUser(ctx context.Context) (*access.User, error) {
 	}
 
 	// Admins from the config start without a username, and people rename themselves.
-	if s.from.Username != user.Username {
+	if !s.recipient && s.from.Username != user.Username {
 		if err := p.Users.SetUsername(ctx, user.ID, s.from.Username); err != nil {
 			slog.Error("set_username", "error", err)
 		} else {

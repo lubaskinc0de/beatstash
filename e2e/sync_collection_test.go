@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
+	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/zvuk"
 )
 
@@ -120,7 +122,7 @@ func TestZvukSync(t *testing.T) {
 		s.ImportZvuk(alice)
 		s.WaitIngest()
 
-		s.Send(s.TextMessage(alice, "/zvuk_off"))
+		s.OpenZvuk(alice, "🚫 Отключить")
 
 		requests := s.Zvuk.RequestsOf("userCollection")
 		require.Never(t, func() bool {
@@ -158,6 +160,24 @@ func TestZvukSync(t *testing.T) {
 			return s.Zvuk.RequestsOf("userCollection") > requests
 		}, 5*syncInterval, 20*time.Millisecond)
 		assert.Len(t, s.SentMessagesContaining(tokenRejected), 1)
+	})
+
+	t.Run("revoked token notice leads to the Zvuk screen", func(t *testing.T) {
+		s := harness.New(t, harness.WithSyncInterval(syncInterval))
+		s.ConnectZvuk(alice, harness.ZvukToken)
+		s.AddZvukCollection(harness.ZvukToken)
+		s.ImportZvuk(alice)
+		s.WaitIngest()
+		s.Zvuk.Revoke(harness.ZvukToken)
+		untilTokenRejected(t, s)
+
+		notice := s.Telegram.MessageWith(s.Button("🔌 Подключить заново"))
+
+		s.Go(alice, "🔌 Подключить заново")
+
+		assert.NotContains(t, s.Telegram.EditedMessages(), strconv.Itoa(notice))
+		assert.Contains(t, s.WindowText(), "больше не принимает токен")
+		assert.Equal(t, []string{"🔌 Подключить", "← Назад"}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
 	})
 
 	t.Run("reconnected Zvuk resumes Sync", func(t *testing.T) {

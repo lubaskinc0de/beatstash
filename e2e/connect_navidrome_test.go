@@ -52,7 +52,50 @@ func TestNavidromeAccount(t *testing.T) {
 		link := s.Link(alice, account)
 
 		assert.Equal(t, []string{strconv.Itoa(link.Message.ID)}, s.Telegram.DeletedMessages())
-		assert.Contains(t, s.LastReply().Text, "привязан")
+		assert.Contains(t, s.WindowText(), "привязан")
+	})
+
+	t.Run("link command is gone", func(t *testing.T) {
+		s := harness.New(t)
+		account := s.Navidrome.CreateAccount(t, "alice")
+
+		s.Send(s.TextMessage(alice, "/link "+account.Login+" "+account.Password))
+
+		assert.Empty(t, s.Telegram.AllCalls())
+	})
+
+	t.Run("screen shows the linked login", func(t *testing.T) {
+		s := harness.New(t)
+		account := s.LinkNewAccount(alice)
+
+		s.Open(alice, "👤 Аккаунты")
+
+		assert.Contains(t, s.WindowText(), "Привязан аккаунт <b>"+account.Login+"</b>")
+		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), "🔗 Привязать другой")
+	})
+
+	t.Run("going back stops waiting for the password", func(t *testing.T) {
+		s := harness.New(t)
+		account := s.Navidrome.CreateAccount(t, "alice")
+		s.Open(alice, "👤 Аккаунты", "🔗 Привязать", "✖️ Отмена")
+
+		s.SendText(alice, account.Login+" "+account.Password)
+		s.Open(alice, "👤 Аккаунты")
+
+		assert.Empty(t, s.Telegram.DeletedMessages())
+		assert.Contains(t, s.WindowText(), "не привязан")
+	})
+
+	t.Run("audio while waiting is uploaded and the wait goes on", func(t *testing.T) {
+		s := harness.New(t)
+		account := s.Navidrome.CreateAccount(t, "alice")
+		s.Open(alice, "👤 Аккаунты", "🔗 Привязать")
+
+		upload := s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.SendText(alice, account.Login+" "+account.Password)
+
+		assert.Equal(t, []string{"👀", "👍"}, s.Telegram.ReactionsOn(t, upload.Message.ID))
+		assert.Contains(t, s.WindowText(), "привязан. Теперь")
 	})
 
 	t.Run("recent shows the linked account's history", func(t *testing.T) {
@@ -79,7 +122,7 @@ func TestNavidromeAccount(t *testing.T) {
 		s.Send(query)
 
 		assert.Equal(t, []string{strconv.Itoa(link.Message.ID)}, s.Telegram.DeletedMessages())
-		assert.Contains(t, s.LastReply().Text, "Неверный логин или пароль")
+		assert.Contains(t, s.WindowText(), "Неверный логин или пароль")
 		assertLinkHint(t, s.Telegram.InlineAnswerTo(t, query))
 	})
 
@@ -128,7 +171,7 @@ func TestLinkAfterMove(t *testing.T) {
 
 		s.Link(bob, account)
 
-		assert.Contains(t, s.LastReply().Text, "Этот аккаунт Navidrome уже привязан к другому пользователю")
+		assert.Contains(t, s.WindowText(), "Этот аккаунт Navidrome уже привязан к другому пользователю")
 		assert.Equal(t, []string{
 			s.NavidromePath("shared"),
 			s.NavidromePath(s.PersonalDir(alice)),
@@ -142,7 +185,7 @@ func TestLinkAfterMove(t *testing.T) {
 
 		s.Link(bob, shouted)
 
-		assert.Contains(t, s.LastReply().Text, "уже привязан к другому пользователю")
+		assert.Contains(t, s.WindowText(), "уже привязан к другому пользователю")
 		assert.Contains(t, s.Navidrome.Libraries(t, account), s.NavidromePath(s.PersonalDir(alice)))
 	})
 
@@ -152,7 +195,7 @@ func TestLinkAfterMove(t *testing.T) {
 
 		s.Link(alice, account)
 
-		assert.Contains(t, s.LastReply().Text, "привязан. Теперь")
+		assert.Contains(t, s.WindowText(), "привязан. Теперь")
 	})
 
 	t.Run("link warns and hides others' Personal Libraries", func(t *testing.T) {
@@ -166,7 +209,7 @@ func TestLinkAfterMove(t *testing.T) {
 
 		s.Link(alice, account)
 
-		assert.Contains(t, s.LastReply().Text, "только вашу личную библиотеку и общую")
+		assert.Contains(t, s.WindowText(), "только вашу личную библиотеку и общую")
 		assert.Empty(t, s.Navidrome.SearchFor(t, account, s.Library, audiofile.FixtureTitle))
 	})
 }
@@ -174,43 +217,43 @@ func TestLinkAfterMove(t *testing.T) {
 func TestRegistration(t *testing.T) {
 	t.Parallel()
 
-	t.Run("invited person gets a Navidrome account named after their username", func(t *testing.T) {
+	t.Run("invited person chooses a Navidrome login", func(t *testing.T) {
 		s := harness.New(t)
 		carol := harness.Newcomer("carol")
-		code := s.Invite()
+		s.Send(s.TextMessage(carol, "/start "+s.Invite()))
+		assert.Contains(t, s.WindowText(), "Придумайте логин")
 
-		s.Send(s.TextMessage(carol, "/start "+code))
+		s.SendText(carol, carol.Username)
 
 		account := s.IssuedAccount()
 		assert.Equal(t, carol.Username, account.Login)
 		assert.True(t, s.Navidrome.CanLogin(account))
+		assert.Contains(t, s.WindowText(), "Привет")
 	})
 
-	t.Run("person without username chooses a login", func(t *testing.T) {
+	t.Run("password comes in a message of its own", func(t *testing.T) {
 		s := harness.New(t)
 		carol := harness.Newcomer("carol")
-		login := carol.Username
-		carol.Username = ""
 		s.Send(s.TextMessage(carol, "/start "+s.Invite()))
-		assert.Contains(t, s.LastReply().Text, "Придумайте логин")
+		window := s.Telegram.Window().MessageID
 
-		s.Send(s.TextMessage(carol, login))
+		s.SendText(carol, carol.Username)
 
-		account := s.IssuedAccount()
-		assert.Equal(t, login, account.Login)
-		assert.True(t, s.Navidrome.CanLogin(account))
+		assert.Equal(t, window, s.Telegram.Window().MessageID)
+		assert.NotContains(t, s.WindowText(), "tg-spoiler")
+		assert.Contains(t, s.LastReply().Text, "tg-spoiler")
 	})
 
-	t.Run("taken username makes the bot ask for another login", func(t *testing.T) {
+	t.Run("taken login makes the bot ask for another", func(t *testing.T) {
 		s := harness.New(t)
 		taken := s.Navidrome.CreateAccount(t, "carol")
 		carol := harness.Newcomer("carol")
-		carol.Username = taken.Login
 		s.Send(s.TextMessage(carol, "/start "+s.Invite()))
-		assert.Contains(t, s.LastReply().Text, "уже занят")
+		s.SendText(carol, taken.Login)
+		assert.Contains(t, s.WindowText(), "уже занят")
 		login := navidrome.UniqueLogin("carol")
 
-		s.Send(s.TextMessage(carol, login))
+		s.SendText(carol, login)
 
 		account := s.IssuedAccount()
 		assert.Equal(t, login, account.Login)
@@ -218,39 +261,49 @@ func TestRegistration(t *testing.T) {
 		assert.True(t, s.Navidrome.CanLogin(taken))
 	})
 
+	t.Run("unfit login makes the bot ask for another", func(t *testing.T) {
+		s := harness.New(t)
+		carol := harness.Newcomer("carol")
+		s.Send(s.TextMessage(carol, "/start "+s.Invite()))
+
+		s.SendText(carol, "no")
+
+		assert.Contains(t, s.WindowText(), "Такой логин не подойдёт")
+	})
+
 	t.Run("login answer after restart is processed", func(t *testing.T) {
 		s := harness.New(t)
 		carol := harness.Newcomer("carol")
-		login := carol.Username
-		carol.Username = ""
 		s.Send(s.TextMessage(carol, "/start "+s.Invite()))
 
 		s.Restart()
-		s.Send(s.TextMessage(carol, login))
+		s.SendText(carol, carol.Username)
 
 		account := s.IssuedAccount()
-		assert.Equal(t, login, account.Login)
+		assert.Equal(t, carol.Username, account.Login)
 		assert.True(t, s.Navidrome.CanLogin(account))
 	})
 
-	t.Run("linking an existing account ends the login dialog", func(t *testing.T) {
+	t.Run("existing account links and leads home", func(t *testing.T) {
 		s := harness.New(t)
 		carol := harness.Newcomer("carol")
-		carol.Username = ""
+		account := s.Navidrome.CreateAccount(t, "carol")
 		s.Send(s.TextMessage(carol, "/start "+s.Invite()))
-		s.Link(carol, s.Navidrome.CreateAccount(t, "carol"))
+		s.Go(carol, "🔗 У меня уже есть аккаунт")
+
+		s.SendText(carol, account.Login+" "+account.Password)
 		replies := len(s.Telegram.Replies(t))
+		s.SendText(carol, navidrome.UniqueLogin("carol"))
 
-		s.Send(s.TextMessage(carol, navidrome.UniqueLogin("carol")))
-
+		assert.Contains(t, s.WindowText(), "Привет")
+		assert.Contains(t, s.WindowText(), "привязан")
 		assert.Len(t, s.Telegram.Replies(t), replies)
 	})
 
 	t.Run("registered user sees their np", func(t *testing.T) {
 		s := harness.New(t)
 		carol := harness.Newcomer("carol")
-		s.Send(s.TextMessage(carol, "/start "+s.Invite()))
-		account := s.IssuedAccount()
+		account := s.Register(carol)
 		audio := s.UploadAudio("track.mp3")
 		s.Send(s.AudioMessage(carol, audio))
 		s.Navidrome.StartPlaying(t, account, s.Navidrome.IndexedTrack(t, account, s.Library, audiofile.FixtureTitle).ID)
@@ -267,9 +320,8 @@ func TestRegistration(t *testing.T) {
 		s := harness.New(t)
 		carol := harness.Newcomer("carol")
 
-		s.Send(s.TextMessage(carol, "/start "+s.Invite()))
+		account := s.Register(carol)
 
-		account := s.IssuedAccount()
 		assert.Equal(t, []string{
 			s.NavidromePath("shared"),
 			s.NavidromePath(s.PersonalDir(carol)),

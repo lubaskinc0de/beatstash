@@ -31,7 +31,7 @@ type API struct {
 	workDir string
 
 	mu       sync.Mutex
-	calls    []Call
+	calls    []*Call
 	files    map[string]string
 	failures map[string]int
 	hold     chan struct{}
@@ -117,7 +117,8 @@ func (a *API) handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	a.mu.Lock()
-	a.calls = append(a.calls, Call{Method: method, Params: params})
+	call := &Call{Method: method, Params: params}
+	a.calls = append(a.calls, call)
 	a.mu.Unlock()
 
 	switch method {
@@ -129,9 +130,9 @@ func (a *API) handle(w http.ResponseWriter, r *http.Request) {
 	case "getMe":
 		writeResult(w, map[string]any{"id": 123456, "is_bot": true, "first_name": "Navidrome", "username": BotUsername})
 	case "sendMessage", "editMessageText":
-		writeResult(w, a.botMessage(params))
+		writeResult(w, a.botMessage(call, params))
 	case "sendAudio":
-		msg := a.botMessage(params)
+		msg := a.botMessage(call, params)
 		msg["audio"] = a.sentAudio(params)
 		writeResult(w, msg)
 	default:
@@ -139,7 +140,8 @@ func (a *API) handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a *API) botMessage(params map[string]string) map[string]any {
+// botMessage also notes the message id in the call.
+func (a *API) botMessage(call *Call, params map[string]string) map[string]any {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -148,6 +150,7 @@ func (a *API) botMessage(params map[string]string) map[string]any {
 		a.sent++
 		id = a.sent
 	}
+	call.MessageID = id
 	chatID, _ := strconv.ParseInt(params["chat_id"], 10, 64)
 	return map[string]any{"message_id": id, "date": 0, "chat": map[string]any{"id": chatID, "type": "private"}}
 }

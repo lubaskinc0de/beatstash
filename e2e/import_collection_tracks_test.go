@@ -111,7 +111,7 @@ func TestZvukTracks(t *testing.T) {
 		s.WaitIngest()
 
 		assert.Len(t, s.PersonalFiles(alice), 149)
-		assert.Contains(t, s.ProgressMessage(t).Text, "149 из 149 треков в библиотеке")
+		assert.Contains(t, s.SentMessagesContaining("Импорт из Звука")[0], "149 из 149 в библиотеке")
 	})
 
 	t.Run("unavailable Zvuk does not stop Telegram uploads", func(t *testing.T) {

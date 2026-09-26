@@ -46,8 +46,10 @@ type API struct {
 	hold        chan struct{}
 	held        chan struct{}
 	holdAfter   int
-	holding     map[string]bool
-	events      []Event
+	// holdOnly limits the hold to these tracks when set.
+	holdOnly map[string]bool
+	holding  map[string]bool
+	events   []Event
 }
 
 type Event struct {
@@ -203,7 +205,20 @@ func (z *API) HoldStreams(n int) <-chan struct{} {
 	z.hold = make(chan struct{})
 	z.held = make(chan struct{})
 	z.holdAfter = n
+	z.holdOnly = nil
 	return z.held
+}
+
+// HoldStreamsOf holds only these tracks until ReleaseStreams.
+func (z *API) HoldStreamsOf(ids ...string) <-chan struct{} {
+	held := z.HoldStreams(0)
+	z.mu.Lock()
+	defer z.mu.Unlock()
+	z.holdOnly = map[string]bool{}
+	for _, id := range ids {
+		z.holdOnly[id] = true
+	}
+	return held
 }
 
 func (z *API) HeldTracks() []string {
@@ -367,10 +382,13 @@ func (z *API) cdn(w http.ResponseWriter, r *http.Request) {
 	broken := z.broken[id]
 	hold, held := z.hold, z.held
 	if hold != nil {
-		if z.holdAfter > 0 {
+		switch {
+		case z.holdOnly != nil && !z.holdOnly[id]:
+			hold = nil
+		case z.holdAfter > 0:
 			z.holdAfter--
 			hold = nil
-		} else {
+		default:
 			select {
 			case <-held:
 			default:

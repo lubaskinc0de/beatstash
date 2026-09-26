@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	mostShared = "Больше всех расшарил"
+	mostShared = "Больше всех поделился"
 	mostTaken  = "Чаще всего берут"
 	allTime    = "за всё время"
 	thisMonth  = "за этот месяц"
@@ -61,7 +61,7 @@ func TestTop(t *testing.T) {
 		s := harness.New(t)
 		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), "🔗 Трек")
 
-		s.Take(alice, 1)
+		s.Open(alice, "🎵 Лента", "1. ✅ Уже у вас")
 
 		assert.Equal(t, []string{"Пока никого"}, topLines(t, top(s, alice), mostTaken, allTime))
 	})
@@ -85,13 +85,13 @@ func TestTop(t *testing.T) {
 
 		results := s.Telegram.InlineAnswerTo(t, query).Results
 		require.Len(t, results, 1)
-		assert.Contains(t, results[0].Title, "Top")
+		assert.Contains(t, results[0].Title, "Топ")
 	})
 }
 
 func top(s *harness.Scenario, user harness.User) string {
-	s.Send(s.TextMessage(user, "/top"))
-	return s.LastReply().Text
+	s.Open(user, "🏆 Топ")
+	return s.WindowText()
 }
 
 // topLines returns the rows of one rating, the block titled with its name and period.

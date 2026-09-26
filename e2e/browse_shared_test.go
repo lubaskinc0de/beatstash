@@ -32,7 +32,7 @@ func TestTake(t *testing.T) {
 		aliceButtons := s.Telegram.Buttons(t)
 		s.Take(bob, 1)
 
-		s.Press(alice, telegram.ButtonNamed(t, aliceButtons, "🔒 Снять Share"))
+		s.Press(alice, telegram.ButtonNamed(t, aliceButtons, "🔒 Убрать трек из общей"))
 
 		assert.Empty(t, s.SharedFiles())
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.PersonalFiles(bob))
@@ -44,7 +44,7 @@ func TestTake(t *testing.T) {
 		s.Share(alice, s.Uploaded(alice, audio), "🔗 Трек")
 		aliceButtons := s.Telegram.Buttons(t)
 		s.Take(bob, 1)
-		s.Press(alice, telegram.ButtonNamed(t, aliceButtons, "🔒 Снять Share"))
+		s.Press(alice, telegram.ButtonNamed(t, aliceButtons, "🔒 Убрать трек из общей"))
 
 		s.Share(bob, s.BotAudio(bob, audio), "🔗 Трек")
 
@@ -116,7 +116,7 @@ func TestTake(t *testing.T) {
 		s := harness.New(t)
 		audio := s.UploadAudio("track.mp3")
 		s.Share(alice, s.Uploaded(alice, audio), "🔗 Трек")
-		s.Send(s.TextMessage(bob, "/shared"))
+		s.Open(bob, "🎵 Лента")
 
 		s.Press(bob, s.Button("1. ▶️ Прислать файл"))
 
@@ -151,15 +151,46 @@ func TestSharedFeed(t *testing.T) {
 	t.Run("empty feed says nobody has shared yet", func(t *testing.T) {
 		s := harness.New(t)
 
-		s.Send(s.TextMessage(alice, "/shared"))
+		s.Open(alice, "🎵 Лента")
 
-		assert.Contains(t, s.LastReply().Text, "Пока никто ничего не расшарил")
+		assert.Contains(t, s.WindowText(), "Пока никто ничем не поделился")
+	})
+
+	t.Run("taken track shows as the user's", func(t *testing.T) {
+		s := harness.New(t)
+		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), "🔗 Трек")
+
+		s.Take(bob, 1)
+		afterTake := telegram.ButtonTexts(s.Telegram.Buttons(t))
+		s.Open(bob, "🎵 Лента")
+
+		assert.Equal(t, "editMessageText", s.Telegram.Window().Method)
+		assert.Contains(t, afterTake, "1. ✅ Уже у вас")
+		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), "1. ✅ Уже у вас")
+	})
+
+	t.Run("author sees their own Share as theirs", func(t *testing.T) {
+		s := harness.New(t)
+		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), "🔗 Трек")
+
+		s.Open(alice, "🎵 Лента")
+
+		assert.Equal(t, []string{"1. ✅ Уже у вас", "1. ▶️ Прислать файл", "← Назад"}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
+	})
+
+	t.Run("feed and top commands are gone", func(t *testing.T) {
+		s := harness.New(t)
+
+		s.Send(s.TextMessage(alice, "/shared"))
+		s.Send(s.TextMessage(alice, "/top"))
+
+		assert.Empty(t, s.Telegram.AllCalls())
 	})
 }
 
 func feed(s *harness.Scenario, user harness.User) string {
-	s.Send(s.TextMessage(user, "/shared"))
-	return s.LastReply().Text
+	s.Open(user, "🎵 Лента")
+	return s.WindowText()
 }
 
 func TestAuthorName(t *testing.T) {

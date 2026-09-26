@@ -2,36 +2,33 @@ package bot
 
 import (
 	"context"
+	"strings"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/store"
 )
 
-func Options(ids common.IDProvider) []bot.Option {
+func Options(ids common.IDProvider, users *store.Users, bundle *i18n.Bundle) []bot.Option {
 	return []bot.Option{
 		bot.WithAllowedUpdates(bot.AllowedUpdates{
 			"message",
 			"inline_query",
 			"callback_query",
 		}),
-		bot.WithMiddlewares(senderMiddleware, membersOnly(ids)),
+		bot.WithMiddlewares(senderMiddleware, languageMiddleware(users, bundle), membersOnly(ids)),
 	}
 }
 
 // Register adds the routes in priority order: the bot runs the first match.
+// Everything but /start and /share happens in the window.
 func (h *Handler) Register(b *bot.Bot) {
 	b.RegisterHandlerMatchFunc(hasAudio, h.handleAudio)
-	b.RegisterHandlerMatchFunc(isCommand("link"), h.handleLink)
-	b.RegisterHandlerMatchFunc(isCommand("invite"), h.handleInvite)
 	b.RegisterHandlerMatchFunc(isCommand("start"), h.handleStart)
 	b.RegisterHandlerMatchFunc(isCommand("share"), h.handleShare)
-	b.RegisterHandlerMatchFunc(isCommand("shared"), h.handleSharedFeed)
-	b.RegisterHandlerMatchFunc(isCommand("top"), h.handleTop)
-	b.RegisterHandlerMatchFunc(isCommand("zvuk"), h.handleZvuk)
-	b.RegisterHandlerMatchFunc(isCommand("zvuk_off"), h.handleZvukOff)
-	b.RegisterHandlerMatchFunc(isCommand("zvuk_import"), h.handleZvukImport)
 	b.RegisterHandlerMatchFunc(isText, h.handleText)
 	b.RegisterHandlerMatchFunc(isInlineQuery, h.handleInlineQuery)
 	b.RegisterHandlerMatchFunc(isCallbackQuery, h.handleCallbackQuery)
@@ -55,14 +52,17 @@ func (h *Handler) callbackHandler(action string) (callbackHandler, bool) {
 		return h.handleTake, true
 	case actionSendFile:
 		return h.handleSendFile, true
-	case actionStartImport:
-		return h.handleStartImport, true
 	}
 	return nil, false
 }
 
 func (h *Handler) handleCallbackQuery(ctx context.Context, b *bot.Bot, update *models.Update) {
 	query := update.CallbackQuery
+	action, arg, _ := strings.Cut(query.Data, ":")
+	if handle, ok := h.windowAction(action); ok {
+		h.handleWindowCallback(ctx, b, query, handle, arg)
+		return
+	}
 	action, id, ok := parseCallback(query.Data)
 	if handle, known := h.callbackHandler(action); ok && known {
 		handle(ctx, b, query, id)

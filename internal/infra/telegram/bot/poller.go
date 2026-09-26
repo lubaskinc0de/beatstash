@@ -15,32 +15,23 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/sync_collection"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/store"
 )
-
-var failureTexts = map[ingest.FailureReason]string{
-	ingest.ReasonUnsupportedFormat: "Трек не загружен: формат не поддерживается. Подходят mp3, flac, m4a, ogg, opus и wav",
-	ingest.ReasonCorruptFile:       "Трек не загружен: файл повреждён или это не аудио",
-	ingest.ReasonFetchFailed:       "Трек не загружен: Telegram не отдал файл, пришлите его ещё раз",
-	ingest.ReasonInternal:          "Трек не загружен: внутренняя ошибка, попробуйте позже",
-}
 
 // Poller reads what became of the jobs the bot's messages started and
 // answers those messages: the core keeps no address to answer to. Its
 // interval also paces the answers.
 type Poller struct {
-	Bot         *bot.Bot
-	Jobs        *ingest_track.GetIngestJobs
-	JobMessages *store.JobMessages
+	Bot *bot.Bot
+	// Handler shares its stores, texts and windows with the Poller.
+	Handler *Handler
 
-	Batches       *ingest_track.GetIngestBatches
-	BatchMessages *store.BatchMessages
-
+	Jobs            *ingest_track.GetIngestJobs
+	Batches         *ingest_track.GetIngestBatches
 	InvalidAccounts *sync_collection.GetInvalidatedProviderAccounts
 	AccountNotices  *store.AccountNotices
 
-	Files  *store.Files
-	Sender *AudioSender
 	// StorageChatID gets the Tracks without a Telegram file, so inline mode
 	// sends them as audio; zero turns it off.
 	StorageChatID int64
@@ -51,25 +42,33 @@ type Poller struct {
 	mu sync.Mutex
 	// unpostable are the Tracks the storage chat did not take, e.g. too big.
 	unpostable []uint
+	// rounds counts finished rounds for WaitIdle.
+	rounds int
 }
 
 func (p *Poller) Run(ctx context.Context) {
 	ticker := time.NewTicker(p.Interval)
 	defer ticker.Stop()
 
+	steps := []struct {
+		name string
+		run  func(context.Context) error
+	}{
+		{"answer_ingest_jobs", p.answerJobs},
+		{"summarize_ingest_batches", p.summarizeBatches},
+		{"show_imports", p.showImports},
+		{"notice_invalid_provider_accounts", p.noticeInvalidAccounts},
+		{"post_to_storage_chat", p.postToStorageChat},
+	}
 	for {
-		if err := p.answerJobs(ctx); err != nil && ctx.Err() == nil {
-			slog.Error("answer_ingest_jobs", "error", err)
+		for _, step := range steps {
+			if err := step.run(ctx); err != nil && ctx.Err() == nil {
+				slog.Error(step.name, "error", err)
+			}
 		}
-		if err := p.showBatches(ctx); err != nil && ctx.Err() == nil {
-			slog.Error("show_ingest_batches", "error", err)
-		}
-		if err := p.noticeInvalidAccounts(ctx); err != nil && ctx.Err() == nil {
-			slog.Error("notice_invalid_provider_accounts", "error", err)
-		}
-		if err := p.postToStorageChat(ctx); err != nil && ctx.Err() == nil {
-			slog.Error("post_to_storage_chat", "error", err)
-		}
+		p.mu.Lock()
+		p.rounds++
+		p.mu.Unlock()
 
 		select {
 		case <-ctx.Done():
@@ -79,23 +78,28 @@ func (p *Poller) Run(ctx context.Context) {
 	}
 }
 
-// WaitIdle blocks until every message the Poller follows has its answer.
+// WaitIdle blocks until nothing is left to answer, then one more whole
+// round, so the windows show the end too.
 func (p *Poller) WaitIdle(ctx context.Context) error {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 
+	idleSince := -1
 	for {
-		jobs, err := p.JobMessages.All(ctx)
+		idle, err := p.idle(ctx)
 		if err != nil {
 			return err
 		}
-		batches, err := p.BatchMessages.All(ctx)
-		if err != nil {
-			return err
-		}
-		unposted, err := p.unposted(ctx, 1)
-		if err != nil || len(jobs)+len(batches)+len(unposted) == 0 {
-			return err
+		p.mu.Lock()
+		rounds := p.rounds
+		p.mu.Unlock()
+		switch {
+		case !idle:
+			idleSince = -1
+		case idleSince < 0:
+			idleSince = rounds
+		case rounds >= idleSince+2:
+			return nil
 		}
 
 		select {
@@ -106,10 +110,33 @@ func (p *Poller) WaitIdle(ctx context.Context) error {
 	}
 }
 
+func (p *Poller) idle(ctx context.Context) (bool, error) {
+	jobs, err := p.Handler.JobMessages.All(ctx)
+	if err != nil {
+		return false, err
+	}
+	batches, err := p.Handler.Followed.All(ctx)
+	if err != nil {
+		return false, err
+	}
+	unposted, err := p.unposted(ctx, 1)
+	return len(jobs)+len(batches)+len(unposted) == 0, err
+}
+
+// texts: the chat is private, so its id is the user's. A user without a
+// saved language gets the default.
+func (p *Poller) texts(ctx context.Context, chatID int64) i18n.Catalog {
+	lang, _, err := p.Handler.Users.Language(ctx, chatID)
+	if err != nil {
+		slog.Error("read_language", "error", err)
+	}
+	return p.Handler.Texts.For(i18n.Language(lang))
+}
+
 // answerJobs forgets a message only once it is answered, so a restart
 // answers the rest.
 func (p *Poller) answerJobs(ctx context.Context) error {
-	messages, err := p.JobMessages.All(ctx)
+	messages, err := p.Handler.JobMessages.All(ctx)
 	if err != nil || len(messages) == 0 {
 		return err
 	}
@@ -137,7 +164,7 @@ func (p *Poller) answerJobs(ctx context.Context) error {
 				return err
 			}
 		}
-		if err := p.JobMessages.Forget(ctx, m.JobID); err != nil {
+		if err := p.Handler.JobMessages.Forget(ctx, m.JobID); err != nil {
 			return err
 		}
 	}
@@ -145,32 +172,32 @@ func (p *Poller) answerJobs(ctx context.Context) error {
 }
 
 func (p *Poller) answer(ctx context.Context, msg messageRef, job *ingest.IngestJob) {
+	c := p.texts(ctx, msg.chatID)
 	if job.Failed() {
-		reject(ctx, p.Bot, msg, failureTexts[job.FailureReason])
+		reject(ctx, p.Bot, msg, c.UploadFailed(job.FailureReason))
 		return
 	}
 
 	setReaction(ctx, p.Bot, msg, "👍")
 	switch job.Outcome {
 	case library.StoredInInbox:
-		replyTo(ctx, p.Bot, msg, "Трек попал в Inbox: не удалось определить исполнителя или название")
+		replyTo(ctx, p.Bot, msg, c.StoredInInbox())
 	case library.AlreadyExists:
-		replyTo(ctx, p.Bot, msg, "Этот трек уже есть в библиотеке")
+		replyTo(ctx, p.Bot, msg, c.AlreadyExists())
 	case library.Stored, library.Replaced:
 		// The reaction alone reports success.
 	}
 }
 
-// showBatches edits a progress message only when its text changes; the
-// summary ends it.
-func (p *Poller) showBatches(ctx context.Context) error {
-	messages, err := p.BatchMessages.All(ctx)
-	if err != nil || len(messages) == 0 {
+// summarizeBatches sends each summary once: the batch is forgotten right after.
+func (p *Poller) summarizeBatches(ctx context.Context) error {
+	followed, err := p.Handler.Followed.All(ctx)
+	if err != nil || len(followed) == 0 {
 		return err
 	}
-	ids := make([]uint, 0, len(messages))
-	for _, m := range messages {
-		ids = append(ids, m.BatchID)
+	ids := make([]uint, 0, len(followed))
+	for _, f := range followed {
+		ids = append(ids, f.BatchID)
 	}
 	states, err := p.Batches.Execute(ctx, ids)
 	if err != nil {
@@ -181,43 +208,32 @@ func (p *Poller) showBatches(ctx context.Context) error {
 		byID[states[n].Batch.ID] = &states[n]
 	}
 
-	for _, m := range messages {
-		state, known := byID[m.BatchID]
-		if !known {
-			if err := p.BatchMessages.Forget(ctx, m.BatchID); err != nil {
-				return err
-			}
+	for _, f := range followed {
+		state, known := byID[f.BatchID]
+		if known && !state.Finished() {
 			continue
 		}
-		if text := batchText(state); text != m.Shown {
-			p.edit(ctx, m, text)
-			if err := p.BatchMessages.Shown(ctx, m.BatchID, text); err != nil {
-				return err
-			}
+		if known {
+			sendText(ctx, p.Bot, f.ChatID, p.texts(ctx, f.ChatID).ImportSummary(state))
 		}
-		if state.Finished() {
-			if err := p.BatchMessages.Forget(ctx, m.BatchID); err != nil {
-				return err
-			}
+		if err := p.Handler.Followed.Forget(ctx, f.BatchID); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-func (p *Poller) edit(ctx context.Context, m store.BatchMessage, text string) {
-	_, err := p.Bot.EditMessageText(ctx, &bot.EditMessageTextParams{
-		ChatID:    m.ChatID,
-		MessageID: m.MessageID,
-		Text:      text,
-		ParseMode: models.ParseModeHTML,
-	})
+func (p *Poller) showImports(ctx context.Context) error {
+	windows, err := p.Handler.Windows.OnScreen(ctx, string(screenImports))
 	if err != nil {
-		slog.Error("edit_progress_message", "batch_id", m.BatchID, "error", err)
+		return err
 	}
+	for _, window := range windows {
+		userCtx := withTexts(asRecipient(ctx, window.ChatID), p.texts(ctx, window.ChatID))
+		p.Handler.refreshImports(userCtx, p.Bot, window.ChatID)
+	}
+	return nil
 }
-
-const tokenRejected = "🔌 Звук перестал принимать токен, поэтому новые лайки и треки плейлистов больше не подтягиваются. " +
-	"Подключите Звук заново: <code>/zvuk токен</code>"
 
 // invalidationLag: an invalidation is stamped before its transaction
 // commits, so it may show up after a later-stamped one was noticed already.
@@ -247,7 +263,12 @@ func (p *Poller) noticeInvalidAccounts(ctx context.Context) error {
 			return err
 		}
 		if ok {
-			sendText(ctx, p.Bot, chatID, tokenRejected)
+			c := p.texts(ctx, chatID)
+			sendKeyboard(ctx, p.Bot, chatID, c.TokenRejected(account.Provider), &models.InlineKeyboardMarkup{
+				InlineKeyboard: [][]models.InlineKeyboardButton{{
+					goButton(c.Reconnect(), place{screen: screenProvider, arg: string(account.Provider)}),
+				}},
+			})
 		}
 		if err := p.AccountNotices.Remember(ctx, notice); err != nil {
 			return err
@@ -261,7 +282,7 @@ func (p *Poller) rememberFile(ctx context.Context, m store.JobMessage, job *inge
 	if !job.Done() || job.TrackID == nil || m.FileID == "" {
 		return nil
 	}
-	return p.Files.Remember(ctx, store.File{TrackID: *job.TrackID, ID: m.FileID, UniqueID: m.FileUniqueID, Kind: m.FileKind})
+	return p.Handler.Files.Remember(ctx, store.File{TrackID: *job.TrackID, ID: m.FileID, UniqueID: m.FileUniqueID, Kind: m.FileKind})
 }
 
 const storageBatch = 10
@@ -275,7 +296,7 @@ func (p *Poller) postToStorageChat(ctx context.Context) error {
 	}
 	for n := range tracks {
 		track := &tracks[n]
-		posted, err := p.Sender.Post(ctx, p.StorageChatID, filepath.Join(p.MusicDir, track.Dir, track.Path), &track.Track)
+		posted, err := p.Handler.Sender.Post(ctx, p.StorageChatID, filepath.Join(p.MusicDir, track.Dir, track.Path), &track.Track)
 		if err != nil {
 			slog.Error("post_track_to_storage_chat", "track_id", track.ID, "error", err)
 			p.mu.Lock()
@@ -283,7 +304,7 @@ func (p *Poller) postToStorageChat(ctx context.Context) error {
 			p.mu.Unlock()
 			continue
 		}
-		if err := p.Files.Remember(ctx, *posted); err != nil {
+		if err := p.Handler.Files.Remember(ctx, *posted); err != nil {
 			return err
 		}
 	}
@@ -297,5 +318,5 @@ func (p *Poller) unposted(ctx context.Context, limit int) ([]store.Unfiled, erro
 	p.mu.Lock()
 	except := slices.Clone(p.unpostable)
 	p.mu.Unlock()
-	return p.Files.Unfiled(ctx, except, limit)
+	return p.Handler.Files.Unfiled(ctx, except, limit)
 }

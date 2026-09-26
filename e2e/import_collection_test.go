@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
+	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/zvuk"
 )
 
@@ -35,9 +36,9 @@ func TestZvukImport(t *testing.T) {
 		s.ConnectZvuk(alice, harness.ZvukToken)
 		s.AddZvukCollection(harness.ZvukToken)
 
-		s.Send(s.TextMessage(alice, "/zvuk_import"))
+		s.OpenZvuk(alice, "📥 Импортировать")
 
-		text := s.LastReply().Text
+		text := s.WindowText()
 		assert.Contains(t, text, "9 треков")
 		assert.Contains(t, text, "МБ")
 		assert.Empty(t, s.PersonalFiles(alice))
@@ -52,9 +53,9 @@ func TestZvukImport(t *testing.T) {
 		fresh := s.AddZvukAlbum("675", "Fresh", 1)
 		s.Zvuk.Update(harness.ZvukToken, func(a *zvuk.Account) { a.Liked = append(a.Liked, fresh...) })
 
-		s.Send(s.TextMessage(alice, "/zvuk_import"))
+		s.OpenZvuk(alice, "📥 Импортировать")
 
-		assert.Contains(t, s.LastReply().Text, "В коллекции Звука 10 треков, в библиотеке ещё нет 1 трек")
+		assert.Contains(t, s.WindowText(), "В коллекции Звука 10 треков, в библиотеке ещё нет 1 трек")
 	})
 
 	t.Run("repeated Import of a stored collection offers nothing", func(t *testing.T) {
@@ -64,17 +65,18 @@ func TestZvukImport(t *testing.T) {
 		s.ImportZvuk(alice)
 		s.WaitIngest()
 
-		s.Send(s.TextMessage(alice, "/zvuk_import"))
+		s.OpenZvuk(alice, "📥 Импортировать")
 
-		assert.Contains(t, s.LastReply().Text, "Вся коллекция Звука (9 треков) уже в вашей библиотеке")
+		assert.Contains(t, s.WindowText(), "Вся коллекция Звука (9 треков) уже в вашей библиотеке")
+		assert.Equal(t, []string{"← Назад"}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
 	})
 
 	t.Run("button of an old offer tells the collection is stored", func(t *testing.T) {
 		s := harness.New(t)
 		s.ConnectZvuk(alice, harness.ZvukToken)
 		s.AddZvukCollection(harness.ZvukToken)
-		s.Send(s.TextMessage(alice, "/zvuk_import"))
-		start := s.Button("▶️ Начать Import")
+		s.OpenZvuk(alice, "📥 Импортировать")
+		start := s.Button("▶️ Начать")
 		s.Press(alice, start)
 		s.WaitIngest()
 
@@ -88,59 +90,22 @@ func TestZvukImport(t *testing.T) {
 		s.ConnectZvuk(alice, harness.ZvukToken)
 		s.AddZvukCollection(harness.ZvukToken)
 		s.Zvuk.HoldStreams(0)
-		s.Send(s.TextMessage(alice, "/zvuk_import"))
-		start := s.Button("▶️ Начать Import")
+		s.OpenZvuk(alice, "📥 Импортировать")
+		start := s.Button("▶️ Начать")
 		s.Press(alice, start)
 
 		s.Press(alice, start)
 
-		assert.Contains(t, s.Telegram.CallbackAnswers(), "Import уже идёт")
-		assert.Len(t, s.SentMessagesContaining("Import из Звука"), 1)
+		assert.Contains(t, s.Telegram.CallbackAnswers(), "Импорт уже идёт")
+		assert.Equal(t, 1, strings.Count(s.WindowText(), "📥 <b>Звук</b>"))
 	})
 
-	t.Run("progress message is edited into a summary", func(t *testing.T) {
+	t.Run("unconnected Zvuk offers only connecting", func(t *testing.T) {
 		s := harness.New(t)
-		s.ConnectZvuk(alice, harness.ZvukToken)
-		s.AddZvukCollection(harness.ZvukToken)
 
-		s.ImportZvuk(alice)
-		s.WaitIngest()
+		s.OpenZvuk(alice)
 
-		progress := s.ProgressMessage(t)
-		assert.Contains(t, progress.Text, "Import из Звука: 9 из 9 треков в библиотеке")
-		assert.Greater(t, progress.Edits, 1)
-		assert.Len(t, s.Telegram.EditedMessages(), 1)
-		assert.Len(t, s.SentMessagesContaining("Import из Звука"), 1)
-	})
-
-	t.Run("progress catches up while the next track is on its way", func(t *testing.T) {
-		s := harness.New(t, harness.WithTelegramPollInterval(time.Second))
-		s.ConnectZvuk(alice, harness.ZvukToken)
-		s.AddZvukCollection(harness.ZvukToken)
-		s.Zvuk.HoldStreams(2)
-
-		s.ImportZvuk(alice)
-
-		require.Eventually(t, func() bool {
-			edits := s.Telegram.CallsTo("editMessageText")
-			return len(edits) > 0 && strings.Contains(edits[len(edits)-1].Params["text"], "готово 2 из 9")
-		}, 5*time.Second, 50*time.Millisecond)
-	})
-
-	t.Run("summary lists the track that failed", func(t *testing.T) {
-		s := harness.New(t)
-		s.ConnectZvuk(alice, harness.ZvukToken)
-		collection := s.AddZvukCollection(harness.ZvukToken)
-		s.Zvuk.BreakStream(collection.Liked[1])
-
-		s.ImportZvuk(alice)
-		s.WaitIngest()
-
-		assert.Len(t, s.PersonalFiles(alice), 8)
-		text := s.ProgressMessage(t).Text
-		assert.Contains(t, text, "8 из 9 треков в библиотеке")
-		assert.Contains(t, text, "Не удалось загрузить (1)")
-		assert.Contains(t, text, "Zvuk Band — Song 2")
+		assert.Equal(t, []string{"🔌 Подключить", "← Назад"}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
 	})
 
 	t.Run("interrupted Import finishes after restart without downloading twice", func(t *testing.T) {
@@ -159,24 +124,6 @@ func TestZvukImport(t *testing.T) {
 		for _, id := range collection.Tracks {
 			assert.Equal(t, 1, s.Zvuk.DownloadsOf(id), "track %s", id)
 		}
-		assert.Contains(t, s.ProgressMessage(t).Text, "9 из 9 треков в библиотеке")
-	})
-
-	t.Run("progress after restart reaches the summary in the same message", func(t *testing.T) {
-		s := harness.New(t)
-		s.ConnectZvuk(alice, harness.ZvukToken)
-		s.AddZvukCollection(harness.ZvukToken)
-		held := s.Zvuk.HoldStreams(3)
-		s.ImportZvuk(alice)
-		<-held
-
-		s.Restart()
-		s.Zvuk.ReleaseStreams()
-		s.WaitIngest()
-
-		assert.Len(t, s.SentMessagesContaining("Import из Звука"), 1)
-		assert.Len(t, s.Telegram.EditedMessages(), 1)
-		assert.Contains(t, s.ProgressMessage(t).Text, "9 из 9 треков в библиотеке")
 	})
 
 	t.Run("followed artists' discographies are not imported", func(t *testing.T) {
@@ -197,13 +144,108 @@ func TestZvukImport(t *testing.T) {
 			assert.Zero(t, s.Zvuk.DownloadsOf(id))
 		}
 	})
+}
 
-	t.Run("Import without connected Zvuk suggests connecting it", func(t *testing.T) {
+func TestImports(t *testing.T) {
+	t.Parallel()
+
+	t.Run("started Import opens the Imports", func(t *testing.T) {
+		s := harness.New(t)
+		s.ConnectZvuk(alice, harness.ZvukToken)
+		s.AddZvukCollection(harness.ZvukToken)
+		s.Zvuk.HoldStreams(0)
+
+		s.ImportZvuk(alice)
+
+		assert.Contains(t, s.WindowText(), "📊 <b>Импорты</b>")
+		assert.Contains(t, s.WindowText(), "⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜ 0 / 9")
+	})
+
+	t.Run("Imports follow the progress and drop the finished Import", func(t *testing.T) {
+		s := harness.New(t, harness.WithTelegramPollInterval(time.Second))
+		s.ConnectZvuk(alice, harness.ZvukToken)
+		s.AddZvukCollection(harness.ZvukToken)
+		s.Zvuk.HoldStreams(2)
+
+		s.ImportZvuk(alice)
+		require.Eventually(t, func() bool {
+			return strings.Contains(s.Telegram.Window().Params["text"], "🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜ 2 / 9")
+		}, 5*time.Second, 50*time.Millisecond)
+		s.Zvuk.ReleaseStreams()
+		s.WaitIngest()
+
+		assert.Contains(t, s.WindowText(), "Сейчас ничего не импортируется")
+	})
+
+	t.Run("failed tracks show in red", func(t *testing.T) {
+		s := harness.New(t, harness.WithZvukPerUser(2))
+		s.ConnectZvuk(alice, harness.ZvukToken)
+		collection := s.AddZvukCollection(harness.ZvukToken)
+		s.Zvuk.BreakStream(collection.Liked[0])
+		s.Zvuk.HoldStreamsOf(collection.Liked[1])
+
+		s.ImportZvuk(alice)
+
+		require.Eventually(t, func() bool {
+			return strings.Contains(s.Telegram.Window().Params["text"], "🟩🟩🟩🟩🟩🟩🟩🟩🟥⬜ 7 / 9 · ошибок 1")
+		}, 10*time.Second, 20*time.Millisecond)
+	})
+
+	t.Run("finished Import sends one summary wherever the window is", func(t *testing.T) {
+		s := harness.New(t)
+		s.ConnectZvuk(alice, harness.ZvukToken)
+		s.AddZvukCollection(harness.ZvukToken)
+		s.Zvuk.HoldStreams(0)
+		s.ImportZvuk(alice)
+
+		s.Open(alice, "🎵 Лента")
+		s.Zvuk.ReleaseStreams()
+		s.WaitIngest()
+
+		summaries := s.SentMessagesContaining("Импорт из Звука")
+		require.Len(t, summaries, 1)
+		assert.Contains(t, summaries[0], "✅ Импорт из Звука: 9 из 9 в библиотеке")
+	})
+
+	t.Run("summary lists the track that failed", func(t *testing.T) {
+		s := harness.New(t)
+		s.ConnectZvuk(alice, harness.ZvukToken)
+		collection := s.AddZvukCollection(harness.ZvukToken)
+		s.Zvuk.BreakStream(collection.Liked[1])
+
+		s.ImportZvuk(alice)
+		s.WaitIngest()
+
+		assert.Len(t, s.PersonalFiles(alice), 8)
+		summaries := s.SentMessagesContaining("Импорт из Звука")
+		require.Len(t, summaries, 1)
+		assert.Contains(t, summaries[0], "8 из 9 в библиотеке")
+		assert.Contains(t, summaries[0], "Не удалось загрузить (1)")
+		assert.Contains(t, summaries[0], "Zvuk Band — Song 2")
+	})
+
+	t.Run("restart mid-Import keeps the Imports and the summary", func(t *testing.T) {
+		s := harness.New(t)
+		s.ConnectZvuk(alice, harness.ZvukToken)
+		s.AddZvukCollection(harness.ZvukToken)
+		held := s.Zvuk.HoldStreams(3)
+		s.ImportZvuk(alice)
+		<-held
+
+		s.Restart()
+		s.Zvuk.ReleaseStreams()
+		s.WaitIngest()
+
+		assert.Len(t, s.SentMessagesContaining("Импорт из Звука"), 1)
+		assert.Contains(t, s.WindowText(), "Сейчас ничего не импортируется")
+	})
+
+	t.Run("nothing to show without an Import", func(t *testing.T) {
 		s := harness.New(t)
 
-		s.Send(s.TextMessage(alice, "/zvuk_import"))
+		s.Open(alice, "📥 Импорт из музыкального сервиса", "📊 Импорты")
 
-		assert.Contains(t, s.LastReply().Text, "Подключите Звук")
+		assert.Contains(t, s.WindowText(), "Сейчас ничего не импортируется")
 	})
 }
 

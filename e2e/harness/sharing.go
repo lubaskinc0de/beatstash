@@ -18,6 +18,5 @@ func (s *Scenario) Share(from User, upload *models.Update, name string) {
 func (s *Scenario) Take(user User, n int) {
 	s.t.Helper()
 
-	s.Send(s.TextMessage(user, "/shared"))
-	s.Press(user, s.Button(strconv.Itoa(n)+". ➕ Взять себе"))
+	s.Open(user, "🎵 Лента", strconv.Itoa(n)+". ➕ Взять себе")
 }

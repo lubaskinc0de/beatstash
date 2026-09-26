@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
+	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
 )
 
 func TestInvite(t *testing.T) {
@@ -26,7 +26,6 @@ func TestInvite(t *testing.T) {
 		s.Send(upload)
 		s.WaitIngest()
 
-		assert.Contains(t, s.Telegram.Replies(t)[1].Text, "Добро пожаловать")
 		assert.Equal(t, []string{"👀", "👍"}, s.Telegram.ReactionsOn(t, upload.Message.ID))
 	})
 
@@ -50,7 +49,8 @@ func TestInvite(t *testing.T) {
 		upload := s.AudioMessage(dave, s.UploadAudio("track.mp3"))
 		s.Send(upload)
 
-		assert.Contains(t, s.LastReply().Text, "Приглашение недействительно")
+		assert.Contains(t, s.WindowText(), "Приглашение недействительно")
+		assert.Contains(t, s.WindowText(), "только по приглашению")
 		assert.Empty(t, s.Telegram.ReactionsOn(t, upload.Message.ID))
 	})
 
@@ -64,31 +64,51 @@ func TestInvite(t *testing.T) {
 		upload := s.AudioMessage(carol, s.UploadAudio("track.mp3"))
 		s.Send(upload)
 
-		assert.Contains(t, s.LastReply().Text, "Приглашение недействительно")
+		assert.Contains(t, s.WindowText(), "Приглашение недействительно")
 		assert.Empty(t, s.Telegram.ReactionsOn(t, upload.Message.ID))
 	})
 
-	t.Run("non-admin cannot invite", func(t *testing.T) {
+	t.Run("admin gets another working invite", func(t *testing.T) {
+		s := harness.New(t)
+		s.Open(admin, "🎟 Пригласить")
+		first := s.InviteCode()
+
+		s.Go(admin, "🎟 Ещё одно")
+		second := s.InviteCode()
+		s.Register(harness.Newcomer("carol"))
+		dave := harness.Newcomer("dave")
+		s.Send(s.TextMessage(dave, "/start "+second))
+
+		assert.NotEqual(t, first, second)
+		assert.Contains(t, s.WindowText(), "Придумайте логин")
+	})
+
+	t.Run("invite says how long it lasts", func(t *testing.T) {
 		s := harness.New(t)
 
-		s.Send(s.TextMessage(alice, "/invite"))
+		s.Open(admin, "🎟 Пригласить")
 
-		replies := s.Telegram.Replies(t)
-		require.Len(t, replies, 1)
-		assert.Contains(t, replies[0].Text, "только администратор")
-		assert.NotContains(t, replies[0].Text, "?start=")
+		assert.Contains(t, s.WindowText(), "действует 7 дней")
 	})
 
 	t.Run("admin dropped from config can no longer invite", func(t *testing.T) {
 		s := harness.New(t)
 
 		s.Restart(harness.WithAdmins(alice))
-		s.Send(s.TextMessage(admin, "/invite"))
-		refused := s.LastReply().Text
-		s.Send(s.TextMessage(alice, "/invite"))
+		s.Open(admin)
+		adminButtons := telegram.ButtonTexts(s.Telegram.Buttons(t))
+		s.Open(alice, "🎟 Пригласить")
 
-		assert.Contains(t, refused, "только администратор")
-		assert.Contains(t, s.LastReply().Text, "?start=")
+		assert.NotContains(t, adminButtons, "🎟 Пригласить")
+		assert.Contains(t, s.WindowText(), "?start=")
+	})
+
+	t.Run("invite command is gone", func(t *testing.T) {
+		s := harness.New(t)
+
+		s.Send(s.TextMessage(admin, "/invite"))
+
+		assert.Empty(t, s.Telegram.AllCalls())
 	})
 
 	t.Run("stranger gets no answer but to start", func(t *testing.T) {

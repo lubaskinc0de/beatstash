@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strconv"
 	"testing"
@@ -12,6 +13,8 @@ import (
 type Call struct {
 	Method string
 	Params map[string]string
+	// MessageID is the message sent or edited.
+	MessageID int
 }
 
 type InlineAnswer struct {
@@ -23,6 +26,10 @@ type InlineResult struct {
 	Type        string `json:"type"`
 	ID          string `json:"id"`
 	Title       string `json:"title"`
+	Description string `json:"description"`
+	Content     struct {
+		Text string `json:"message_text"`
+	} `json:"input_message_content"`
 	AudioFileID string `json:"audio_file_id"`
 	Caption     string `json:"caption"`
 	ReplyMarkup struct {
@@ -53,7 +60,11 @@ func (a *API) Forget() {
 func (a *API) AllCalls() []Call {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return append([]Call(nil), a.calls...)
+	calls := make([]Call, 0, len(a.calls))
+	for _, call := range a.calls {
+		calls = append(calls, *call)
+	}
+	return calls
 }
 
 func (a *API) CallsTo(method string) []Call {
@@ -161,29 +172,70 @@ func (a *API) AnsweredCallbacks() []string {
 type Button struct {
 	Text string `json:"text"`
 	Data string `json:"callback_data"`
+	// SwitchInline is the query the button puts into the input field.
+	SwitchInline string `json:"switch_inline_query_current_chat"`
 }
 
 // Buttons returns the inline keyboard the bot sent or set last.
 func (a *API) Buttons(t *testing.T) []Button {
 	t.Helper()
 
+	_, buttons := a.lastWithKeyboard(func(Call, []Button) bool { return true })
+	return buttons
+}
+
+// lastWithKeyboard returns the latest call with a keyboard that matches.
+func (a *API) lastWithKeyboard(match func(Call, []Button) bool) (Call, []Button) {
 	calls := a.AllCalls()
 	for i := len(calls) - 1; i >= 0; i-- {
-		markup := calls[i].Params["reply_markup"]
-		if markup == "" {
-			continue
+		if buttons, ok := keyboardOf(calls[i]); ok && match(calls[i], buttons) {
+			return calls[i], buttons
 		}
-		var keyboard struct {
-			Rows [][]Button `json:"inline_keyboard"`
-		}
-		mustUnmarshal(t, markup, &keyboard)
-		var buttons []Button
-		for _, row := range keyboard.Rows {
-			buttons = append(buttons, row...)
-		}
-		return buttons
 	}
-	return nil
+	return Call{}, nil
+}
+
+func keyboardOf(call Call) ([]Button, bool) {
+	markup := call.Params["reply_markup"]
+	if markup == "" {
+		return nil, false
+	}
+	var keyboard struct {
+		Rows [][]Button `json:"inline_keyboard"`
+	}
+	if err := json.Unmarshal([]byte(markup), &keyboard); err != nil {
+		panic(fmt.Sprintf("decode reply_markup %q: %v", markup, err))
+	}
+	var buttons []Button
+	for _, row := range keyboard.Rows {
+		buttons = append(buttons, row...)
+	}
+	return buttons, true
+}
+
+func (a *API) MessageWith(b Button) int {
+	call, _ := a.lastWithKeyboard(func(_ Call, buttons []Button) bool { return slices.Contains(buttons, b) })
+	return call.MessageID
+}
+
+// Window is the latest sent or edited message with a keyboard. Right after
+// /share it is the share keyboard, not the window.
+func (a *API) Window() Call {
+	call, _ := a.lastWithKeyboard(func(call Call, _ []Button) bool {
+		return call.Method == "sendMessage" || call.Method == "editMessageText"
+	})
+	return call
+}
+
+func (a *API) StrippedMessages() []int {
+	var ids []int
+	for _, call := range a.CallsTo("editMessageReplyMarkup") {
+		if buttons, _ := keyboardOf(call); len(buttons) == 0 {
+			id, _ := strconv.Atoi(call.Params["message_id"])
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }
 
 // CallbackAnswers returns the texts the bot showed on button presses.

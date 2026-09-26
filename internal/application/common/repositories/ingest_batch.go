@@ -13,6 +13,7 @@ type IngestBatches interface {
 	Get(ctx context.Context, id uint) (*ingest.IngestBatch, error)
 	GetForUpdate(ctx context.Context, id uint) (*ingest.IngestBatch, error)
 	Unfinished(ctx context.Context) ([]ingest.IngestBatch, error)
+	UnfinishedOf(ctx context.Context, userID uint) ([]ingest.IngestBatch, error)
 	Running(ctx context.Context, userID uint, providerName provider.ProviderName, kind ingest.IngestBatchKind) (bool, error)
 }
 

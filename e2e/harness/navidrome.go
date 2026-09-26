@@ -3,11 +3,13 @@ package harness
 import (
 	"path/filepath"
 	"regexp"
+	"slices"
 
 	"github.com/go-telegram/bot/models"
 	"github.com/stretchr/testify/require"
 
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/navidrome"
+	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
 )
 
 func (s *Scenario) LinkNewAccount(user User) navidrome.Account {
@@ -15,7 +17,7 @@ func (s *Scenario) LinkNewAccount(user User) navidrome.Account {
 
 	account := s.Navidrome.CreateAccount(s.t, user.Username)
 	s.Link(user, account)
-	require.Contains(s.t, s.LastReply().Text, "привязан")
+	require.Contains(s.t, s.WindowText(), "привязан")
 	return account
 }
 
@@ -41,7 +43,28 @@ func (s *Scenario) IssuedAccount() navidrome.Account {
 }
 
 func (s *Scenario) Link(from User, account navidrome.Account) *models.Update {
-	msg := s.TextMessage(from, "/link "+account.Login+" "+account.Password)
+	s.t.Helper()
+
+	s.Open(from, "👤 Аккаунты")
+	link := "🔗 Привязать"
+	if !slices.Contains(telegram.ButtonTexts(s.Telegram.Buttons(s.t)), link) {
+		link = "🔗 Привязать другой"
+	}
+	s.Go(from, link)
+	return s.SendText(from, account.Login+" "+account.Password)
+}
+
+func (s *Scenario) SendText(from User, text string) *models.Update {
+	msg := s.TextMessage(from, text)
 	s.Send(msg)
 	return msg
+}
+
+// Register uses the newcomer's username as the Navidrome login.
+func (s *Scenario) Register(newcomer User) navidrome.Account {
+	s.t.Helper()
+
+	s.Send(s.TextMessage(newcomer, "/start "+s.Invite()))
+	s.SendText(newcomer, newcomer.Username)
+	return s.IssuedAccount()
 }
