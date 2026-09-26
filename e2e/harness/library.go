@@ -1,6 +1,7 @@
 package harness
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 )
 
@@ -50,17 +52,34 @@ func filesUnder(t *testing.T, root string) []string {
 	return files
 }
 
-func PersonalDir(user User) string {
-	return filepath.Join("users", strconv.FormatInt(user.ID, 10))
+// PersonalDir is where the bot keeps the user's Personal Library, relative
+// to music_dir.
+func (s *Scenario) PersonalDir(user User) string {
+	s.t.Helper()
+
+	conn, err := pgx.Connect(s.t.Context(), s.config.DBDSN)
+	require.NoError(s.t, err)
+	defer conn.Close(context.Background())
+
+	var dir string
+	err = conn.QueryRow(s.t.Context(), `
+		SELECT libraries.dir FROM libraries
+		JOIN identities ON identities.user_id = libraries.owner_id
+		WHERE identities.channel = 'telegram' AND identities.external_id = $1`,
+		strconv.FormatInt(user.ID, 10),
+	).Scan(&dir)
+	require.NoError(s.t, err, "no Personal Library of %s", user.Username)
+	return dir
 }
 
 func (s *Scenario) PersonalFiles(user User) []string {
 	s.t.Helper()
-	return filesUnder(s.t, filepath.Join(s.Library, PersonalDir(user)))
+	return filesUnder(s.t, filepath.Join(s.Library, s.PersonalDir(user)))
 }
 
 func (s *Scenario) PersonalPath(user User, rel string) string {
-	return filepath.Join(s.Library, PersonalDir(user), rel)
+	s.t.Helper()
+	return filepath.Join(s.Library, s.PersonalDir(user), rel)
 }
 
 func (s *Scenario) SharedFiles() []string {

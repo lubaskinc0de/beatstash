@@ -7,7 +7,7 @@ import (
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
 // CopyTrack expects a transaction holding both libraries.
@@ -16,10 +16,10 @@ func CopyTrack(
 	tracks repositories.Tracks,
 	disk common.Disk,
 	musicDir string,
-	track *domain.Track,
-	from, to *domain.Library,
+	track *library.Track,
+	from, to *library.Library,
 	changes *FileChanges,
-) (copied *domain.Track, target string, err error) {
+) (copied *library.Track, target string, err error) {
 	dir := Dir(musicDir, to)
 	rel, err := disk.FreePath(dir, track.Path)
 	if err != nil {
@@ -48,22 +48,7 @@ func CopyTrack(
 	return copied, target, nil
 }
 
-// RecordPosted gives the posted file_id to the Track and its copies, so
-// nothing is posted twice.
-func RecordPosted(ctx context.Context, tracks repositories.Tracks, track *domain.Track, posted *common.PostedFile) error {
-	copies, err := tracks.Copies(ctx, track.ID)
-	if err != nil {
-		return err
-	}
-	for i := range copies {
-		if err := saveSource(ctx, tracks, domain.TelegramSource(&copies[i], posted.UniqueID, posted.File)); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func saveSource(ctx context.Context, tracks repositories.Tracks, source *domain.TrackSource) error {
+func saveSource(ctx context.Context, tracks repositories.Tracks, source *library.TrackSource) error {
 	_, err := tracks.FindSource(ctx, source.LibraryID, source.Provider, source.Ref)
 	if err == nil {
 		return nil

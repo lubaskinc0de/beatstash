@@ -3,6 +3,8 @@ package e2e
 import (
 	"testing"
 
+	"github.com/go-telegram/bot/models"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -86,6 +88,40 @@ func TestTelegramFileOfZvukTrack(t *testing.T) {
 		assert.Equal(t, "Stored Song.mp3", sent[0].Params[telegram.UploadedFileParam])
 	})
 
+	t.Run("audio the bot sent from the feed is stored without download", func(t *testing.T) {
+		s := harness.New(t)
+		sharedZvukSong(t, s, alice, "Forwarded Song")
+		s.Send(s.TextMessage(bob, "/shared"))
+		s.Press(bob, s.Button("1. ▶️ Прислать файл"))
+		s.Telegram.Forget()
+		forward := s.AudioMessage(bob, uploadedAudio(s, 0))
+
+		s.Send(forward)
+		s.WaitIngest()
+
+		assert.Empty(t, s.Telegram.CallsTo("getFile"))
+		assert.Equal(t, []string{"Zvuk Band/Zvuk Album (2021)/01 - Forwarded Song.mp3"}, s.PersonalFiles(bob))
+		assert.Equal(t, []string{"👀", "👍"}, s.Telegram.ReactionsOn(t, forward.Message.ID))
+	})
+
+	t.Run("audio the bot sent of the user's own track already exists", func(t *testing.T) {
+		s := harness.New(t, harness.WithStorageChat(storageChat))
+		s.ConnectZvuk(alice, harness.ZvukToken)
+		s.AddZvukSong("111", "Stored Song", false)
+		s.LikeOnZvuk("111")
+		s.ImportZvuk(alice)
+		s.WaitIngest()
+		s.Telegram.Forget()
+		forward := s.AudioMessage(alice, uploadedAudio(s, 0))
+
+		s.Send(forward)
+		s.WaitIngest()
+
+		assert.Empty(t, s.Telegram.CallsTo("getFile"))
+		assert.Equal(t, []string{"Zvuk Band/Zvuk Album (2021)/01 - Stored Song.mp3"}, s.PersonalFiles(alice))
+		harness.AssertAlreadyExists(t, s, forward.Message.ID)
+	})
+
 	t.Run("np sends a track kept in the storage chat as audio", func(t *testing.T) {
 		s := harness.New(t, harness.WithStorageChat(storageChat))
 		account := s.LinkNewAccount(alice)
@@ -102,6 +138,11 @@ func TestTelegramFileOfZvukTrack(t *testing.T) {
 
 		assert.Equal(t, []string{s.Telegram.UploadedFileID(0)}, telegram.AudioFileIDs(s.Telegram.InlineAnswerTo(t, query)))
 	})
+}
+
+func uploadedAudio(s *harness.Scenario, n int) models.Audio {
+	id := s.Telegram.UploadedFileID(n)
+	return models.Audio{FileID: id, FileUniqueID: id + "-unique", FileName: "song.mp3", Duration: 2}
 }
 
 // sharedZvukSong has the user import a liked Zvuk track and share it

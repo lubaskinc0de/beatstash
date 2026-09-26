@@ -9,7 +9,9 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/sharing"
 )
 
 type ShareState struct {
@@ -25,7 +27,7 @@ type ShareResult struct {
 	// AlreadyShared counts Tracks somebody else had shared; Author is the
 	// one who shared the first of them.
 	AlreadyShared int
-	Author        *domain.User
+	Author        *access.User
 	State         *ShareState
 }
 
@@ -35,13 +37,13 @@ type operation struct {
 	shares   repositories.Shares
 	disk     common.Disk
 	musicDir string
-	user     *domain.User
+	user     *access.User
 	libs     libraries.UserLibraries
 	changes  *libraries.FileChanges
 	now      time.Time
 }
 
-func (op *operation) share(ctx context.Context, track *domain.Track, result *ShareResult) error {
+func (op *operation) share(ctx context.Context, track *library.Track, result *ShareResult) error {
 	if err := track.Shareable(); err != nil {
 		return err
 	}
@@ -56,11 +58,11 @@ func (op *operation) share(ctx context.Context, track *domain.Track, result *Sha
 		if err != nil {
 			return err
 		}
-		if author := domain.Author(sharers); result.AlreadyShared == 0 && author != nil {
+		if author := sharing.Author(sharers); result.AlreadyShared == 0 && author != nil {
 			result.Author = &author.User
 		}
 		result.AlreadyShared++
-		return op.shares.Save(ctx, domain.ShareDuplicate(op.user.ID, track, duplicate, op.now))
+		return op.shares.Save(ctx, sharing.ShareDuplicate(op.user.ID, track, duplicate, op.now))
 	case !errors.Is(err, repositories.ErrTrackNotFound):
 		return err
 	}
@@ -70,12 +72,12 @@ func (op *operation) share(ctx context.Context, track *domain.Track, result *Sha
 		return err
 	}
 	result.Created++
-	return op.shares.Save(ctx, domain.ShareCopy(op.user.ID, track, copied, op.now))
+	return op.shares.Save(ctx, sharing.ShareCopy(op.user.ID, track, copied, op.now))
 }
 
 // unshare drops the user's Share; the Track leaves the Shared Library only
 // with its last sharer.
-func (op *operation) unshare(ctx context.Context, track *domain.Track) error {
+func (op *operation) unshare(ctx context.Context, track *library.Track) error {
 	share, err := op.shares.BySource(ctx, track.ID)
 	if errors.Is(err, repositories.ErrShareNotFound) {
 		return nil
@@ -103,31 +105,31 @@ func (op *operation) unshare(ctx context.Context, track *domain.Track) error {
 	return nil
 }
 
-func own(ctx context.Context, tracks repositories.Tracks, personal *domain.Library, trackID uint) (*domain.Track, error) {
+func own(ctx context.Context, tracks repositories.Tracks, personal *library.Library, trackID uint) (*library.Track, error) {
 	track, err := tracks.Get(ctx, trackID)
 	if errors.Is(err, repositories.ErrTrackNotFound) {
-		return nil, domain.ErrNotOwnTrack
+		return nil, library.ErrNotOwnTrack
 	}
 	if err != nil {
 		return nil, err
 	}
 	if !track.In(personal) {
-		return nil, domain.ErrNotOwnTrack
+		return nil, library.ErrNotOwnTrack
 	}
 	return track, nil
 }
 
 // album lists the shareable Tracks of the track's album; a single makes an
 // album of one.
-func album(ctx context.Context, tracks repositories.Tracks, personal *domain.Library, track *domain.Track) ([]domain.Track, error) {
+func album(ctx context.Context, tracks repositories.Tracks, personal *library.Library, track *library.Track) ([]library.Track, error) {
 	if track.Single() {
-		return []domain.Track{*track}, nil
+		return []library.Track{*track}, nil
 	}
 	all, err := tracks.Album(ctx, personal.ID, track.AlbumArtist, track.Album)
 	if err != nil {
 		return nil, err
 	}
-	return domain.ShareableTracks(all), nil
+	return library.ShareableTracks(all), nil
 }
 
 func isShared(ctx context.Context, shares repositories.Shares, trackID uint) (bool, error) {
@@ -142,8 +144,8 @@ func shareState(
 	ctx context.Context,
 	tracks repositories.Tracks,
 	shares repositories.Shares,
-	personal *domain.Library,
-	track *domain.Track,
+	personal *library.Library,
+	track *library.Track,
 ) (*ShareState, error) {
 	shared, err := isShared(ctx, shares, track.ID)
 	if err != nil {

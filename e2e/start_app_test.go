@@ -30,7 +30,7 @@ func TestNavidromeLibraryGone(t *testing.T) {
 
 		assert.Equal(t, []string{
 			s.NavidromePath("shared"),
-			s.NavidromePath(harness.PersonalDir(alice)),
+			s.NavidromePath(s.PersonalDir(alice)),
 		}, s.Navidrome.Libraries(t, account))
 		assert.Equal(t, id, s.Navidrome.LibraryAt(t, s.NavidromePath("shared")))
 	})
@@ -44,7 +44,7 @@ func TestNavidromeLibraryGone(t *testing.T) {
 
 		assert.Equal(t, []string{
 			s.NavidromePath("shared"),
-			s.NavidromePath(harness.PersonalDir(alice)),
+			s.NavidromePath(s.PersonalDir(alice)),
 		}, s.Navidrome.Libraries(t, account))
 	})
 }
@@ -151,7 +151,7 @@ func botEnv(t *testing.T) map[string]string {
 }
 
 func botConfig(t *testing.T) string {
-	return fmt.Sprintf(`admin_ids = [1000]
+	return fmt.Sprintf(`admins = ["telegram:1000"]
 
 [telegram]
 bot_api_url = %q

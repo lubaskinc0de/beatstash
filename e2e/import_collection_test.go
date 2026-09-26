@@ -114,7 +114,7 @@ func TestZvukImport(t *testing.T) {
 	})
 
 	t.Run("progress catches up while the next track is on its way", func(t *testing.T) {
-		s := harness.New(t, harness.WithProgressInterval(time.Second))
+		s := harness.New(t, harness.WithTelegramPollInterval(time.Second))
 		s.ConnectZvuk(alice, harness.ZvukToken)
 		s.AddZvukCollection(harness.ZvukToken)
 		s.Zvuk.HoldStreams(2)
@@ -159,6 +159,23 @@ func TestZvukImport(t *testing.T) {
 		for _, id := range collection.Tracks {
 			assert.Equal(t, 1, s.Zvuk.DownloadsOf(id), "track %s", id)
 		}
+		assert.Contains(t, s.ProgressMessage(t).Text, "9 из 9 треков в библиотеке")
+	})
+
+	t.Run("progress after restart reaches the summary in the same message", func(t *testing.T) {
+		s := harness.New(t)
+		s.ConnectZvuk(alice, harness.ZvukToken)
+		s.AddZvukCollection(harness.ZvukToken)
+		held := s.Zvuk.HoldStreams(3)
+		s.ImportZvuk(alice)
+		<-held
+
+		s.Restart()
+		s.Zvuk.ReleaseStreams()
+		s.WaitIngest()
+
+		assert.Len(t, s.SentMessagesContaining("Import из Звука"), 1)
+		assert.Len(t, s.Telegram.EditedMessages(), 1)
 		assert.Contains(t, s.ProgressMessage(t).Text, "9 из 9 треков в библиотеке")
 	})
 

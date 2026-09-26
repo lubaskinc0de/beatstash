@@ -3,6 +3,7 @@ package harness
 import (
 	"time"
 
+	tgbot "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/bot"
 	app "github.com/lubaskinc0de/navidrome-tg/internal/main"
 )
 
@@ -25,8 +26,8 @@ func WithZvukPerUser(n int) Option {
 	return func(c *app.Config) { c.ZvukPerUser = n }
 }
 
-func WithProgressInterval(d time.Duration) Option {
-	return func(c *app.Config) { c.ProgressInterval = d }
+func WithTelegramPollInterval(d time.Duration) Option {
+	return func(c *app.Config) { c.TelegramPollInterval = d }
 }
 
 func WithZvukPause(d time.Duration) Option {
@@ -43,4 +44,14 @@ func WithStorageChat(chatID int64) Option {
 
 func WithMaxUpload(bytes int64) Option {
 	return func(c *app.Config) { c.MaxPostSize = bytes }
+}
+
+// WithAdmins names the Admins in the config instead of the scenario's Admin.
+func WithAdmins(users ...User) Option {
+	return func(c *app.Config) {
+		c.Admins = nil
+		for _, user := range users {
+			c.Admins = append(c.Admins, tgbot.Identity(user.ID))
+		}
+	}
 }

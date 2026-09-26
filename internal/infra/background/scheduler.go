@@ -5,11 +5,11 @@ import (
 	"time"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/sync_collection"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
 type Scheduler struct {
-	Provider domain.ProviderName
+	Provider provider.ProviderName
 	Sync     *sync_collection.SyncCollection
 	Tick     time.Duration
 }

@@ -6,7 +6,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
 type PlanImport struct {
@@ -16,12 +16,12 @@ type PlanImport struct {
 	Tracks    repositories.Tracks
 }
 
-func (i *PlanImport) Execute(ctx context.Context, provider domain.ProviderName) (*Plan, error) {
+func (i *PlanImport) Execute(ctx context.Context, providerName provider.ProviderName) (*Plan, error) {
 	user, err := i.IDs.CurrentUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	collection, missing, err := survey(ctx, i.Providers, i.Libraries, i.Tracks, user.ID, provider)
+	collection, missing, err := survey(ctx, i.Providers, i.Libraries, i.Tracks, user.ID, providerName)
 	if err != nil {
 		return nil, err
 	}

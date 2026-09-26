@@ -7,7 +7,8 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
 type ProviderTokens struct {
@@ -17,15 +18,15 @@ type ProviderTokens struct {
 
 // Token returns providers.ErrUnauthorized for an account the Provider stopped
 // accepting and repositories.ErrProviderAccountNotFound for a disconnected one.
-func (a *ProviderTokens) Token(ctx context.Context, userID uint, provider domain.ProviderName) (string, error) {
-	account, err := a.Repo.Get(ctx, userID, provider)
+func (a *ProviderTokens) Token(ctx context.Context, userID uint, providerName provider.ProviderName) (string, error) {
+	account, err := a.Repo.Get(ctx, userID, providerName)
 	if err != nil {
 		return "", err
 	}
 	switch account.Status {
-	case domain.ProviderAccountActive:
+	case provider.ProviderAccountActive:
 		return a.Box.Open(account.Token)
-	case domain.ProviderAccountDisconnected:
+	case provider.ProviderAccountDisconnected:
 		return "", repositories.ErrProviderAccountNotFound
 	default:
 		return "", providers.ErrUnauthorized
@@ -39,13 +40,13 @@ func LockIdle(
 	accounts repositories.ProviderAccounts,
 	batches repositories.IngestBatches,
 	userID uint,
-	provider domain.ProviderName,
-) (*domain.ProviderAccount, error) {
-	account, err := accounts.GetForUpdate(ctx, userID, provider)
+	providerName provider.ProviderName,
+) (*provider.ProviderAccount, error) {
+	account, err := accounts.GetForUpdate(ctx, userID, providerName)
 	if err != nil {
 		return nil, err
 	}
-	running, err := batches.Running(ctx, userID, provider, domain.IngestBatchImport)
+	running, err := batches.Running(ctx, userID, providerName, ingest.IngestBatchImport)
 	if err != nil {
 		return nil, err
 	}

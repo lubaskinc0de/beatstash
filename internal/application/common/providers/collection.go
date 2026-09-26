@@ -1,9 +1,11 @@
 package providers
 
-import "github.com/lubaskinc0de/navidrome-tg/internal/domain"
+import (
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
+)
 
 type ListedTrack struct {
-	Ref         domain.TrackRef
+	Ref         provider.TrackRef
 	DisplayName string
 	Bytes       int64
 }
@@ -43,13 +45,13 @@ func (c *Collection) Tracks() []ListedTrack {
 	return tracks
 }
 
-func (c *Collection) Snapshot() *domain.CollectionSnapshot {
-	snapshot := &domain.CollectionSnapshot{
+func (c *Collection) Snapshot() *provider.CollectionSnapshot {
+	snapshot := &provider.CollectionSnapshot{
 		Tracks: RefIDs(c.Tracks()),
 		Liked:  c.LikedRefs,
 	}
 	for _, playlist := range c.Playlists {
-		snapshot.Playlists = append(snapshot.Playlists, domain.PlaylistSnapshot{
+		snapshot.Playlists = append(snapshot.Playlists, provider.PlaylistSnapshot{
 			ID:     playlist.ID,
 			Title:  playlist.Title,
 			Tracks: RefIDs(playlist.Tracks),

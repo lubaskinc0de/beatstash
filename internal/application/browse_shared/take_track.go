@@ -8,7 +8,8 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/sharing"
 )
 
 type TakeTrack struct {
@@ -37,7 +38,7 @@ func (i *TakeTrack) Execute(ctx context.Context, sharedTrackID uint) error {
 
 		_, err = i.Tracks.FindDuplicate(ctx, libs.Personal.ID, track.Metadata, track.DurationMs)
 		if err == nil {
-			return domain.ErrAlreadyInLibrary
+			return library.ErrAlreadyInLibrary
 		}
 		if !errors.Is(err, repositories.ErrTrackNotFound) {
 			return err
@@ -51,6 +52,6 @@ func (i *TakeTrack) Execute(ctx context.Context, sharedTrackID uint) error {
 		if err != nil {
 			return err
 		}
-		return i.Takes.Save(ctx, domain.NewTake(user.ID, copied, sharers, i.Clock()))
+		return i.Takes.Save(ctx, sharing.NewTake(user.ID, copied, sharers, i.Clock()))
 	})
 }

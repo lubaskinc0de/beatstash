@@ -8,7 +8,7 @@ import (
 	"go.senan.xyz/taglib"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/ingest_track"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
 type Tags struct{}
@@ -30,7 +30,7 @@ func (Tags) Probe(path string) (*ingest_track.AudioProbe, error) {
 	return &ingest_track.AudioProbe{
 		Tags:       metadataFromTags(tags),
 		DurationMs: int(props.Length.Milliseconds()),
-		Quality: domain.Quality{
+		Quality: library.Quality{
 			Lossless: isLossless(props),
 			Bitrate:  int(props.BitRate),
 		},
@@ -47,7 +47,7 @@ func isLossless(props taglib.Properties) bool {
 	return false
 }
 
-func metadataFromTags(tags map[string][]string) domain.Metadata {
+func metadataFromTags(tags map[string][]string) library.Metadata {
 	first := func(key string) string {
 		if values := tags[key]; len(values) > 0 {
 			return values[0]
@@ -55,7 +55,7 @@ func metadataFromTags(tags map[string][]string) domain.Metadata {
 		return ""
 	}
 
-	return domain.Metadata{
+	return library.Metadata{
 		AlbumArtist: first(taglib.AlbumArtist),
 		Artist:      first(taglib.Artist),
 		Album:       first(taglib.Album),
@@ -79,7 +79,7 @@ func leadingNumber(s string) int {
 	return n
 }
 
-func (Tags) WriteTags(path string, m domain.Metadata) error {
+func (Tags) WriteTags(path string, m library.Metadata) error {
 	tags := map[string][]string{}
 	set := func(key, value string) {
 		if value != "" {

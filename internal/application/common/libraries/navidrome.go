@@ -11,7 +11,8 @@ import (
 	"strings"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
 const sharedLibraryName = "Общая"
@@ -26,13 +27,13 @@ type Navidrome struct {
 
 // Grant lets the Navidrome Account see the user's Personal Library and the
 // Shared Library, and nothing else.
-func (n *Navidrome) Grant(ctx context.Context, user *domain.User, login string) error {
+func (n *Navidrome) Grant(ctx context.Context, user *access.User, login string) error {
 	libs, err := n.Libraries.Of(ctx, user)
 	if err != nil {
 		return err
 	}
-	for _, library := range []*domain.Library{libs.Personal, libs.Shared} {
-		if err := n.Create(ctx, library); err != nil {
+	for _, lib := range []*library.Library{libs.Personal, libs.Shared} {
+		if err := n.Create(ctx, lib); err != nil {
 			return err
 		}
 	}
@@ -42,28 +43,28 @@ func (n *Navidrome) Grant(ctx context.Context, user *domain.User, login string) 
 // Create creates the library in Navidrome unless it is there
 // already. The remembered id is checked first: an admin may have deleted
 // the library in Navidrome, for one to let ND_MUSICFOLDER take its path.
-func (n *Navidrome) Create(ctx context.Context, library *domain.Library) error {
+func (n *Navidrome) Create(ctx context.Context, lib *library.Library) error {
 	existing, err := n.Navidrome.Libraries(ctx, n.Admin)
 	if err != nil {
 		return err
 	}
-	if library.NavidromeID != 0 && slices.ContainsFunc(existing, func(nd navidrome.Library) bool {
-		return nd.ID == library.NavidromeID
+	if lib.NavidromeID != 0 && slices.ContainsFunc(existing, func(nd navidrome.Library) bool {
+		return nd.ID == lib.NavidromeID
 	}) {
 		return nil
 	}
 
-	id := n.adopt(library, existing)
+	id := n.adopt(lib, existing)
 	if id == 0 {
-		if id, err = n.create(ctx, library); err != nil {
+		if id, err = n.create(ctx, lib); err != nil {
 			return err
 		}
 	}
 
-	if err := n.Libraries.Repo.SetNavidromeID(ctx, library.ID, id); err != nil {
+	if err := n.Libraries.Repo.SetNavidromeID(ctx, lib.ID, id); err != nil {
 		return err
 	}
-	library.NavidromeID = id
+	lib.NavidromeID = id
 	return nil
 }
 
@@ -98,8 +99,8 @@ func (n *Navidrome) ShowNewAccountsOnlyShared(ctx context.Context) error {
 }
 
 // adopt finds the library among Navidrome's by path.
-func (n *Navidrome) adopt(library *domain.Library, existing []navidrome.Library) int {
-	target := n.navidromePath(library)
+func (n *Navidrome) adopt(lib *library.Library, existing []navidrome.Library) int {
+	target := n.navidromePath(lib)
 	for _, nd := range existing {
 		if nd.Path == target {
 			return nd.ID
@@ -107,7 +108,7 @@ func (n *Navidrome) adopt(library *domain.Library, existing []navidrome.Library)
 	}
 
 	root := path.Clean(n.MusicDir)
-	if library.Kind == domain.LibraryShared && slices.ContainsFunc(existing, func(nd navidrome.Library) bool {
+	if lib.Kind == library.LibraryShared && slices.ContainsFunc(existing, func(nd navidrome.Library) bool {
 		return nd.ID == navidromeRootLibraryID && nd.Path == root
 	}) {
 		slog.Warn(
@@ -124,11 +125,11 @@ func (n *Navidrome) adopt(library *domain.Library, existing []navidrome.Library)
 
 // create falls back to a name with the path in it: names are unique across
 // Navidrome, which may hold libraries of other bots.
-func (n *Navidrome) create(ctx context.Context, library *domain.Library) (int, error) {
+func (n *Navidrome) create(ctx context.Context, lib *library.Library) (int, error) {
 	nd := navidrome.Library{
-		Name:            libraryName(library),
-		Path:            n.navidromePath(library),
-		DefaultNewUsers: library.Kind == domain.LibraryShared,
+		Name:            libraryName(lib),
+		Path:            n.navidromePath(lib),
+		DefaultNewUsers: lib.Kind == library.LibraryShared,
 	}
 	id, err := n.Navidrome.CreateLibrary(ctx, n.Admin, nd)
 	if errors.Is(err, navidrome.ErrNameTaken) {
@@ -138,8 +139,8 @@ func (n *Navidrome) create(ctx context.Context, library *domain.Library) (int, e
 	return id, err
 }
 
-func (n *Navidrome) navidromePath(library *domain.Library) string {
-	return path.Join(n.MusicDir, filepath.ToSlash(library.Dir))
+func (n *Navidrome) navidromePath(lib *library.Library) string {
+	return path.Join(n.MusicDir, filepath.ToSlash(lib.Dir))
 }
 
 // navidromeRootLibraryID is the library Navidrome makes from ND_MUSICFOLDER;
@@ -150,9 +151,9 @@ func fallbackName(nd navidrome.Library) string {
 	return nd.Name + " · " + nd.Path
 }
 
-func libraryName(library *domain.Library) string {
-	if library.Kind == domain.LibraryShared {
+func libraryName(lib *library.Library) string {
+	if lib.Kind == library.LibraryShared {
 		return sharedLibraryName
 	}
-	return "Личная · " + filepath.Base(library.Dir)
+	return "Личная · " + filepath.Base(lib.Dir)
 }

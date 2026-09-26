@@ -3,7 +3,6 @@ package database
 import (
 	"context"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/navidrome"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -15,7 +14,7 @@ type NavidromeSessionRepository struct {
 
 func (r *NavidromeSessionRepository) GetToken(ctx context.Context, username string) (string, error) {
 	q := dbForContext(ctx, r.DB).Where("username = ?", username)
-	session, err := first[domain.NavidromeSession](q, navidrome.ErrSessionNotFound)
+	session, err := first[navidrome.Session](q, navidrome.ErrSessionNotFound)
 	if err != nil {
 		return "", err
 	}
@@ -23,7 +22,7 @@ func (r *NavidromeSessionRepository) GetToken(ctx context.Context, username stri
 }
 
 func (r *NavidromeSessionRepository) SaveToken(ctx context.Context, username string, token string) error {
-	session := domain.NavidromeSession{
+	session := navidrome.Session{
 		Username: username,
 		Token:    token,
 	}

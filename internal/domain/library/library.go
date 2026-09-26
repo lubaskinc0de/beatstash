@@ -1,6 +1,8 @@
-package domain
+package library
 
 import (
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
+
 	"path/filepath"
 	"strconv"
 	"time"
@@ -35,10 +37,10 @@ func SharedLibrary() *Library {
 	return &Library{Kind: LibraryShared, Dir: SharedLibraryDir}
 }
 
-func PersonalLibrary(owner *User) *Library {
+func PersonalLibrary(owner *access.User) *Library {
 	return &Library{
 		Kind:    LibraryPersonal,
 		OwnerID: &owner.ID,
-		Dir:     filepath.Join(PersonalLibrariesDir, strconv.FormatUint(owner.TelegramID, 10)),
+		Dir:     filepath.Join(PersonalLibrariesDir, strconv.FormatUint(uint64(owner.ID), 10)),
 	}
 }

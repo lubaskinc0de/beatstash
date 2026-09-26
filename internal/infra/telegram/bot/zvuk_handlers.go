@@ -13,6 +13,10 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/accounts"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/import_collection"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/ingest_track"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/store"
 )
 
 const zvukUsage = "Чтобы подключить Звук, отправьте: <code>/zvuk токен</code>\n\n" + zvukTokenHowTo
@@ -96,7 +100,7 @@ func (h *Handler) handleZvukImport(ctx context.Context, b *bot.Bot, update *mode
 }
 
 func (h *Handler) handleStartImport(ctx context.Context, b *bot.Bot, query *models.CallbackQuery, _ uint) {
-	plan, err := h.StartImport.Execute(ctx, h.Zvuk, query.From.ID)
+	plan, err := h.StartImport.Execute(ctx, h.Zvuk)
 	switch {
 	case err == nil && plan.Missing == 0:
 		answerCallback(ctx, b, query.ID, "Вся коллекция уже в библиотеке")
@@ -104,6 +108,7 @@ func (h *Handler) handleStartImport(ctx context.Context, b *bot.Bot, query *mode
 	case err == nil:
 		answerCallback(ctx, b, query.ID, "")
 		editKeyboard(ctx, b, query, &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{}})
+		h.showProgress(ctx, b, query.From.ID, plan)
 	case errors.Is(err, accounts.ErrBatchRunning):
 		answerCallback(ctx, b, query.ID, "Import уже идёт")
 	case isNoZvukAccount(err):
@@ -132,4 +137,19 @@ func formatBytes(n int64) string {
 		return fmt.Sprintf("%d МБ", max(n/mb, 1))
 	}
 	return strings.Replace(fmt.Sprintf("%.1f ГБ", float64(n)/(1<<30)), ".", ",", 1)
+}
+
+// showProgress sends the message the Poller keeps editing until the Import
+// ends.
+func (h *Handler) showProgress(ctx context.Context, b *bot.Bot, chatID int64, plan *import_collection.Plan) {
+	text := batchText(&ingest_track.BatchState{Batch: ingest.IngestBatch{Provider: h.Zvuk, Total: plan.Missing}})
+	msg, err := b.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, Text: text, ParseMode: models.ParseModeHTML})
+	if err != nil {
+		slog.Error("send_progress_message", "error", err)
+		return
+	}
+	err = h.BatchMessages.Remember(ctx, store.BatchMessage{BatchID: plan.BatchID, ChatID: chatID, MessageID: msg.ID, Shown: text})
+	if err != nil {
+		slog.Error("remember_batch_message", "batch_id", plan.BatchID, "error", err)
+	}
 }

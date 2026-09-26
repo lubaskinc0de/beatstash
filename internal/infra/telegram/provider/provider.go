@@ -15,47 +15,51 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/store"
 )
 
-const Name = domain.ProviderTelegram
+const Name = provider.ProviderTelegram
 
 type File struct {
-	ID        string                  `json:"file_id"`
-	UniqueID  string                  `json:"-"`
-	Kind      domain.TelegramFileKind `json:"kind"`
-	Name      string                  `json:"file_name,omitempty"`
-	Format    domain.Format           `json:"format"`
-	Performer string                  `json:"performer,omitempty"`
-	Title     string                  `json:"title,omitempty"`
+	ID        string         `json:"file_id"`
+	UniqueID  string         `json:"-"`
+	Kind      store.FileKind `json:"kind"`
+	Name      string         `json:"file_name,omitempty"`
+	Format    library.Format `json:"format"`
+	Performer string         `json:"performer,omitempty"`
+	Title     string         `json:"title,omitempty"`
 }
 
 // Ref keys the Track Ref by file_unique_id, which stays the same across
 // forwards, and keeps the rest in the payload.
-func Ref(file File) (domain.TrackRef, error) {
+func Ref(file File) (provider.TrackRef, error) {
 	payload, err := json.Marshal(file)
 	if err != nil {
-		return domain.TrackRef{}, err
+		return provider.TrackRef{}, err
 	}
-	return domain.TrackRef{Provider: Name, ID: file.UniqueID, Payload: string(payload)}, nil
+	return provider.TrackRef{Provider: Name, ID: file.UniqueID, Payload: string(payload)}, nil
 }
 
 type Provider struct {
-	Bot *bot.Bot
+	Bot   *bot.Bot
+	Files *store.Files
 
 	// localFiles maps Track Ref ids to files a local Bot API server
 	// downloaded for them, to be removed on Release.
 	localFiles sync.Map
 }
 
-func (p *Provider) Name() domain.ProviderName {
+func (p *Provider) Name() provider.ProviderName {
 	return Name
 }
 
-func (p *Provider) Fetch(ctx context.Context, _ uint, ref domain.TrackRef) (*providers.FetchedAudio, error) {
+func (p *Provider) Fetch(ctx context.Context, _ uint, ref provider.TrackRef) (*providers.FetchedAudio, error) {
 	var file File
 	if err := json.Unmarshal([]byte(ref.Payload), &file); err != nil {
-		return nil, providers.Permanent(providers.ReasonInternal, fmt.Errorf("decode payload: %w", err))
+		return nil, providers.Permanent(ingest.ReasonInternal, fmt.Errorf("decode payload: %w", err))
 	}
 
 	info, err := p.Bot.GetFile(ctx, &bot.GetFileParams{FileID: file.ID})
@@ -69,15 +73,20 @@ func (p *Provider) Fetch(ctx context.Context, _ uint, ref domain.TrackRef) (*pro
 	}
 
 	return &providers.FetchedAudio{
-		Body:         body,
-		FileName:     file.Name,
-		Format:       file.Format,
-		WeakHint:     domain.Metadata{Artist: file.Performer, Title: file.Title},
-		TelegramFile: &domain.TelegramFile{ID: file.ID, Kind: file.Kind},
+		Body:     body,
+		FileName: file.Name,
+		Format:   file.Format,
+		WeakHint: library.Metadata{Artist: file.Performer, Title: file.Title},
 	}, nil
 }
 
-func (p *Provider) Release(ctx context.Context, ref domain.TrackRef) error {
+// Recognize: a Track Ref is the file's unique id, and the bot remembers the
+// files it gave out.
+func (p *Provider) Recognize(ctx context.Context, ref provider.TrackRef) ([]uint, error) {
+	return p.Files.Recognize(ctx, ref.ID)
+}
+
+func (p *Provider) Release(ctx context.Context, ref provider.TrackRef) error {
 	path, ok := p.localFiles.LoadAndDelete(ref.ID)
 	if !ok {
 		return nil
@@ -90,7 +99,7 @@ func (p *Provider) Release(ctx context.Context, ref domain.TrackRef) error {
 
 // open reads the file a local Bot API server (--local) put on the shared
 // volume, or downloads it from a regular one.
-func (p *Provider) open(ctx context.Context, ref domain.TrackRef, filePath string) (io.ReadCloser, error) {
+func (p *Provider) open(ctx context.Context, ref provider.TrackRef, filePath string) (io.ReadCloser, error) {
 	if filepath.IsAbs(filePath) {
 		file, err := os.Open(filePath)
 		if err != nil {

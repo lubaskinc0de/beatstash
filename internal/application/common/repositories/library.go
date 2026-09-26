@@ -4,16 +4,16 @@ import (
 	"context"
 	"errors"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
 type Libraries interface {
 	// Ensure inserts the library unless one with its Dir exists, then loads the stored one into it.
-	Ensure(ctx context.Context, library *domain.Library) error
-	Shared(ctx context.Context) (*domain.Library, error)
-	Personal(ctx context.Context, userID uint) (*domain.Library, error)
-	Get(ctx context.Context, id uint) (*domain.Library, error)
-	All(ctx context.Context) ([]domain.Library, error)
+	Ensure(ctx context.Context, lib *library.Library) error
+	Shared(ctx context.Context) (*library.Library, error)
+	Personal(ctx context.Context, userID uint) (*library.Library, error)
+	Get(ctx context.Context, id uint) (*library.Library, error)
+	All(ctx context.Context) ([]library.Library, error)
 	SetNavidromeID(ctx context.Context, id uint, navidromeID int) error
 }
 

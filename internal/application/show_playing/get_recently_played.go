@@ -2,7 +2,6 @@ package show_playing
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
@@ -10,12 +9,13 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
 type RecentTrack struct {
 	navidrome.PlayedTrack
-	TelegramFile *domain.TelegramFile
+	// Track is nil if the user's libraries hold no such Track.
+	Track *library.Track
 }
 
 type GetRecentlyPlayed struct {
@@ -53,12 +53,7 @@ func (i *GetRecentlyPlayed) Execute(
 	for _, p := range played {
 		track := RecentTrack{PlayedTrack: p}
 
-		file, err := i.Repo.FindTelegramFile(ctx, libs.IDs(), p.Metadata())
-		switch {
-		case err == nil:
-			track.TelegramFile = file
-		case errors.Is(err, repositories.ErrNoTelegramFile):
-		default:
+		if track.Track, err = findPlayed(ctx, i.Repo, libs, p.Metadata()); err != nil {
 			slog.Error("find_track", "error", err)
 		}
 

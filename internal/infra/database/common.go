@@ -7,7 +7,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/sharing"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/navidrome"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -51,23 +56,20 @@ func New(dsn string) (*gorm.DB, error) {
 const maxIdleConns = 32
 
 var models = []any{
-	&domain.User{},
-	&domain.Library{},
-	&domain.Track{},
-	&domain.TrackSource{},
-	&domain.Upload{},
-	&domain.Share{},
-	&domain.Take{},
-	&domain.IngestBatch{},
-	&domain.IngestJob{},
-	&domain.NavidromeSession{},
-	&domain.NavidromeAccount{},
-	&domain.ProviderAccount{},
-	&domain.Invite{},
-}
-
-func Migrate(db *gorm.DB) error {
-	return db.AutoMigrate(models...)
+	&access.User{},
+	&access.Identity{},
+	&library.Library{},
+	&library.Track{},
+	&library.TrackSource{},
+	&library.Upload{},
+	&sharing.Share{},
+	&sharing.Take{},
+	&ingest.IngestBatch{},
+	&ingest.IngestJob{},
+	&navidrome.Session{},
+	&access.NavidromeAccount{},
+	&provider.ProviderAccount{},
+	&access.Invite{},
 }
 
 func Close(db *gorm.DB) error {

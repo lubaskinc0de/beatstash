@@ -4,19 +4,21 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strconv"
+	"time"
 
 	"github.com/go-telegram/bot/models"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 )
 
 type senderContextKey struct{}
 
 type sender struct {
 	from *models.User
-	user *domain.User
+	user *access.User
 }
 
 func withSender(ctx context.Context, from *models.User) context.Context {
@@ -31,11 +33,18 @@ func senderFrom(ctx context.Context) (*sender, error) {
 	return s, nil
 }
 
-type IDProvider struct {
-	Users repositories.Users
+const Channel access.Channel = "telegram"
+
+func Identity(telegramID int64) access.Identity {
+	return access.Identity{Channel: Channel, ExternalID: strconv.FormatInt(telegramID, 10)}
 }
 
-func (p *IDProvider) CurrentUser(ctx context.Context) (*domain.User, error) {
+type IDProvider struct {
+	Users repositories.Users
+	Clock func() time.Time
+}
+
+func (p *IDProvider) CurrentUser(ctx context.Context) (*access.User, error) {
 	s, err := senderFrom(ctx)
 	if err != nil {
 		return nil, err
@@ -44,7 +53,7 @@ func (p *IDProvider) CurrentUser(ctx context.Context) (*domain.User, error) {
 		return s.user, nil
 	}
 
-	user, err := p.Users.GetByTelegramID(ctx, uint64(s.from.ID))
+	user, err := p.Users.GetByIdentity(ctx, Identity(s.from.ID))
 	if errors.Is(err, repositories.ErrUserNotFound) {
 		return nil, common.ErrNotAuthenticated
 	}
@@ -52,7 +61,7 @@ func (p *IDProvider) CurrentUser(ctx context.Context) (*domain.User, error) {
 		return nil, err
 	}
 
-	// Admins from admin_ids start without a username, and people rename themselves.
+	// Admins from the config start without a username, and people rename themselves.
 	if s.from.Username != user.Username {
 		if err := p.Users.SetUsername(ctx, user.ID, s.from.Username); err != nil {
 			slog.Error("set_username", "error", err)
@@ -64,10 +73,10 @@ func (p *IDProvider) CurrentUser(ctx context.Context) (*domain.User, error) {
 	return user, nil
 }
 
-func (p *IDProvider) NewUser(ctx context.Context) (*domain.User, error) {
+func (p *IDProvider) NewUser(ctx context.Context) (*access.User, error) {
 	s, err := senderFrom(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &domain.User{TelegramID: uint64(s.from.ID), Username: s.from.Username}, nil
+	return access.NewUser(s.from.Username, Identity(s.from.ID), p.Clock()), nil
 }

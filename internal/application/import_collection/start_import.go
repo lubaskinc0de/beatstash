@@ -8,7 +8,8 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/accounts"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
 type StartImport struct {
@@ -20,16 +21,15 @@ type StartImport struct {
 	Accounts  repositories.ProviderAccounts
 	Queue     repositories.IngestQueue
 	BatchRepo repositories.IngestBatches
-	Reporter  common.BatchReporter
 	Waker     common.Waker
 }
 
-func (i *StartImport) Execute(ctx context.Context, provider domain.ProviderName, chatID int64) (*Plan, error) {
+func (i *StartImport) Execute(ctx context.Context, providerName provider.ProviderName) (*Plan, error) {
 	user, err := i.IDs.CurrentUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	running, err := i.BatchRepo.Running(ctx, user.ID, provider, domain.IngestBatchImport)
+	running, err := i.BatchRepo.Running(ctx, user.ID, providerName, ingest.IngestBatchImport)
 	if err != nil {
 		return nil, err
 	}
@@ -37,53 +37,45 @@ func (i *StartImport) Execute(ctx context.Context, provider domain.ProviderName,
 		return nil, accounts.ErrBatchRunning
 	}
 
-	collection, missing, err := survey(ctx, i.Providers, i.Libraries, i.Tracks, user.ID, provider)
+	collection, missing, err := survey(ctx, i.Providers, i.Libraries, i.Tracks, user.ID, providerName)
 	if err != nil {
 		return nil, err
 	}
 	// Rechecked under the lock: a second tap may have started an Import.
 	remember := func(ctx context.Context) error {
-		account, err := accounts.LockIdle(ctx, i.Accounts, i.BatchRepo, user.ID, provider)
+		account, err := accounts.LockIdle(ctx, i.Accounts, i.BatchRepo, user.ID, providerName)
 		if err != nil {
 			return err
 		}
 		account.Remember(collection.Snapshot(), time.Now())
 		return i.Accounts.Save(ctx, account)
 	}
+	plan := planOf(collection.Tracks(), missing)
 	if len(missing) == 0 {
 		err = i.Tx.WithinTx(ctx, remember)
 	} else {
-		err = i.startBatch(ctx, user.ID, provider, chatID, missing, remember)
+		plan.BatchID, err = i.startBatch(ctx, user.ID, providerName, missing, remember)
 	}
 	if err != nil {
 		return nil, err
 	}
-	return planOf(collection.Tracks(), missing), nil
+	return plan, nil
 }
 
-// startBatch announces first: jobs may finish before a later message.
 func (i *StartImport) startBatch(
 	ctx context.Context,
 	userID uint,
-	provider domain.ProviderName,
-	chatID int64,
+	providerName provider.ProviderName,
 	tracks []providers.ListedTrack,
 	remember func(context.Context) error,
-) error {
-	batch := &domain.IngestBatch{
+) (uint, error) {
+	batch := &ingest.IngestBatch{
 		UserID:   userID,
-		Provider: provider,
-		Kind:     domain.IngestBatchImport,
-		ChatID:   chatID,
+		Provider: providerName,
+		Kind:     ingest.IngestBatchImport,
 		Total:    len(tracks),
 	}
-	id, err := i.Reporter.Announce(ctx, batch)
-	if err != nil {
-		return err
-	}
-	batch.MessageID = id
-
-	err = i.Tx.WithinTx(ctx, func(ctx context.Context) error {
+	err := i.Tx.WithinTx(ctx, func(ctx context.Context) error {
 		if err := remember(ctx); err != nil {
 			return err
 		}
@@ -91,7 +83,7 @@ func (i *StartImport) startBatch(
 			return err
 		}
 		for _, track := range tracks {
-			job := common.NewJob(userID, track, common.MessageRef{ChatID: chatID})
+			job := ingest.NewJob(userID, track.Ref, track.DisplayName, time.Now())
 			job.BatchID = &batch.ID
 			if err := i.Queue.Enqueue(ctx, job); err != nil {
 				return err
@@ -100,9 +92,8 @@ func (i *StartImport) startBatch(
 		return nil
 	})
 	if err != nil {
-		i.Reporter.Withdraw(ctx, batch)
-		return err
+		return 0, err
 	}
 	i.Waker.Wake()
-	return nil
+	return batch.ID, nil
 }

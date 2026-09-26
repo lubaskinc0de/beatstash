@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
 type Credentials struct {
@@ -21,8 +21,8 @@ type Client interface {
 
 	Libraries(ctx context.Context, admin Credentials) ([]Library, error)
 	// CreateLibrary returns ErrNameTaken if another library has the name.
-	CreateLibrary(ctx context.Context, admin Credentials, library Library) (int, error)
-	UpdateLibrary(ctx context.Context, admin Credentials, library Library) error
+	CreateLibrary(ctx context.Context, admin Credentials, lib Library) (int, error)
+	UpdateLibrary(ctx context.Context, admin Credentials, lib Library) error
 	// SetLibraries replaces the libraries the account may see.
 	SetLibraries(ctx context.Context, admin Credentials, login string, libraryIDs []int) error
 
@@ -52,8 +52,8 @@ type Track struct {
 	Duration int
 }
 
-func (t Track) Metadata() domain.Metadata {
-	return domain.Metadata{Artist: t.Artist, Title: t.Title, Album: t.Album}
+func (t Track) Metadata() library.Metadata {
+	return library.Metadata{Artist: t.Artist, Title: t.Title, Album: t.Album}
 }
 
 type PlayingTrack struct {

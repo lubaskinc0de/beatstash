@@ -5,7 +5,7 @@ import (
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
 // Plan counts the collection and the part of it the library lacks: only
@@ -14,6 +14,8 @@ type Plan struct {
 	Total        int
 	Missing      int
 	MissingBytes int64
+	// BatchID is the batch that downloads the missing tracks; zero if none.
+	BatchID uint
 }
 
 // survey lists the collection and the tracks of it the library lacks.
@@ -23,9 +25,9 @@ func survey(
 	libraries repositories.Libraries,
 	tracks repositories.Tracks,
 	userID uint,
-	provider domain.ProviderName,
+	providerName provider.ProviderName,
 ) (*providers.Collection, []providers.ListedTrack, error) {
-	lister, err := registry.CollectionLister(provider)
+	lister, err := registry.CollectionLister(providerName)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -38,7 +40,7 @@ func survey(
 		return nil, nil, err
 	}
 	all := collection.Tracks()
-	known, err := tracks.KnownRefs(ctx, library.ID, provider, providers.RefIDs(all))
+	known, err := tracks.KnownRefs(ctx, library.ID, providerName, providers.RefIDs(all))
 	if err != nil {
 		return nil, nil, err
 	}

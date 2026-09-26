@@ -14,11 +14,11 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
-// SyncCollection skips accounts with a running Import and rejected ones
-// (their users hear about it once). Running is rechecked under the account's
+// SyncCollection skips accounts with a running Import and rejected ones. Running is rechecked under the account's
 // lock: an Import may start while the collection is listed.
 type SyncCollection struct {
 	Tx        repositories.TxManager
@@ -27,7 +27,6 @@ type SyncCollection struct {
 	Queue     repositories.IngestQueue
 	BatchRepo repositories.IngestBatches
 	Waker     common.Waker
-	Notifier  AccountNotifier
 	Interval  time.Duration
 
 	Libraries         repositories.Libraries
@@ -36,17 +35,13 @@ type SyncCollection struct {
 	NavidromeAccounts *accounts.Navidrome
 }
 
-type AccountNotifier interface {
-	ProviderAccountInvalid(ctx context.Context, user *domain.User, provider domain.ProviderName)
+func (i *SyncCollection) Execute(ctx context.Context, providerName provider.ProviderName) {
+	i.syncAll(ctx, providerName)
+	i.mirrorAll(ctx, providerName)
 }
 
-func (i *SyncCollection) Execute(ctx context.Context, provider domain.ProviderName) {
-	i.syncAll(ctx, provider)
-	i.mirrorAll(ctx, provider)
-}
-
-func (i *SyncCollection) syncAll(ctx context.Context, provider domain.ProviderName) {
-	accounts, err := i.Accounts.All(ctx, provider)
+func (i *SyncCollection) syncAll(ctx context.Context, providerName provider.ProviderName) {
+	accounts, err := i.Accounts.All(ctx, providerName)
 	if err != nil {
 		slog.Error("list_provider_accounts", "error", err)
 		return
@@ -54,16 +49,16 @@ func (i *SyncCollection) syncAll(ctx context.Context, provider domain.ProviderNa
 	for n := range accounts {
 		account := &accounts[n]
 		if err := i.syncIfDue(ctx, account); err != nil && ctx.Err() == nil {
-			slog.Error("sync_collection", "user_id", account.UserID, "provider", provider, "error", err)
+			slog.Error("sync_collection", "user_id", account.UserID, "provider", providerName, "error", err)
 		}
 	}
 }
 
-func (i *SyncCollection) syncIfDue(ctx context.Context, account *domain.ProviderAccount) error {
+func (i *SyncCollection) syncIfDue(ctx context.Context, account *provider.ProviderAccount) error {
 	if !account.SyncDue(time.Now(), i.Interval) {
 		return nil
 	}
-	running, err := i.BatchRepo.Running(ctx, account.UserID, account.Provider, domain.IngestBatchImport)
+	running, err := i.BatchRepo.Running(ctx, account.UserID, account.Provider, ingest.IngestBatchImport)
 	if err != nil || running {
 		return err
 	}
@@ -93,7 +88,7 @@ func (i *SyncCollection) syncIfDue(ctx context.Context, account *domain.Provider
 	return nil
 }
 
-func (i *SyncCollection) try(ctx context.Context, account *domain.ProviderAccount) error {
+func (i *SyncCollection) try(ctx context.Context, account *provider.ProviderAccount) error {
 	return i.Tx.WithinTx(ctx, func(ctx context.Context) error {
 		locked, err := i.Accounts.GetForUpdate(ctx, account.UserID, account.Provider)
 		if err != nil {
@@ -104,8 +99,8 @@ func (i *SyncCollection) try(ctx context.Context, account *domain.ProviderAccoun
 	})
 }
 
-func (i *SyncCollection) remember(ctx context.Context, userID uint, provider domain.ProviderName, collection *providers.Collection) error {
-	account, err := accounts.LockIdle(ctx, i.Accounts, i.BatchRepo, userID, provider)
+func (i *SyncCollection) remember(ctx context.Context, userID uint, providerName provider.ProviderName, collection *providers.Collection) error {
+	account, err := accounts.LockIdle(ctx, i.Accounts, i.BatchRepo, userID, providerName)
 	if errors.Is(err, accounts.ErrBatchRunning) {
 		return nil
 	}
@@ -118,7 +113,7 @@ func (i *SyncCollection) remember(ctx context.Context, userID uint, provider dom
 		if !added[track.Ref.ID] {
 			continue
 		}
-		job := common.NewJob(userID, track, common.MessageRef{})
+		job := ingest.NewJob(userID, track.Ref, track.DisplayName, time.Now())
 		if err := i.Queue.Enqueue(ctx, job); err != nil {
 			return err
 		}
@@ -130,33 +125,26 @@ func (i *SyncCollection) remember(ctx context.Context, userID uint, provider dom
 
 // invalidate leaves alone an account whose token changed since Sync read it:
 // the user may have sent a new one while the old one was being refused.
-func (i *SyncCollection) invalidate(ctx context.Context, account *domain.ProviderAccount) error {
-	invalidated := false
-	err := i.Tx.WithinTx(ctx, func(ctx context.Context) error {
+func (i *SyncCollection) invalidate(ctx context.Context, account *provider.ProviderAccount) error {
+	return i.Tx.WithinTx(ctx, func(ctx context.Context) error {
 		locked, err := i.Accounts.GetForUpdate(ctx, account.UserID, account.Provider)
 		if err != nil {
 			return err
 		}
-		if locked.Status != domain.ProviderAccountActive || !bytes.Equal(locked.Token, account.Token) {
+		if locked.Status != provider.ProviderAccountActive || !bytes.Equal(locked.Token, account.Token) {
 			return nil
 		}
-		locked.Invalidate()
-		invalidated = true
+		locked.Invalidate(time.Now())
 		return i.Accounts.Save(ctx, locked)
 	})
-	if err != nil || !invalidated {
-		return err
-	}
-	i.Notifier.ProviderAccountInvalid(ctx, &account.User, account.Provider)
-	return nil
 }
 
 // mirrorAll carries the collections into Navidrome: likes become stars and
 // playlists become the user's playlists. A song id comes from the path of
 // the Track's file, so a track Navidrome has not indexed yet waits for the
 // next run.
-func (i *SyncCollection) mirrorAll(ctx context.Context, provider domain.ProviderName) {
-	accounts, err := i.Accounts.All(ctx, provider)
+func (i *SyncCollection) mirrorAll(ctx context.Context, providerName provider.ProviderName) {
+	accounts, err := i.Accounts.All(ctx, providerName)
 	if err != nil {
 		slog.Error("list_provider_accounts", "error", err)
 		return
@@ -167,14 +155,14 @@ func (i *SyncCollection) mirrorAll(ctx context.Context, provider domain.Provider
 			continue
 		}
 		if err := i.mirror(ctx, account); err != nil && ctx.Err() == nil {
-			slog.Error("mirror_collection", "user_id", account.UserID, "provider", provider, "error", err)
+			slog.Error("mirror_collection", "user_id", account.UserID, "provider", providerName, "error", err)
 		}
 	}
 }
 
 // mirror talks to Navidrome without holding the account, so an Import or a
 // Sync never waits for it, and saves what it did even if it stopped halfway.
-func (i *SyncCollection) mirror(ctx context.Context, account *domain.ProviderAccount) error {
+func (i *SyncCollection) mirror(ctx context.Context, account *provider.ProviderAccount) error {
 	creds, err := i.NavidromeAccounts.Credentials(ctx, account.UserID)
 	if errors.Is(err, repositories.ErrNavidromeAccountNotFound) {
 		return nil
@@ -196,7 +184,7 @@ func (i *SyncCollection) mirror(ctx context.Context, account *domain.ProviderAcc
 
 // save keeps the mirror wanted if an Import or a Sync remembered a new
 // collection meanwhile.
-func (i *SyncCollection) save(ctx context.Context, mirrored *domain.ProviderAccount, wanted bool) error {
+func (i *SyncCollection) save(ctx context.Context, mirrored *provider.ProviderAccount, wanted bool) error {
 	return i.Tx.WithinTx(ctx, func(ctx context.Context) error {
 		account, err := i.Accounts.GetForUpdate(ctx, mirrored.UserID, mirrored.Provider)
 		if errors.Is(err, repositories.ErrProviderAccountNotFound) {
@@ -217,8 +205,8 @@ func sameTime(a, b *time.Time) bool {
 func (i *SyncCollection) star(
 	ctx context.Context,
 	creds navidrome.Credentials,
-	collection *domain.CollectionSnapshot,
-	state *domain.MirrorState,
+	collection *provider.CollectionSnapshot,
+	state *provider.MirrorState,
 	songs *songResolver,
 ) error {
 	if state.Starred == nil {
@@ -266,12 +254,12 @@ func (i *SyncCollection) star(
 func (i *SyncCollection) playlists(
 	ctx context.Context,
 	creds navidrome.Credentials,
-	collection *domain.CollectionSnapshot,
-	state *domain.MirrorState,
+	collection *provider.CollectionSnapshot,
+	state *provider.MirrorState,
 	songs *songResolver,
 ) error {
 	if state.Playlists == nil {
-		state.Playlists = map[string]domain.MirroredPlaylist{}
+		state.Playlists = map[string]provider.MirroredPlaylist{}
 	}
 
 	for _, playlist := range collection.Playlists {
@@ -291,14 +279,14 @@ func (i *SyncCollection) playlists(
 		if err != nil {
 			return err
 		}
-		state.Playlists[playlist.ID] = domain.MirroredPlaylist{NavidromeID: id, Songs: ids}
+		state.Playlists[playlist.ID] = provider.MirroredPlaylist{NavidromeID: id, Songs: ids}
 	}
 	return nil
 }
 
 func (i *SyncCollection) resolver(
 	ctx context.Context,
-	account *domain.ProviderAccount,
+	account *provider.ProviderAccount,
 	creds navidrome.Credentials,
 ) (*songResolver, error) {
 	library, err := i.Libraries.Personal(ctx, account.UserID)

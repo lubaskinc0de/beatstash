@@ -8,7 +8,8 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
 type AcceptInvite struct {
@@ -21,36 +22,29 @@ type AcceptInvite struct {
 	Clock              func() time.Time
 }
 
-func (i *AcceptInvite) Execute(ctx context.Context, code string) (*domain.User, error) {
+func (i *AcceptInvite) Execute(ctx context.Context, code string) (*access.User, error) {
 	user, err := i.IDs.NewUser(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	var library *domain.Library
+	var lib *library.Library
 	err = i.Tx.WithinTx(ctx, func(ctx context.Context) error {
 		invite, err := i.Invites.GetForUpdate(ctx, code)
 		if err != nil {
 			return err
 		}
 
-		now := i.Clock()
-		if !invite.Redeemable(now) {
-			return repositories.ErrInviteInvalid
-		}
-
-		// Awaiting from the start: a crash before the account exists must not strand the User.
-		user.CreatedAt = now
-		user.AwaitsNavidromeLogin = true
 		if err := i.Users.Save(ctx, user); err != nil {
 			return err
 		}
-		if library, err = i.Libraries.Personal(ctx, user); err != nil {
+		// A refused Invite rolls the User back.
+		if err := invite.Redeem(user, i.Clock()); err != nil {
 			return err
 		}
-
-		invite.UsedBy = &user.ID
-		invite.UsedAt = &now
+		if lib, err = i.Libraries.Personal(ctx, user); err != nil {
+			return err
+		}
 		return i.Invites.Save(ctx, invite)
 	})
 	if err != nil {
@@ -58,7 +52,7 @@ func (i *AcceptInvite) Execute(ctx context.Context, code string) (*domain.User, 
 	}
 
 	// Navidrome sits outside the transaction; a failure here is repaired by the next grant or start.
-	if err := i.NavidromeLibraries.Create(ctx, library); err != nil {
+	if err := i.NavidromeLibraries.Create(ctx, lib); err != nil {
 		slog.Error("create_personal_library_in_navidrome", "user_id", user.ID, "error", err)
 	}
 	return user, nil

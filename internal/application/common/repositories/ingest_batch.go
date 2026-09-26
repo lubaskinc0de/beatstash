@@ -5,15 +5,15 @@ import (
 	"errors"
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
 type IngestBatches interface {
-	Save(ctx context.Context, batch *domain.IngestBatch) error
-	// GetForUpdate locks the batch until ctx's transaction ends.
-	GetForUpdate(ctx context.Context, id uint) (*domain.IngestBatch, error)
-	Unfinished(ctx context.Context) ([]domain.IngestBatch, error)
-	Running(ctx context.Context, userID uint, provider domain.ProviderName, kind domain.IngestBatchKind) (bool, error)
+	Save(ctx context.Context, batch *ingest.IngestBatch) error
+	Get(ctx context.Context, id uint) (*ingest.IngestBatch, error)
+	Unfinished(ctx context.Context) ([]ingest.IngestBatch, error)
+	Running(ctx context.Context, userID uint, providerName provider.ProviderName, kind ingest.IngestBatchKind) (bool, error)
 	// Finish returns false if the batch was finished already.
 	Finish(ctx context.Context, id uint, at time.Time) (bool, error)
 }

@@ -13,8 +13,8 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/browse_shared"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/sharing"
 )
 
 const feedLimit = 10
@@ -60,7 +60,7 @@ func feedText(entries []browse_shared.FeedEntry) string {
 	return b.String()
 }
 
-func trackLine(track *domain.Track) string {
+func trackLine(track *library.Track) string {
 	return fmt.Sprintf("<b>%s</b> — %s", html.EscapeString(track.Artist), html.EscapeString(track.Title))
 }
 
@@ -91,8 +91,8 @@ func (h *Handler) handleInlineFeed(ctx context.Context, b *bot.Bot, update *mode
 	for _, entry := range entries {
 		id := "shared-" + strconv.FormatUint(uint64(entry.Track.ID), 10)
 		caption := fmt.Sprintf("🎧 %s\n🔗 расшарил %s", trackLine(&entry.Track), html.EscapeString(authorName(&entry.Author)))
-		if entry.TelegramFile != nil {
-			results = append(results, cachedFileResult(id, entry.TelegramFile, caption))
+		if file := h.fileOf(ctx, &entry.Track); file != nil {
+			results = append(results, cachedFileResult(id, file, caption))
 			continue
 		}
 		results = append(results, &models.InlineQueryResultArticle{
@@ -113,9 +113,9 @@ func (h *Handler) handleTake(ctx context.Context, b *bot.Bot, query *models.Call
 	switch {
 	case err == nil:
 		answerCallback(ctx, b, query.ID, "➕ Трек в вашей библиотеке")
-	case errors.Is(err, domain.ErrAlreadyInLibrary):
+	case errors.Is(err, library.ErrAlreadyInLibrary):
 		answerCallback(ctx, b, query.ID, "Этот трек уже есть у вас")
-	case errors.Is(err, domain.ErrNotShared):
+	case errors.Is(err, sharing.ErrNotShared):
 		answerCallback(ctx, b, query.ID, "Трек больше не в общей библиотеке")
 	default:
 		slog.Error("take", "error", err)
@@ -126,16 +126,36 @@ func (h *Handler) handleTake(ctx context.Context, b *bot.Bot, query *models.Call
 // handleSendFile sends to the private chat: the button may sit in a
 // message sent through inline mode, where the bot cannot post.
 func (h *Handler) handleSendFile(ctx context.Context, b *bot.Bot, query *models.CallbackQuery, sharedTrackID uint) {
-	err := h.SendFile.Execute(ctx, sharedTrackID, query.From.ID)
+	err := h.sendFile(ctx, query.From.ID, sharedTrackID)
 	switch {
 	case err == nil:
 		answerCallback(ctx, b, query.ID, "")
-	case errors.Is(err, domain.ErrNotShared):
+	case errors.Is(err, sharing.ErrNotShared):
 		answerCallback(ctx, b, query.ID, "Трек больше не в общей библиотеке")
-	case errors.Is(err, common.ErrFileTooLarge):
+	case errors.Is(err, ErrFileTooLarge):
 		answerCallback(ctx, b, query.ID, "Файл слишком большой: Telegram не даёт боту его отправить")
 	default:
 		slog.Error("send_shared_file", "error", err)
 		answerCallback(ctx, b, query.ID, "⚠️ Не получилось, попробуйте позже")
 	}
+}
+
+// sendFile uploads the Track only once: the file serves its copies too.
+func (h *Handler) sendFile(ctx context.Context, chatID int64, sharedTrackID uint) error {
+	track, path, err := h.GetTrackAudio.Execute(ctx, sharedTrackID)
+	if err != nil {
+		return err
+	}
+	file, err := h.Files.For(ctx, track.ID)
+	if err != nil {
+		return err
+	}
+	if file != nil {
+		return h.Sender.Send(ctx, chatID, file)
+	}
+	posted, err := h.Sender.Post(ctx, chatID, path, track)
+	if err != nil {
+		return err
+	}
+	return h.Files.Remember(ctx, *posted)
 }

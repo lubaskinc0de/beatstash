@@ -1,6 +1,10 @@
-package domain
+package provider
 
-import "time"
+import (
+	"time"
+
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
+)
 
 type ProviderAccountStatus string
 
@@ -16,13 +20,15 @@ const (
 )
 
 type ProviderAccount struct {
-	UserID uint `gorm:"primaryKey"`
-	User   User `gorm:"constraint:OnDelete:CASCADE;"`
+	UserID uint        `gorm:"primaryKey"`
+	User   access.User `gorm:"constraint:OnDelete:CASCADE;"`
 
 	Provider ProviderName `gorm:"primaryKey"`
 	// Token is sealed with SECRET_KEY.
 	Token  []byte                `gorm:"not null"`
 	Status ProviderAccountStatus `gorm:"not null"`
+	// InvalidatedAt is when the Provider last stopped accepting the token.
+	InvalidatedAt *time.Time `gorm:"index"`
 
 	// Collection is the Provider Collection as the last Import or Sync saw
 	// it; nil until the first Import.
@@ -64,8 +70,9 @@ func (a *ProviderAccount) TrySync(at time.Time) {
 	a.SyncTriedAt = &at
 }
 
-func (a *ProviderAccount) Invalidate() {
+func (a *ProviderAccount) Invalidate(now time.Time) {
 	a.Status = ProviderAccountInvalid
+	a.InvalidatedAt = &now
 }
 
 func (a *ProviderAccount) MirrorPending() bool {

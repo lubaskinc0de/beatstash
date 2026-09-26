@@ -6,7 +6,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 )
 
 // NavidromeAccounts keeps Navidrome Account passwords sealed at rest.
@@ -32,7 +32,7 @@ func (a *Navidrome) Save(ctx context.Context, userID uint, creds navidrome.Crede
 	if err != nil {
 		return err
 	}
-	return a.Repo.Save(ctx, &domain.NavidromeAccount{
+	return a.Repo.Save(ctx, &access.NavidromeAccount{
 		UserID:   userID,
 		Login:    creds.Login,
 		Password: sealed,

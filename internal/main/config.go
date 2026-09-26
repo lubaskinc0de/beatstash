@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 )
 
 const defaultConfigFile = "config.toml"
@@ -16,15 +18,18 @@ type Config struct {
 	Token       string
 	BotAPIURL   string
 	MaxPostSize int64
-	// StorageChatID is where Tracks that came without a Telegram file get
-	// posted right after Ingest; zero posts them on first request only.
+	// StorageChatID is where the bot posts Tracks that came without a
+	// Telegram file; zero posts them on first request only.
 	StorageChatID int64
-	DBDSN         string
-	MusicDir      string
+	// TelegramPollInterval is how often the bot looks for answers it owes.
+	TelegramPollInterval time.Duration
+	DBDSN                string
+	MusicDir             string
 	// NavidromeMusicDir is MusicDir as Navidrome's container sees it.
 	NavidromeMusicDir string
-	AdminIDs          []uint64
-	AdminContact      string
+	// Admins are Identities such as telegram:123; StartApp makes them Admins.
+	Admins       []access.Identity
+	AdminContact string
 	// SecretKey is a base64-encoded 32-byte AES key for stored secrets.
 	SecretKey         string
 	NavidromeUser     string
@@ -38,7 +43,6 @@ type Config struct {
 	// IngestRetryDelays are waits before each retry of a failed Ingest Job.
 	IngestRetryDelays  []time.Duration
 	IngestPollInterval time.Duration
-	ProgressInterval   time.Duration
 
 	ZvukURL string
 	// ZvukWorkers is how many Zvuk downloads run at once for all users;
@@ -54,12 +58,13 @@ type Config struct {
 }
 
 type fileConfig struct {
-	AdminIDs     []uint64 `toml:"admin_ids"`
+	Admins       []string `toml:"admins"`
 	AdminContact string   `toml:"admin_contact"`
 
 	Telegram struct {
-		BotAPIURL     string `toml:"bot_api_url"`
-		StorageChatID int64  `toml:"storage_chat_id"`
+		BotAPIURL     string        `toml:"bot_api_url"`
+		StorageChatID int64         `toml:"storage_chat_id"`
+		PollInterval  time.Duration `toml:"poll_interval"`
 	} `toml:"telegram"`
 
 	Library struct {
@@ -77,10 +82,9 @@ type fileConfig struct {
 	} `toml:"invites"`
 
 	Ingest struct {
-		Workers          int             `toml:"workers"`
-		RetryDelays      []time.Duration `toml:"retry_delays"`
-		PollInterval     time.Duration   `toml:"poll_interval"`
-		ProgressInterval time.Duration   `toml:"progress_interval"`
+		Workers      int             `toml:"workers"`
+		RetryDelays  []time.Duration `toml:"retry_delays"`
+		PollInterval time.Duration   `toml:"poll_interval"`
 	} `toml:"ingest"`
 
 	Zvuk struct {
@@ -95,11 +99,11 @@ type fileConfig struct {
 
 func defaultFileConfig() fileConfig {
 	var f fileConfig
+	f.Telegram.PollInterval = 2 * time.Second
 	f.Invites.TTL = 7 * 24 * time.Hour
 	f.Ingest.Workers = 2
 	f.Ingest.RetryDelays = []time.Duration{10 * time.Second, time.Minute, 5 * time.Minute}
 	f.Ingest.PollInterval = time.Second
-	f.Ingest.ProgressInterval = 3 * time.Second
 	f.Zvuk.URL = "https://zvuk.com"
 	f.Zvuk.Workers = 4
 	f.Zvuk.PerUser = 1
@@ -142,19 +146,20 @@ func LoadConfig() (Config, error) {
 	}
 
 	cfg := Config{
-		Token:             secret("BOT_TOKEN"),
-		BotAPIURL:         file.Telegram.BotAPIURL,
-		MaxPostSize:       maxPostSize(file.Telegram.BotAPIURL),
-		StorageChatID:     file.Telegram.StorageChatID,
-		DBDSN:             secret("DB_DSN"),
-		MusicDir:          file.Library.MusicDir,
-		NavidromeMusicDir: navidromeMusicDir,
-		AdminIDs:          file.AdminIDs,
-		AdminContact:      strings.TrimSpace(file.AdminContact),
-		SecretKey:         secret("SECRET_KEY"),
-		NavidromeUser:     file.Navidrome.User,
-		NavidromePassword: secret("NAVIDROME_PASSWORD"),
-		NavidromeURL:      file.Navidrome.URL,
+		Token:                secret("BOT_TOKEN"),
+		BotAPIURL:            file.Telegram.BotAPIURL,
+		MaxPostSize:          maxPostSize(file.Telegram.BotAPIURL),
+		StorageChatID:        file.Telegram.StorageChatID,
+		TelegramPollInterval: file.Telegram.PollInterval,
+		DBDSN:                secret("DB_DSN"),
+		MusicDir:             file.Library.MusicDir,
+		NavidromeMusicDir:    navidromeMusicDir,
+		Admins:               parseIdentities(file.Admins, &problems),
+		AdminContact:         strings.TrimSpace(file.AdminContact),
+		SecretKey:            secret("SECRET_KEY"),
+		NavidromeUser:        file.Navidrome.User,
+		NavidromePassword:    secret("NAVIDROME_PASSWORD"),
+		NavidromeURL:         file.Navidrome.URL,
 
 		InviteTTL: file.Invites.TTL,
 		Clock:     time.Now,
@@ -162,7 +167,6 @@ func LoadConfig() (Config, error) {
 		IngestWorkers:      file.Ingest.Workers,
 		IngestRetryDelays:  file.Ingest.RetryDelays,
 		IngestPollInterval: file.Ingest.PollInterval,
-		ProgressInterval:   file.Ingest.ProgressInterval,
 
 		ZvukURL:             file.Zvuk.URL,
 		ZvukWorkers:         file.Zvuk.Workers,
@@ -190,18 +194,18 @@ func readFile(path string, file *fileConfig) []error {
 			problems = append(problems, fmt.Errorf("%s is required", key))
 		}
 	}
-	require(len(file.AdminIDs) == 0, "admin_ids")
+	require(len(file.Admins) == 0, "admins")
 	require(file.Library.MusicDir == "", "library.music_dir")
 	require(file.Navidrome.URL == "", "navidrome.url")
 	require(file.Navidrome.User == "", "navidrome.user")
+	if file.Telegram.PollInterval <= 0 {
+		problems = append(problems, errors.New("telegram.poll_interval must be positive"))
+	}
 	if file.Ingest.Workers < 1 {
 		problems = append(problems, errors.New("ingest.workers must be at least 1"))
 	}
 	if file.Ingest.PollInterval <= 0 {
 		problems = append(problems, errors.New("ingest.poll_interval must be positive"))
-	}
-	if file.Ingest.ProgressInterval <= 0 {
-		problems = append(problems, errors.New("ingest.progress_interval must be positive"))
 	}
 	require(file.Zvuk.URL == "", "zvuk.url")
 	if file.Zvuk.Workers < 1 {
@@ -228,4 +232,18 @@ func maxPostSize(botAPIURL string) int64 {
 		return 50 << 20
 	}
 	return 2000 << 20
+}
+
+// parseIdentities reads "channel:external_id" pairs.
+func parseIdentities(values []string, problems *[]error) []access.Identity {
+	identities := make([]access.Identity, 0, len(values))
+	for _, value := range values {
+		channel, id, ok := strings.Cut(value, ":")
+		if !ok || channel == "" || id == "" {
+			*problems = append(*problems, fmt.Errorf(`admins: %q is not like "telegram:123"`, value))
+			continue
+		}
+		identities = append(identities, access.Identity{Channel: access.Channel(channel), ExternalID: id})
+	}
+	return identities
 }

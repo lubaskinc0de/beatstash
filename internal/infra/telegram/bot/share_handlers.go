@@ -13,7 +13,9 @@ import (
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/share_tracks"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 	tgprovider "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/provider"
 )
 
@@ -35,11 +37,11 @@ func (h *Handler) handleShare(ctx context.Context, b *bot.Bot, update *models.Up
 		return
 	}
 
-	state, err := h.ShowShareOptions.Execute(ctx, domain.TrackRef{Provider: tgprovider.Name, ID: file.UniqueID})
+	state, err := h.ShowShareOptions.Execute(ctx, provider.TrackRef{Provider: tgprovider.Name, ID: file.UniqueID})
 	switch {
 	case err == nil:
 		sendKeyboard(ctx, b, msg.Chat.ID, "Что расшарить?", shareKeyboard(state))
-	case errors.Is(err, domain.ErrInboxTrack):
+	case errors.Is(err, library.ErrInboxTrack):
 		sendText(ctx, b, msg.Chat.ID, "🗂 Трек из Inbox нельзя расшарить: у него нет исполнителя или названия")
 	case errors.Is(err, repositories.ErrSourceNotFound):
 		sendText(ctx, b, msg.Chat.ID, shareUsage)
@@ -108,10 +110,10 @@ func (h *Handler) handleShareCallback(ctx context.Context, b *bot.Bot, query *mo
 	}
 
 	switch {
-	case errors.Is(err, domain.ErrNotOwnTrack):
+	case errors.Is(err, library.ErrNotOwnTrack):
 		answerCallback(ctx, b, query.ID, "Этот трек не из вашей библиотеки")
 		return
-	case errors.Is(err, domain.ErrInboxTrack):
+	case errors.Is(err, library.ErrInboxTrack):
 		answerCallback(ctx, b, query.ID, "Трек из Inbox нельзя расшарить")
 		return
 	case err != nil:
@@ -153,7 +155,7 @@ func shareResultText(result *share_tracks.ShareResult) string {
 	}
 }
 
-func authorName(user *domain.User) string {
+func authorName(user *access.User) string {
 	switch {
 	case user == nil:
 		return "кто-то раньше"

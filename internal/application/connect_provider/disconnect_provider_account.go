@@ -6,7 +6,7 @@ import (
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
 type DisconnectProviderAccount struct {
@@ -15,13 +15,13 @@ type DisconnectProviderAccount struct {
 	Accounts repositories.ProviderAccounts
 }
 
-func (i *DisconnectProviderAccount) Execute(ctx context.Context, provider domain.ProviderName) error {
+func (i *DisconnectProviderAccount) Execute(ctx context.Context, providerName provider.ProviderName) error {
 	user, err := i.IDs.CurrentUser(ctx)
 	if err != nil {
 		return err
 	}
 	return i.Tx.WithinTx(ctx, func(ctx context.Context) error {
-		account, err := i.Accounts.GetForUpdate(ctx, user.ID, provider)
+		account, err := i.Accounts.GetForUpdate(ctx, user.ID, providerName)
 		if errors.Is(err, repositories.ErrProviderAccountNotFound) {
 			return nil
 		}

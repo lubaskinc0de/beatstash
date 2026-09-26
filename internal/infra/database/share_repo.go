@@ -8,24 +8,25 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/sharing"
 )
 
 type ShareRepository struct {
 	DB *gorm.DB
 }
 
-func (r *ShareRepository) Save(ctx context.Context, share *domain.Share) error {
+func (r *ShareRepository) Save(ctx context.Context, share *sharing.Share) error {
 	return dbForContext(ctx, r.DB).Omit("Track", "SourceTrack", "User").Create(share).Error
 }
 
-func (r *ShareRepository) BySource(ctx context.Context, sourceTrackID uint) (*domain.Share, error) {
+func (r *ShareRepository) BySource(ctx context.Context, sourceTrackID uint) (*sharing.Share, error) {
 	q := dbForContext(ctx, r.DB).Where("source_track_id = ?", sourceTrackID)
-	return first[domain.Share](q, repositories.ErrShareNotFound)
+	return first[sharing.Share](q, repositories.ErrShareNotFound)
 }
 
-func (r *ShareRepository) ForTrack(ctx context.Context, trackID uint) ([]domain.Share, error) {
-	var shares []domain.Share
+func (r *ShareRepository) ForTrack(ctx context.Context, trackID uint) ([]sharing.Share, error) {
+	var shares []sharing.Share
 	err := dbForContext(ctx, r.DB).
 		Preload("User").
 		Where("track_id = ?", trackID).
@@ -35,12 +36,12 @@ func (r *ShareRepository) ForTrack(ctx context.Context, trackID uint) ([]domain.
 }
 
 func (r *ShareRepository) Delete(ctx context.Context, id uint) error {
-	return dbForContext(ctx, r.DB).Delete(&domain.Share{}, id).Error
+	return dbForContext(ctx, r.DB).Delete(&sharing.Share{}, id).Error
 }
 
 // Feed takes the oldest Share of each Track: its sharer is the author.
-func (r *ShareRepository) Feed(ctx context.Context, limit int) ([]domain.Share, error) {
-	var shares []domain.Share
+func (r *ShareRepository) Feed(ctx context.Context, limit int) ([]sharing.Share, error) {
+	var shares []sharing.Share
 	err := dbForContext(ctx, r.DB).
 		Preload("User").
 		Preload("Track").
@@ -57,7 +58,7 @@ func (r *ShareRepository) Feed(ctx context.Context, limit int) ([]domain.Share, 
 
 func (r *ShareRepository) TopSharers(ctx context.Context, since time.Time, limit int) ([]repositories.TopEntry, error) {
 	query := dbForContext(ctx, r.DB).
-		Model(&domain.Share{}).
+		Model(&sharing.Share{}).
 		Where("in_top AND created_at >= ?", since).
 		Group("user_id")
 	return topEntries(ctx, r.DB, query, "user_id", limit)
@@ -82,11 +83,11 @@ func topEntries(ctx context.Context, db *gorm.DB, grouped *gorm.DB, userColumn s
 	for _, row := range rows {
 		ids = append(ids, row.UserID)
 	}
-	var users []domain.User
+	var users []access.User
 	if err := dbForContext(ctx, db).Where("id IN ?", ids).Find(&users).Error; err != nil {
 		return nil, err
 	}
-	byID := make(map[uint]domain.User, len(users))
+	byID := make(map[uint]access.User, len(users))
 	for _, user := range users {
 		byID[user.ID] = user
 	}

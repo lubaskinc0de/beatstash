@@ -4,25 +4,26 @@ import (
 	"context"
 	"io"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
 // Provider is an external source of music. What it can do is expressed by
 // the Capability interfaces it implements.
 type Provider interface {
-	Name() domain.ProviderName
+	Name() provider.ProviderName
 }
 
 // Fetcher and the other Capabilities get the user they act for: the
 // Provider may need their Provider Account.
 type Fetcher interface {
-	Fetch(ctx context.Context, userID uint, ref domain.TrackRef) (*FetchedAudio, error)
+	Fetch(ctx context.Context, userID uint, ref provider.TrackRef) (*FetchedAudio, error)
 }
 
 // Releaser frees what Fetch left on the Provider side. It is called once
 // the job is finished for good, so retries can fetch again.
 type Releaser interface {
-	Release(ctx context.Context, ref domain.TrackRef) error
+	Release(ctx context.Context, ref provider.TrackRef) error
 }
 
 type TokenChecker interface {
@@ -37,13 +38,17 @@ type FetchedAudio struct {
 	// Body is the audio stream; the caller closes it.
 	Body     io.ReadCloser
 	FileName string
-	Format   domain.Format
+	Format   library.Format
 
 	// Hint is what the Provider knows for sure, it beats the file's tags.
-	Hint domain.Metadata
+	Hint library.Metadata
 	// WeakHint is used only for fields the file's tags lack.
-	WeakHint domain.Metadata
+	WeakHint library.Metadata
 	Cover    []byte
+}
 
-	TelegramFile *domain.TelegramFile
+// Recognizer tells the Tracks whose file the Track Ref is, if the service
+// itself gave that file out: then no download is needed.
+type Recognizer interface {
+	Recognize(ctx context.Context, ref provider.TrackRef) ([]uint, error)
 }

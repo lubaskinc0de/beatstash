@@ -1,4 +1,4 @@
-package domain
+package provider
 
 type CollectionSnapshot struct {
 	// Tracks lists every track once: liked ones, then those of saved

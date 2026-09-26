@@ -1,6 +1,11 @@
-package domain
+package library
 
-import "time"
+import (
+	"time"
+
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
+)
 
 type Track struct {
 	ID uint `gorm:"primaryKey"`
@@ -78,18 +83,6 @@ func (q Quality) Better(other Quality) bool {
 	return q.Bitrate > other.Bitrate
 }
 
-type TelegramFile struct {
-	ID   string
-	Kind TelegramFileKind
-}
-
-type TelegramFileKind string
-
-const (
-	TelegramFileAudio    TelegramFileKind = "audio"
-	TelegramFileDocument TelegramFileKind = "document"
-)
-
 type TrackSource struct {
 	ID uint `gorm:"primaryKey"`
 
@@ -97,12 +90,9 @@ type TrackSource struct {
 	Track   Track `gorm:"constraint:OnDelete:CASCADE;"`
 
 	// LibraryID repeats the Track's one: a Track Ref is unique per Library.
-	LibraryID uint         `gorm:"not null;uniqueIndex:idx_track_source_library_ref"`
-	Provider  ProviderName `gorm:"not null;uniqueIndex:idx_track_source_library_ref"`
-	Ref       string       `gorm:"not null;uniqueIndex:idx_track_source_library_ref"`
-
-	TelegramFileID   string
-	TelegramFileKind TelegramFileKind
+	LibraryID uint                  `gorm:"not null;uniqueIndex:idx_track_source_library_ref"`
+	Provider  provider.ProviderName `gorm:"not null;uniqueIndex:idx_track_source_library_ref"`
+	Ref       string                `gorm:"not null;uniqueIndex:idx_track_source_library_ref"`
 
 	CreatedAt time.Time
 }
@@ -114,30 +104,11 @@ func (s TrackSource) For(track *Track) *TrackSource {
 	return &s
 }
 
-// TelegramSource: a Telegram Track Ref is the file's unique ID.
-func TelegramSource(track *Track, uniqueID string, file TelegramFile) *TrackSource {
-	return &TrackSource{
-		TrackID:          track.ID,
-		LibraryID:        track.LibraryID,
-		Provider:         ProviderTelegram,
-		Ref:              uniqueID,
-		TelegramFileID:   file.ID,
-		TelegramFileKind: file.Kind,
-	}
-}
-
-func (s *TrackSource) TelegramFile() *TelegramFile {
-	if s.TelegramFileID == "" {
-		return nil
-	}
-	return &TelegramFile{ID: s.TelegramFileID, Kind: s.TelegramFileKind}
-}
-
 type Upload struct {
 	ID uint `gorm:"primaryKey"`
 
-	UserID uint `gorm:"not null;index"`
-	User   User `gorm:"constraint:OnDelete:CASCADE;"`
+	UserID uint        `gorm:"not null;index"`
+	User   access.User `gorm:"constraint:OnDelete:CASCADE;"`
 
 	TrackID uint  `gorm:"not null;index"`
 	Track   Track `gorm:"constraint:OnDelete:CASCADE;"`

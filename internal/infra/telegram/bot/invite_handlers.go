@@ -13,8 +13,7 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/invite_friend"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 )
 
 func (h *Handler) handleInvite(
@@ -25,7 +24,7 @@ func (h *Handler) handleInvite(
 	chatID := update.Message.Chat.ID
 
 	code, err := h.CreateInvite.Execute(ctx)
-	if errors.Is(err, invite_friend.ErrNotAdmin) {
+	if errors.Is(err, access.ErrNotAdmin) {
 		sendText(ctx, b, chatID, "⛔ Приглашения выдаёт только администратор")
 		return
 	}
@@ -69,7 +68,7 @@ func (h *Handler) handleStart(
 		return
 	}
 	user, err := h.AcceptInvite.Execute(ctx, code)
-	if errors.Is(err, repositories.ErrInviteInvalid) {
+	if errors.Is(err, access.ErrInviteInvalid) {
 		sendText(ctx, b, chatID, "⛔ Приглашение недействительно: оно уже использовано или истекло")
 		return
 	}
@@ -83,6 +82,9 @@ func (h *Handler) handleStart(
 	}
 	h.sendWelcome(ctx, b, chatID, canInvite)
 
+	if err := h.Dialogs.AwaitNavidromeLogin(ctx, chatID); err != nil {
+		slog.Error("await_navidrome_login", "error", err)
+	}
 	h.registerNavidromeAccount(ctx, b, chatID, user.Username)
 }
 

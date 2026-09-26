@@ -3,16 +3,18 @@ package repositories
 import (
 	"context"
 	"errors"
+	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
 type ProviderAccounts interface {
-	Get(ctx context.Context, userID uint, provider domain.ProviderName) (*domain.ProviderAccount, error)
+	Get(ctx context.Context, userID uint, providerName provider.ProviderName) (*provider.ProviderAccount, error)
 	// GetForUpdate locks the account until ctx's transaction ends.
-	GetForUpdate(ctx context.Context, userID uint, provider domain.ProviderName) (*domain.ProviderAccount, error)
-	All(ctx context.Context, provider domain.ProviderName) ([]domain.ProviderAccount, error)
-	Save(ctx context.Context, account *domain.ProviderAccount) error
+	GetForUpdate(ctx context.Context, userID uint, providerName provider.ProviderName) (*provider.ProviderAccount, error)
+	All(ctx context.Context, providerName provider.ProviderName) ([]provider.ProviderAccount, error)
+	Save(ctx context.Context, account *provider.ProviderAccount) error
+	InvalidatedSince(ctx context.Context, since time.Time) ([]provider.ProviderAccount, error)
 }
 
 var ErrProviderAccountNotFound = errors.New("provider account not found")

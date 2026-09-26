@@ -10,12 +10,13 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
 type NowPlaying struct {
 	navidrome.PlayingTrack
-	TelegramFile *domain.TelegramFile
+	// Track is nil if the user's libraries hold no such Track.
+	Track *library.Track
 	// ShareableTrackID is the playing Track of the user's Personal Library
 	// that is not in the Shared Library yet; zero means np offers no Share.
 	ShareableTrackID uint
@@ -56,13 +57,8 @@ func (i *GetNowPlaying) Execute(
 
 	nowPlaying := &NowPlaying{PlayingTrack: *track}
 
-	file, err := i.Repo.FindTelegramFile(ctx, libs.IDs(), track.Metadata())
-	switch {
-	case err == nil:
-		nowPlaying.TelegramFile = file
-	case errors.Is(err, repositories.ErrNoTelegramFile):
-		slog.Info("now_playing_track_not_in_db", "title", track.Title, "artist", track.Artist)
-	default:
+	nowPlaying.Track, err = findPlayed(ctx, i.Repo, libs, track.Metadata())
+	if err != nil {
 		slog.Error("find_track", "error", err)
 	}
 
@@ -73,8 +69,8 @@ func (i *GetNowPlaying) Execute(
 	return nowPlaying, nil
 }
 
-func (i *GetNowPlaying) shareable(ctx context.Context, libs libraries.UserLibraries, m domain.Metadata) (uint, error) {
-	own, err := i.Repo.FindByMetadata(ctx, libs.Personal.ID, m)
+func (i *GetNowPlaying) shareable(ctx context.Context, libs libraries.UserLibraries, m library.Metadata) (uint, error) {
+	own, err := i.Repo.FindByMetadata(ctx, []uint{libs.Personal.ID}, m)
 	if errors.Is(err, repositories.ErrTrackNotFound) {
 		return 0, nil
 	}
@@ -90,4 +86,12 @@ func (i *GetNowPlaying) shareable(ctx context.Context, libs libraries.UserLibrar
 	default:
 		return 0, err
 	}
+}
+
+func findPlayed(ctx context.Context, tracks repositories.Tracks, libs libraries.UserLibraries, m library.Metadata) (*library.Track, error) {
+	track, err := tracks.FindByMetadata(ctx, libs.IDs(), m)
+	if errors.Is(err, repositories.ErrTrackNotFound) {
+		return nil, nil
+	}
+	return track, err
 }

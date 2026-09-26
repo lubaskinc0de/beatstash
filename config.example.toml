@@ -8,8 +8,9 @@
 #     write paths and addresses as the bot's container sees them
 #     (the "In compose" notes below).
 
-# Telegram ids of Admins: they can /invite people.
-admin_ids = [869885299]
+# Admins by Identity, "channel:id": they can /invite people. For Telegram
+# the id is the numeric user id.
+admins = ["telegram:869885299"]
 # Shown to strangers who write /start, e.g. "@my_contact"; empty hides it.
 admin_contact = ""
 
@@ -21,12 +22,15 @@ bot_api_url = ""
 # from Zvuk), so inline mode can send them as audio right away; the bot must
 # be able to post there. 0 uploads a track only when somebody asks for its file.
 storage_chat_id = 0
+# How often the bot checks what became of the tracks and Imports it was
+# sent, to react and update progress.
+poll_interval = "2s"
 
 [library]
 # In compose: "/music".
 music_dir = "~/navidrome-tg/test_data"
 # music_dir as the Navidrome container sees it, if the path differs; empty
-# means the same. The bot keeps music_dir/shared and music_dir/users/<Telegram id>
+# means the same. The bot keeps music_dir/shared and music_dir/users/<user id>
 # as Navidrome libraries; point ND_MUSICFOLDER at music_dir/shared once it
 # exists, or Navidrome's own library shows admins every track twice.
 navidrome_music_dir = "/music"
@@ -44,8 +48,6 @@ workers = 2
 # Waits before each retry of a failed Ingest Job.
 retry_delays = ["10s", "1m", "5m"]
 poll_interval = "1s"
-# Least time between two edits of an Import progress message.
-progress_interval = "3s"
 
 [zvuk]
 url = "https://zvuk.com"

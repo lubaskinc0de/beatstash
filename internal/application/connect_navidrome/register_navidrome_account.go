@@ -12,25 +12,23 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 )
 
 var navidromeLoginPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{3,32}$`)
 
-// RegisterNavidromeAccount creates a Navidrome Account for a new User. When
-// the login is empty, malformed or taken, the User is left awaiting another one.
+// RegisterNavidromeAccount creates a Navidrome Account for a User who has none.
 type RegisterNavidromeAccount struct {
 	IDs       common.IDProvider
 	Navidrome navidrome.Client
 	Accounts  *accounts.Navidrome
-	Users     repositories.Users
 	Libraries *libraries.Navidrome
 	Admin     navidrome.Credentials
 }
 
 var (
 	ErrNavidromeLoginInvalid = errors.New("navidrome login is not allowed")
-	ErrNotAwaitingLogin      = errors.New("user does not await a navidrome login")
+	ErrHasNavidromeAccount   = errors.New("user has a navidrome account already")
 )
 
 func (i *RegisterNavidromeAccount) Execute(ctx context.Context, login string) (navidrome.Credentials, error) {
@@ -38,25 +36,17 @@ func (i *RegisterNavidromeAccount) Execute(ctx context.Context, login string) (n
 	if err != nil {
 		return navidrome.Credentials{}, err
 	}
-	if !user.AwaitsNavidromeLogin {
-		return navidrome.Credentials{}, ErrNotAwaitingLogin
-	}
-
-	creds, err := i.register(ctx, user, login)
-	if err != nil {
-		if awaitErr := i.Users.SetAwaitsNavidromeLogin(ctx, user.ID, true); awaitErr != nil {
-			return navidrome.Credentials{}, errors.Join(err, awaitErr)
-		}
+	_, err = i.Accounts.Repo.Get(ctx, user.ID)
+	switch {
+	case err == nil:
+		return navidrome.Credentials{}, ErrHasNavidromeAccount
+	case !errors.Is(err, repositories.ErrNavidromeAccountNotFound):
 		return navidrome.Credentials{}, err
 	}
-
-	if err := i.Users.SetAwaitsNavidromeLogin(ctx, user.ID, false); err != nil {
-		return navidrome.Credentials{}, err
-	}
-	return creds, nil
+	return i.register(ctx, user, login)
 }
 
-func (i *RegisterNavidromeAccount) register(ctx context.Context, user *domain.User, login string) (navidrome.Credentials, error) {
+func (i *RegisterNavidromeAccount) register(ctx context.Context, user *access.User, login string) (navidrome.Credentials, error) {
 	if !navidromeLoginPattern.MatchString(login) {
 		return navidrome.Credentials{}, ErrNavidromeLoginInvalid
 	}

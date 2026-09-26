@@ -8,20 +8,21 @@ import (
 	"gorm.io/gorm/clause"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
 type IngestQueue struct {
 	DB *gorm.DB
 }
 
-func (q *IngestQueue) Enqueue(ctx context.Context, job *domain.IngestJob) error {
+func (q *IngestQueue) Enqueue(ctx context.Context, job *ingest.IngestJob) error {
 	return dbForContext(ctx, q.DB).Omit("User", "Batch").Create(job).Error
 }
 
 // ClaimNext keeps the job pending while locked, so a crashed worker's job
 // becomes claimable again as soon as its transaction dies.
-func (q *IngestQueue) ClaimNext(ctx context.Context, filter repositories.JobFilter) (*domain.IngestJob, error) {
+func (q *IngestQueue) ClaimNext(ctx context.Context, filter repositories.JobFilter) (*ingest.IngestJob, error) {
 	if filter.PerUser > 0 {
 		return q.claimForIdleUser(ctx, filter)
 	}
@@ -37,18 +38,18 @@ const userLockKey = 7_246_102
 // The slot is taken first, so its holder gets the user's jobs in order; a
 // user whose due jobs are all taken gets the slot back by rolling back to
 // the savepoint, which frees the advisory lock.
-func (q *IngestQueue) claimForIdleUser(ctx context.Context, filter repositories.JobFilter) (*domain.IngestJob, error) {
+func (q *IngestQueue) claimForIdleUser(ctx context.Context, filter repositories.JobFilter) (*ingest.IngestJob, error) {
 	db := dbForContext(ctx, q.DB)
 
 	var users []uint
 	err := q.due(ctx, filter).
-		Model(&domain.IngestJob{}).
+		Model(&ingest.IngestJob{}).
 		Select("user_id").
 		Group("user_id").
 		Order(orderBy(`(
 			SELECT MAX(served.updated_at) FROM ingest_jobs served
 			WHERE served.user_id = ingest_jobs.user_id AND served.status <> ?
-		) NULLS FIRST, MIN(id)`, domain.IngestJobPending)).
+		) NULLS FIRST, MIN(id)`, ingest.IngestJobPending)).
 		Pluck("user_id", &users).Error
 	if err != nil {
 		return nil, err
@@ -89,7 +90,7 @@ func (q *IngestQueue) takeUserSlot(db *gorm.DB, user uint, slots int) (bool, err
 }
 
 func (q *IngestQueue) due(ctx context.Context, filter repositories.JobFilter) *gorm.DB {
-	query := dbForContext(ctx, q.DB).Where("status = ? AND run_at <= ?", domain.IngestJobPending, time.Now())
+	query := dbForContext(ctx, q.DB).Where("status = ? AND run_at <= ?", ingest.IngestJobPending, time.Now())
 	if len(filter.Only) > 0 {
 		query = query.Where("provider IN ?", filter.Only)
 	}
@@ -99,8 +100,8 @@ func (q *IngestQueue) due(ctx context.Context, filter repositories.JobFilter) *g
 	return query
 }
 
-func (q *IngestQueue) claim(query *gorm.DB) (*domain.IngestJob, error) {
-	var jobs []domain.IngestJob
+func (q *IngestQueue) claim(query *gorm.DB) (*ingest.IngestJob, error) {
+	var jobs []ingest.IngestJob
 	err := query.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).Limit(1).Find(&jobs).Error
 	if err != nil || len(jobs) == 0 {
 		return nil, err
@@ -108,26 +109,32 @@ func (q *IngestQueue) claim(query *gorm.DB) (*domain.IngestJob, error) {
 	return &jobs[0], nil
 }
 
-func (q *IngestQueue) Save(ctx context.Context, job *domain.IngestJob) error {
+func (q *IngestQueue) Save(ctx context.Context, job *ingest.IngestJob) error {
 	return dbForContext(ctx, q.DB).Omit("User", "Batch").Save(job).Error
+}
+
+func (q *IngestQueue) Get(ctx context.Context, ids []uint) ([]ingest.IngestJob, error) {
+	var jobs []ingest.IngestJob
+	err := dbForContext(ctx, q.DB).Where("id IN ?", ids).Order("id").Find(&jobs).Error
+	return jobs, err
 }
 
 func (q *IngestQueue) CountUnfinished(ctx context.Context) (int64, error) {
 	var count int64
 	err := dbForContext(ctx, q.DB).
-		Model(&domain.IngestJob{}).
-		Where("status = ?", domain.IngestJobPending).
+		Model(&ingest.IngestJob{}).
+		Where("status = ?", ingest.IngestJobPending).
 		Count(&count).Error
 	return count, err
 }
 
 func (q *IngestQueue) BatchProgress(ctx context.Context, batchID uint) (repositories.BatchProgress, error) {
 	var rows []struct {
-		Status domain.IngestJobStatus
+		Status ingest.IngestJobStatus
 		Count  int
 	}
 	err := dbForContext(ctx, q.DB).
-		Model(&domain.IngestJob{}).
+		Model(&ingest.IngestJob{}).
 		Select("status, COUNT(*) AS count").
 		Where("batch_id = ?", batchID).
 		Group("status").
@@ -139,11 +146,11 @@ func (q *IngestQueue) BatchProgress(ctx context.Context, batchID uint) (reposito
 	var progress repositories.BatchProgress
 	for _, row := range rows {
 		switch row.Status {
-		case domain.IngestJobDone:
+		case ingest.IngestJobDone:
 			progress.Done = row.Count
-		case domain.IngestJobFailed:
+		case ingest.IngestJobFailed:
 			progress.Failed = row.Count
-		case domain.IngestJobPending:
+		case ingest.IngestJobPending:
 			progress.Pending = row.Count
 		}
 	}
@@ -153,18 +160,18 @@ func (q *IngestQueue) BatchProgress(ctx context.Context, batchID uint) (reposito
 func (q *IngestQueue) FailedNames(ctx context.Context, batchID uint) ([]string, error) {
 	var names []string
 	err := dbForContext(ctx, q.DB).
-		Model(&domain.IngestJob{}).
-		Where("batch_id = ? AND status = ?", batchID, domain.IngestJobFailed).
+		Model(&ingest.IngestJob{}).
+		Where("batch_id = ? AND status = ?", batchID, ingest.IngestJobFailed).
 		Order("id").
 		Pluck("display_name", &names).Error
 	return names, err
 }
 
-func (q *IngestQueue) PendingRefs(ctx context.Context, userID uint, provider domain.ProviderName) ([]string, error) {
+func (q *IngestQueue) PendingRefs(ctx context.Context, userID uint, providerName provider.ProviderName) ([]string, error) {
 	var refs []string
 	err := dbForContext(ctx, q.DB).
-		Model(&domain.IngestJob{}).
-		Where("user_id = ? AND provider = ? AND status = ?", userID, provider, domain.IngestJobPending).
+		Model(&ingest.IngestJob{}).
+		Where("user_id = ? AND provider = ? AND status = ?", userID, providerName, ingest.IngestJobPending).
 		Pluck("track_ref", &refs).Error
 	return refs, err
 }

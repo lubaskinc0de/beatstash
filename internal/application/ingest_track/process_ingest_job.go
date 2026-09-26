@@ -12,61 +12,43 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
 type ProcessIngestJob struct {
-	Tx        repositories.TxManager
-	Queue     repositories.IngestQueue
-	Providers *providers.Registry
-	Tracks    repositories.Tracks
-	Uploads   UploadRepository
-	Libraries repositories.Libraries
-	Lock      repositories.LibraryLock
-	Disk      common.Disk
-	Tags      AudioTags
-	Remuxer   Remuxer
-	Notifier  IngestNotifier
-	Batches   repositories.IngestBatches
-	Reporter  common.BatchReporter
-	Sender    common.AudioSender
-	InFlight  *InFlight
-	MusicDir  string
-	// StorageChatID gets new Tracks without a Telegram file, for inline
-	// mode; zero turns it off.
-	StorageChatID int64
-	RetryDelays   []time.Duration
+	Tx          repositories.TxManager
+	Queue       repositories.IngestQueue
+	Providers   *providers.Registry
+	Tracks      repositories.Tracks
+	Uploads     UploadRepository
+	Libraries   repositories.Libraries
+	Lock        repositories.LibraryLock
+	Disk        common.Disk
+	Tags        AudioTags
+	Remuxer     Remuxer
+	Batches     repositories.IngestBatches
+	InFlight    *InFlight
+	MusicDir    string
+	RetryDelays []time.Duration
 }
-
-type IngestNotifier interface {
-	Ingested(ctx context.Context, msg common.MessageRef, outcome IngestOutcome)
-	IngestFailed(ctx context.Context, msg common.MessageRef, reason providers.FailureReason)
-}
-
-type IngestOutcome int
-
-const (
-	IngestStored IngestOutcome = iota
-	IngestStoredInInbox
-	IngestAlreadyExists
-	IngestReplaced
-)
 
 type UploadRepository interface {
-	Save(ctx context.Context, upload *domain.Upload) error
+	Save(ctx context.Context, upload *library.Upload) error
 }
 
 type AudioTags interface {
 	// Probe returns ErrCorruptAudio for unreadable tags or no duration.
 	Probe(path string) (*AudioProbe, error)
-	WriteTags(path string, m domain.Metadata) error
+	WriteTags(path string, m library.Metadata) error
 	WriteCover(path string, image []byte) error
 }
 
 type AudioProbe struct {
-	Tags       domain.Metadata
+	Tags       library.Metadata
 	DurationMs int
-	Quality    domain.Quality
+	Quality    library.Quality
 }
 
 type Remuxer interface {
@@ -79,7 +61,7 @@ type Remuxer interface {
 
 var ErrCorruptAudio = errors.New("audio file is corrupt")
 
-// InFlight counts jobs from claim to notification; empty polls don't
+// InFlight counts jobs from claim to the end of their bookkeeping; empty polls don't
 // count, or WaitIdle would rarely see zero.
 type InFlight struct {
 	n atomic.Int64
@@ -121,7 +103,7 @@ func (i *ProcessIngestJob) Execute(ctx context.Context, filter repositories.JobF
 
 // attempt is one run of a job; err is why it failed.
 type attempt struct {
-	job    *domain.IngestJob
+	job    *ingest.IngestJob
 	result *jobResult
 	err    error
 }
@@ -148,54 +130,36 @@ func (i *ProcessIngestJob) try(ctx context.Context, filter repositories.JobFilte
 			return ctx.Err()
 		}
 
-		i.recordAttempt(a.job, a.err)
+		i.recordAttempt(a.job, a.result, a.err)
 		return i.Queue.Save(ctx, a.job)
 	})
 	return a, err
 }
 
 func (i *ProcessIngestJob) finish(ctx context.Context, a attempt) {
-	if a.job.Status != domain.IngestJobPending {
+	if a.job.Status != ingest.IngestJobPending {
 		if err := i.release(ctx, a.job); err != nil {
 			slog.Error("ingest_job_release_failed", "job_id", a.job.ID, "error", err)
 		}
 	}
 
-	if a.job.Status == domain.IngestJobDone {
+	if a.job.Status == ingest.IngestJobDone {
 		slog.Info("ingest_job_done", "job_id", a.job.ID, "outcome", a.result.Outcome, "path", a.result.Path)
-		if a.result.TrackID != 0 && i.StorageChatID != 0 {
-			if err := i.postToStorageChat(ctx, a.result.TrackID); err != nil {
-				slog.Error("post_to_storage_chat", "track_id", a.result.TrackID, "error", err)
-			}
-		}
 	}
 
-	if a.job.Status == domain.IngestJobPending {
+	if a.job.Status == ingest.IngestJobPending || a.job.BatchID == nil {
 		return
 	}
-	if a.job.BatchID != nil {
-		if err := reportBatch(ctx, i.Tx, i.Queue, i.Batches, i.Reporter, *a.job.BatchID); err != nil {
-			slog.Error("report_ingest_batch", "batch_id", *a.job.BatchID, "error", err)
-		}
-		return
+	if err := finishBatch(ctx, i.Queue, i.Batches, *a.job.BatchID); err != nil {
+		slog.Error("finish_ingest_batch", "batch_id", *a.job.BatchID, "error", err)
 	}
-	if a.job.ChatID == 0 {
-		return
-	}
-	if a.job.Status == domain.IngestJobDone {
-		i.Notifier.Ingested(ctx, messageOf(a.job), a.result.Outcome)
-		return
-	}
-	i.Notifier.IngestFailed(ctx, messageOf(a.job), failureReason(a.err))
 }
 
-func messageOf(job *domain.IngestJob) common.MessageRef {
-	return common.MessageRef{ChatID: job.ChatID, MessageID: job.MessageID}
-}
-
-func (i *ProcessIngestJob) recordAttempt(job *domain.IngestJob, procErr error) {
+func (i *ProcessIngestJob) recordAttempt(job *ingest.IngestJob, result *jobResult, procErr error) {
 	if procErr == nil {
-		job.Status = domain.IngestJobDone
+		job.Status = ingest.IngestJobDone
+		job.Outcome = result.Outcome
+		job.TrackID = &result.TrackID
 		job.LastError = ""
 		return
 	}
@@ -215,7 +179,8 @@ func (i *ProcessIngestJob) recordAttempt(job *domain.IngestJob, procErr error) {
 	)
 
 	if final {
-		job.Status = domain.IngestJobFailed
+		job.Status = ingest.IngestJobFailed
+		job.FailureReason = failureReason(procErr)
 		return
 	}
 	job.RunAt = time.Now().Add(i.RetryDelays[job.Attempts-1])
@@ -229,67 +194,45 @@ func failedStep(err error) step {
 	return "unknown"
 }
 
-func failureReason(err error) providers.FailureReason {
+func failureReason(err error) ingest.FailureReason {
 	var permanent *providers.PermanentError
 	if errors.As(err, &permanent) {
 		return permanent.Reason
 	}
 	if failedStep(err) == stepFetch {
-		return providers.ReasonFetchFailed
+		return ingest.ReasonFetchFailed
 	}
-	return providers.ReasonInternal
-}
-
-func (i *ProcessIngestJob) postToStorageChat(ctx context.Context, trackID uint) error {
-	_, err := i.Tracks.TelegramFile(ctx, trackID)
-	if !errors.Is(err, repositories.ErrNoTelegramFile) {
-		return err
-	}
-	track, err := i.Tracks.Get(ctx, trackID)
-	if err != nil {
-		return err
-	}
-	path, err := libraries.TrackPath(ctx, i.Libraries, i.MusicDir, track)
-	if err != nil {
-		return err
-	}
-	posted, err := i.Sender.Post(ctx, i.StorageChatID, path, track)
-	if err != nil {
-		return err
-	}
-	return i.Tx.WithinTx(ctx, func(ctx context.Context) error {
-		return libraries.RecordPosted(ctx, i.Tracks, track, posted)
-	})
+	return ingest.ReasonInternal
 }
 
 type jobResult struct {
-	Outcome IngestOutcome
+	Outcome library.Outcome
 	Path    string
 	TrackID uint
 }
 
-func alreadyExists() *jobResult {
-	return &jobResult{Outcome: IngestAlreadyExists}
+func alreadyExists(trackID uint) *jobResult {
+	return &jobResult{Outcome: library.AlreadyExists, TrackID: trackID}
 }
 
 // incoming carries what process learned about the audio down to the store step.
 type incoming struct {
-	job     *domain.IngestJob
-	library *domain.Library
-	dir     string
-	ref     domain.TrackRef
-	audio   *providers.FetchedAudio
-	format  domain.Format
-	probe   *AudioProbe
-	meta    domain.Metadata
-	staged  string
-	files   *libraries.FileChanges
+	job    *ingest.IngestJob
+	lib    *library.Library
+	dir    string
+	ref    provider.TrackRef
+	audio  *providers.FetchedAudio
+	format library.Format
+	probe  *AudioProbe
+	meta   library.Metadata
+	staged string
+	files  *libraries.FileChanges
 }
 
 // process turns the job's audio into a Track. Database writes go through
 // ctx's transaction; the file is moved into the Library last, and files
 // records how to make the Library follow the transaction's outcome.
-func (i *ProcessIngestJob) process(ctx context.Context, job *domain.IngestJob, files *libraries.FileChanges) (*jobResult, error) {
+func (i *ProcessIngestJob) process(ctx context.Context, job *ingest.IngestJob, files *libraries.FileChanges) (*jobResult, error) {
 	ref := job.Ref()
 
 	personal, err := i.Libraries.Personal(ctx, job.UserID)
@@ -303,7 +246,7 @@ func (i *ProcessIngestJob) process(ctx context.Context, job *domain.IngestJob, f
 	libs := libraries.UserLibraries{Personal: personal, Shared: shared}
 
 	// A forwarded copy of a known file needs no download at all, and
-	// neither does the very file somebody shared.
+	// neither does the very file somebody shared or the service gave out.
 	if result, err := i.knownSource(ctx, job, personal, ref); result != nil || err != nil {
 		return result, wrapStep(stepSource, err)
 	}
@@ -311,7 +254,11 @@ func (i *ProcessIngestJob) process(ctx context.Context, job *domain.IngestJob, f
 	if err != nil {
 		return nil, wrapStep(stepSource, err)
 	}
-	if inShared {
+	recognized, err := i.recognize(ctx, libs, ref)
+	if err != nil {
+		return nil, wrapStep(stepSource, err)
+	}
+	if inShared || recognized.any() {
 		if result, err := i.lockAndRecheck(ctx, job, libs, ref, files); result != nil || err != nil {
 			return result, wrapStep(stepSource, err)
 		}
@@ -320,15 +267,15 @@ func (i *ProcessIngestJob) process(ctx context.Context, job *domain.IngestJob, f
 	// A Provider without the Capability will not grow it on retry.
 	fetcher, err := i.Providers.Fetcher(ref.Provider)
 	if err != nil {
-		return nil, wrapStep(stepFetch, providers.Permanent(providers.ReasonInternal, err))
+		return nil, wrapStep(stepFetch, providers.Permanent(ingest.ReasonInternal, err))
 	}
 
 	audio, err := fetcher.Fetch(ctx, job.UserID, ref)
 	if errors.Is(err, repositories.ErrProviderAccountNotFound) {
-		return nil, wrapStep(stepFetch, providers.Permanent(providers.ReasonNoProviderAccount, err))
+		return nil, wrapStep(stepFetch, providers.Permanent(ingest.ReasonNoProviderAccount, err))
 	}
 	if errors.Is(err, providers.ErrUnauthorized) {
-		return nil, wrapStep(stepFetch, providers.Permanent(providers.ReasonTokenRejected, err))
+		return nil, wrapStep(stepFetch, providers.Permanent(ingest.ReasonTokenRejected, err))
 	}
 	if err != nil {
 		return nil, wrapStep(stepFetch, err)
@@ -347,9 +294,9 @@ func (i *ProcessIngestJob) process(ctx context.Context, job *domain.IngestJob, f
 	format := audio.Format
 	var remux func(context.Context, string) (string, error)
 	switch {
-	case format == domain.FormatWAV:
+	case format == library.FormatWAV:
 		remux = i.Remuxer.WavToFlac
-	case format == domain.FormatM4A && i.Remuxer.Codec(ctx, staged) == "flac":
+	case format == library.FormatM4A && i.Remuxer.Codec(ctx, staged) == "flac":
 		remux = i.Remuxer.UnpackFlac
 	}
 	if remux != nil {
@@ -357,12 +304,12 @@ func (i *ProcessIngestJob) process(ctx context.Context, job *domain.IngestJob, f
 			return nil, wrapStep(stepRemux, err)
 		}
 		defer i.Disk.Remove(staged)
-		format = domain.FormatFLAC
+		format = library.FormatFLAC
 	}
 
 	probe, err := i.Tags.Probe(staged)
 	if errors.Is(err, ErrCorruptAudio) {
-		return nil, wrapStep(stepProbe, providers.Permanent(providers.ReasonCorruptFile, err))
+		return nil, wrapStep(stepProbe, providers.Permanent(ingest.ReasonCorruptFile, err))
 	}
 	if err != nil {
 		return nil, wrapStep(stepProbe, err)
@@ -372,7 +319,7 @@ func (i *ProcessIngestJob) process(ctx context.Context, job *domain.IngestJob, f
 	meta := audio.Hint.Merge(
 		probe.Tags,
 		audio.WeakHint,
-		domain.MetadataFromFileName(audio.FileName),
+		library.MetadataFromFileName(audio.FileName),
 	).Normalize()
 
 	// Workers download and probe in parallel, but the duplicate check and
@@ -384,16 +331,16 @@ func (i *ProcessIngestJob) process(ctx context.Context, job *domain.IngestJob, f
 	}
 
 	in := incoming{
-		job:     job,
-		library: personal,
-		dir:     libraries.Dir(i.MusicDir, personal),
-		ref:     ref,
-		audio:   audio,
-		format:  format,
-		probe:   probe,
-		meta:    meta,
-		staged:  staged,
-		files:   files,
+		job:    job,
+		lib:    personal,
+		dir:    libraries.Dir(i.MusicDir, personal),
+		ref:    ref,
+		audio:  audio,
+		format: format,
+		probe:  probe,
+		meta:   meta,
+		staged: staged,
+		files:  files,
 	}
 
 	// Inbox tracks lack the fields a Duplicate is matched by.
@@ -414,7 +361,7 @@ func (i *ProcessIngestJob) process(ctx context.Context, job *domain.IngestJob, f
 
 // release is called once the job is finished for good; Providers that keep
 // nothing between attempts simply lack the Capability.
-func (i *ProcessIngestJob) release(ctx context.Context, job *domain.IngestJob) error {
+func (i *ProcessIngestJob) release(ctx context.Context, job *ingest.IngestJob) error {
 	releaser, err := i.Providers.Releaser(job.Provider)
 	if errors.Is(err, providers.ErrCapabilityNotSupported) {
 		return nil
@@ -429,9 +376,9 @@ func (i *ProcessIngestJob) release(ctx context.Context, job *domain.IngestJob) e
 // library, or returns nil when the ref is new there.
 func (i *ProcessIngestJob) knownSource(
 	ctx context.Context,
-	job *domain.IngestJob,
-	lib *domain.Library,
-	ref domain.TrackRef,
+	job *ingest.IngestJob,
+	lib *library.Library,
+	ref provider.TrackRef,
 ) (*jobResult, error) {
 	source, err := i.Tracks.FindSource(ctx, lib.ID, ref.Provider, ref.ID)
 	if errors.Is(err, repositories.ErrSourceNotFound) {
@@ -441,7 +388,7 @@ func (i *ProcessIngestJob) knownSource(
 		return nil, err
 	}
 
-	err = i.Uploads.Save(ctx, &domain.Upload{
+	err = i.Uploads.Save(ctx, &library.Upload{
 		UserID:        job.UserID,
 		TrackID:       source.TrackID,
 		TrackSourceID: source.ID,
@@ -449,25 +396,74 @@ func (i *ProcessIngestJob) knownSource(
 	if err != nil {
 		return nil, err
 	}
-	return alreadyExists(), nil
+	return alreadyExists(source.TrackID), nil
+}
+
+type recognition struct {
+	own    *library.Track
+	shared *library.Track
+}
+
+func (r recognition) any() bool {
+	return r.own != nil || r.shared != nil
+}
+
+// recognize asks the Provider whether the ref is a file the service gave
+// out; the Tracks of other users' libraries stay unseen.
+func (i *ProcessIngestJob) recognize(ctx context.Context, libs libraries.UserLibraries, ref provider.TrackRef) (recognition, error) {
+	recognizer, err := i.Providers.Recognizer(ref.Provider)
+	if errors.Is(err, providers.ErrCapabilityNotSupported) {
+		return recognition{}, nil
+	}
+	if err != nil {
+		return recognition{}, err
+	}
+	ids, err := recognizer.Recognize(ctx, ref)
+	if err != nil {
+		return recognition{}, err
+	}
+
+	var r recognition
+	for _, id := range ids {
+		track, err := i.Tracks.Get(ctx, id)
+		if errors.Is(err, repositories.ErrTrackNotFound) {
+			continue
+		}
+		if err != nil {
+			return recognition{}, err
+		}
+		switch {
+		case r.own == nil && track.In(libs.Personal):
+			r.own = track
+		case r.shared == nil && track.In(libs.Shared):
+			r.shared = track
+		}
+	}
+	return r, nil
 }
 
 // lockAndRecheck takes the Personal Library's lock until the transaction
 // ends, and the Shared Library's only when the ref is there: linking its
 // file must not race an unshare, while locking it for every upload would
 // queue all users behind one another. Under the lock the ref may turn out
-// known in the user's library, or still shared; then no download is needed.
+// known or recognized in the user's library, or still shared; then no
+// download is needed.
 func (i *ProcessIngestJob) lockAndRecheck(
 	ctx context.Context,
-	job *domain.IngestJob,
+	job *ingest.IngestJob,
 	libs libraries.UserLibraries,
-	ref domain.TrackRef,
+	ref provider.TrackRef,
 	files *libraries.FileChanges,
 ) (*jobResult, error) {
 	inShared, err := i.inLibrary(ctx, libs.Shared, ref)
 	if err != nil {
 		return nil, err
 	}
+	recognized, err := i.recognize(ctx, libs, ref)
+	if err != nil {
+		return nil, err
+	}
+	inShared = inShared || recognized.shared != nil
 	locked := []uint{libs.Personal.ID}
 	if inShared {
 		locked = append(locked, libs.Shared.ID)
@@ -479,26 +475,52 @@ func (i *ProcessIngestJob) lockAndRecheck(
 	if result, err := i.knownSource(ctx, job, libs.Personal, ref); result != nil || err != nil {
 		return result, err
 	}
+	if recognized.own != nil {
+		if err := i.recordUpload(ctx, job.UserID, recognized.own, ref); err != nil {
+			return nil, err
+		}
+		return alreadyExists(recognized.own.ID), nil
+	}
 	if !inShared {
 		return nil, nil
 	}
 
-	source, err := i.Tracks.FindSource(ctx, libs.Shared.ID, ref.Provider, ref.ID)
-	if errors.Is(err, repositories.ErrSourceNotFound) {
-		return nil, nil
-	}
-	if err != nil {
+	shared, err := i.stillShared(ctx, libs.Shared, ref, recognized.shared)
+	if err != nil || shared == nil {
 		return nil, err
 	}
-	track, err := i.Tracks.Get(ctx, source.TrackID)
-	if err != nil {
-		return nil, err
-	}
-	return i.linkShared(ctx, job, libs, ref, track, source.TelegramFile(), files)
+	return i.linkShared(ctx, job, libs, ref, shared, files)
 }
 
-func (i *ProcessIngestJob) inLibrary(ctx context.Context, library *domain.Library, ref domain.TrackRef) (bool, error) {
-	_, err := i.Tracks.FindSource(ctx, library.ID, ref.Provider, ref.ID)
+// stillShared looks the Track up again under the lock: it may have been
+// unshared meanwhile.
+func (i *ProcessIngestJob) stillShared(
+	ctx context.Context,
+	shared *library.Library,
+	ref provider.TrackRef,
+	recognized *library.Track,
+) (*library.Track, error) {
+	trackID := uint(0)
+	source, err := i.Tracks.FindSource(ctx, shared.ID, ref.Provider, ref.ID)
+	switch {
+	case err == nil:
+		trackID = source.TrackID
+	case !errors.Is(err, repositories.ErrSourceNotFound):
+		return nil, err
+	case recognized != nil:
+		trackID = recognized.ID
+	default:
+		return nil, nil
+	}
+	track, err := i.Tracks.Get(ctx, trackID)
+	if errors.Is(err, repositories.ErrTrackNotFound) {
+		return nil, nil
+	}
+	return track, err
+}
+
+func (i *ProcessIngestJob) inLibrary(ctx context.Context, lib *library.Library, ref provider.TrackRef) (bool, error) {
+	_, err := i.Tracks.FindSource(ctx, lib.ID, ref.Provider, ref.ID)
 	if errors.Is(err, repositories.ErrSourceNotFound) {
 		return false, nil
 	}
@@ -510,19 +532,18 @@ func (i *ProcessIngestJob) inLibrary(ctx context.Context, library *domain.Librar
 // own. A Duplicate the user already owns only gets the Upload.
 func (i *ProcessIngestJob) linkShared(
 	ctx context.Context,
-	job *domain.IngestJob,
+	job *ingest.IngestJob,
 	libs libraries.UserLibraries,
-	ref domain.TrackRef,
-	shared *domain.Track,
-	file *domain.TelegramFile,
+	ref provider.TrackRef,
+	shared *library.Track,
 	files *libraries.FileChanges,
 ) (*jobResult, error) {
 	own, err := i.Tracks.FindDuplicate(ctx, libs.Personal.ID, shared.Metadata, shared.DurationMs)
 	if err == nil {
-		if err := i.recordUpload(ctx, job.UserID, own, ref, file); err != nil {
+		if err := i.recordUpload(ctx, job.UserID, own, ref); err != nil {
 			return nil, err
 		}
-		return alreadyExists(), nil
+		return alreadyExists(own.ID), nil
 	}
 	if !errors.Is(err, repositories.ErrTrackNotFound) {
 		return nil, err
@@ -532,49 +553,39 @@ func (i *ProcessIngestJob) linkShared(
 	if err != nil {
 		return nil, err
 	}
-	if err := i.recordUpload(ctx, job.UserID, copied, ref, file); err != nil {
+	if err := i.recordUpload(ctx, job.UserID, copied, ref); err != nil {
 		return nil, err
 	}
-	return &jobResult{Outcome: IngestStored, Path: target, TrackID: copied.ID}, nil
+	return &jobResult{Outcome: library.Stored, Path: target, TrackID: copied.ID}, nil
 }
 
-// recordUpload reuses the Track's source for the ref if it has one.
-func (i *ProcessIngestJob) recordUpload(
-	ctx context.Context,
-	userID uint,
-	track *domain.Track,
-	ref domain.TrackRef,
-	file *domain.TelegramFile,
-) error {
+// recordUpload gives the Track a source for the ref unless it has one: the
+// ref is how this user sent it.
+func (i *ProcessIngestJob) recordUpload(ctx context.Context, userID uint, track *library.Track, ref provider.TrackRef) error {
 	source, err := i.Tracks.FindSource(ctx, track.LibraryID, ref.Provider, ref.ID)
 	if errors.Is(err, repositories.ErrSourceNotFound) {
-		source = newSource(track, ref, file)
+		source = newSource(track, ref)
 		err = i.Tracks.SaveSource(ctx, source)
 	}
 	if err != nil {
 		return err
 	}
-	return i.Uploads.Save(ctx, &domain.Upload{UserID: userID, TrackID: track.ID, TrackSourceID: source.ID})
+	return i.Uploads.Save(ctx, &library.Upload{UserID: userID, TrackID: track.ID, TrackSourceID: source.ID})
 }
 
-func newSource(track *domain.Track, ref domain.TrackRef, file *domain.TelegramFile) *domain.TrackSource {
-	source := &domain.TrackSource{TrackID: track.ID, LibraryID: track.LibraryID, Provider: ref.Provider, Ref: ref.ID}
-	if file != nil {
-		source.TelegramFileID = file.ID
-		source.TelegramFileKind = file.Kind
-	}
-	return source
+func newSource(track *library.Track, ref provider.TrackRef) *library.TrackSource {
+	return &library.TrackSource{TrackID: track.ID, LibraryID: track.LibraryID, Provider: ref.Provider, Ref: ref.ID}
 }
 
 func (i *ProcessIngestJob) storeNew(ctx context.Context, in incoming) (*jobResult, error) {
-	rel, err := i.Disk.FreePath(in.dir, domain.LayoutPath(in.meta, in.format, in.audio.FileName))
+	rel, err := i.Disk.FreePath(in.dir, library.LayoutPath(in.meta, in.format, in.audio.FileName))
 	if err != nil {
 		return nil, err
 	}
 
 	// Database rows first, the file last: until the transaction commits
 	// the rows are invisible, and a rollback takes the file back out.
-	track := &domain.Track{LibraryID: in.library.ID, Metadata: in.meta}
+	track := &library.Track{LibraryID: in.lib.ID, Metadata: in.meta}
 	if err := i.saveFile(ctx, in, track, rel); err != nil {
 		return nil, err
 	}
@@ -588,9 +599,9 @@ func (i *ProcessIngestJob) storeNew(ctx context.Context, in incoming) (*jobResul
 	}
 	in.files.OnRollback(func() { i.Disk.Remove(target) })
 
-	outcome := IngestStored
+	outcome := library.Stored
 	if !in.meta.Complete() {
-		outcome = IngestStoredInInbox
+		outcome = library.StoredInInbox
 	}
 	return &jobResult{Outcome: outcome, Path: target, TrackID: track.ID}, nil
 }
@@ -598,16 +609,16 @@ func (i *ProcessIngestJob) storeNew(ctx context.Context, in incoming) (*jobResul
 // mergeDuplicate always keeps the new source and Upload, and swaps the file
 // only for better Quality. The Track keeps its metadata, so the path stays
 // the same apart from the extension.
-func (i *ProcessIngestJob) mergeDuplicate(ctx context.Context, in incoming, track *domain.Track) (*jobResult, error) {
+func (i *ProcessIngestJob) mergeDuplicate(ctx context.Context, in incoming, track *library.Track) (*jobResult, error) {
 	if err := i.addSource(ctx, in, track); err != nil {
 		return nil, err
 	}
 	if !in.probe.Quality.Better(track.Quality) {
-		return alreadyExists(), nil
+		return alreadyExists(track.ID), nil
 	}
 
 	oldRel := track.Path
-	rel := domain.LayoutPath(track.Metadata, in.format, in.audio.FileName)
+	rel := library.LayoutPath(track.Metadata, in.format, in.audio.FileName)
 	if rel != oldRel {
 		var err error
 		if rel, err = i.Disk.FreePath(in.dir, rel); err != nil {
@@ -628,7 +639,7 @@ func (i *ProcessIngestJob) mergeDuplicate(ctx context.Context, in incoming, trac
 		}
 		in.files.OnRollback(func() { i.Disk.Remove(target) })
 		in.files.AfterCommit(func() { i.Disk.Remove(old) })
-		return &jobResult{Outcome: IngestReplaced, Path: target, TrackID: track.ID}, nil
+		return &jobResult{Outcome: library.Replaced, Path: target, TrackID: track.ID}, nil
 	}
 
 	// Same path: overwriting before commit would lose the old file if the
@@ -639,12 +650,12 @@ func (i *ProcessIngestJob) mergeDuplicate(ctx context.Context, in incoming, trac
 	}
 	in.files.OnRollback(func() { i.Disk.Remove(pending) })
 	in.files.AfterCommit(func() { i.Disk.Move(pending, target) })
-	return &jobResult{Outcome: IngestReplaced, Path: target, TrackID: track.ID}, nil
+	return &jobResult{Outcome: library.Replaced, Path: target, TrackID: track.ID}, nil
 }
 
 // saveFile writes the Track's final tags into the staged file, so any
 // Navidrome client shows the same metadata the database holds.
-func (i *ProcessIngestJob) saveFile(ctx context.Context, in incoming, track *domain.Track, rel string) error {
+func (i *ProcessIngestJob) saveFile(ctx context.Context, in incoming, track *library.Track, rel string) error {
 	track.Path = rel
 	track.Format = in.format
 	track.DurationMs = in.probe.DurationMs
@@ -661,15 +672,13 @@ func (i *ProcessIngestJob) saveFile(ctx context.Context, in incoming, track *dom
 	return i.Tracks.SaveTrack(ctx, track)
 }
 
-// addSource keeps the Telegram file_id, which lets inline mode resend the
-// track instantly even after its file was replaced.
-func (i *ProcessIngestJob) addSource(ctx context.Context, in incoming, track *domain.Track) error {
-	source := newSource(track, in.ref, in.audio.TelegramFile)
+func (i *ProcessIngestJob) addSource(ctx context.Context, in incoming, track *library.Track) error {
+	source := newSource(track, in.ref)
 	if err := i.Tracks.SaveSource(ctx, source); err != nil {
 		return err
 	}
 
-	return i.Uploads.Save(ctx, &domain.Upload{
+	return i.Uploads.Save(ctx, &library.Upload{
 		UserID:        in.job.UserID,
 		TrackID:       track.ID,
 		TrackSourceID: source.ID,

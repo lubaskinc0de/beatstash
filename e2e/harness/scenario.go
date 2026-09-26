@@ -15,6 +15,8 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/zvuk"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
+	tgbot "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/bot"
 	app "github.com/lubaskinc0de/navidrome-tg/internal/main"
 )
 
@@ -85,27 +87,28 @@ func prepare(t *testing.T, opts ...Option) *Scenario {
 
 	clk := &Clock{now: time.Now()}
 	cfg := app.Config{
-		Clock:               clk.Now,
-		InviteTTL:           7 * 24 * time.Hour,
-		Token:               telegram.Token,
-		BotAPIURL:           api.URL(),
-		MaxPostSize:         50 << 20,
-		DBDSN:               NewDatabase(t),
-		MusicDir:            library,
-		NavidromeMusicDir:   navidrome.LibraryMount + "/" + filepath.Base(library),
-		AdminIDs:            []uint64{uint64(Admin.ID)},
-		SecretKey:           SecretKey,
-		NavidromeUser:       navidrome.AdminUser,
-		NavidromePassword:   navidrome.AdminPassword,
-		NavidromeURL:        env.navidrome.URL,
-		IngestWorkers:       2,
-		ZvukWorkers:         2,
-		ZvukPerUser:         1,
-		IngestRetryDelays:   []time.Duration{10 * time.Millisecond, 10 * time.Millisecond, 10 * time.Millisecond},
-		IngestPollInterval:  10 * time.Millisecond,
-		ZvukURL:             zvukAPI.URL(),
-		SyncInterval:        time.Hour,
-		MirrorRetryInterval: 50 * time.Millisecond,
+		Clock:                clk.Now,
+		InviteTTL:            7 * 24 * time.Hour,
+		Token:                telegram.Token,
+		BotAPIURL:            api.URL(),
+		MaxPostSize:          50 << 20,
+		DBDSN:                NewDatabase(t),
+		MusicDir:             library,
+		NavidromeMusicDir:    navidrome.LibraryMount + "/" + filepath.Base(library),
+		Admins:               []access.Identity{tgbot.Identity(Admin.ID)},
+		SecretKey:            SecretKey,
+		NavidromeUser:        navidrome.AdminUser,
+		NavidromePassword:    navidrome.AdminPassword,
+		NavidromeURL:         env.navidrome.URL,
+		IngestWorkers:        2,
+		ZvukWorkers:          2,
+		ZvukPerUser:          1,
+		IngestRetryDelays:    []time.Duration{10 * time.Millisecond, 10 * time.Millisecond, 10 * time.Millisecond},
+		IngestPollInterval:   10 * time.Millisecond,
+		TelegramPollInterval: 10 * time.Millisecond,
+		ZvukURL:              zvukAPI.URL(),
+		SyncInterval:         time.Hour,
+		MirrorRetryInterval:  50 * time.Millisecond,
 	}
 	for _, opt := range opts {
 		opt(&cfg)

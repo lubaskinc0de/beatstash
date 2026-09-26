@@ -2,14 +2,12 @@ package repositories
 
 import (
 	"context"
-	"errors"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 )
 
 type Invites interface {
-	Save(ctx context.Context, invite *domain.Invite) error
-	GetForUpdate(ctx context.Context, code string) (*domain.Invite, error)
+	Save(ctx context.Context, invite *access.Invite) error
+	// GetForUpdate returns access.ErrInviteInvalid for an unknown code.
+	GetForUpdate(ctx context.Context, code string) (*access.Invite, error)
 }
-
-var ErrInviteInvalid = errors.New("invite is unknown, used or expired")

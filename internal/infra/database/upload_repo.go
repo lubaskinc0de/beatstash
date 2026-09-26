@@ -5,13 +5,13 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
 type UploadRepository struct {
 	DB *gorm.DB
 }
 
-func (r *UploadRepository) Save(ctx context.Context, upload *domain.Upload) error {
+func (r *UploadRepository) Save(ctx context.Context, upload *library.Upload) error {
 	return dbForContext(ctx, r.DB).Omit("User", "Track", "TrackSource").Create(upload).Error
 }

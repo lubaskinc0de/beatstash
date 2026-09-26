@@ -1,6 +1,11 @@
-package domain
+package sharing
 
-import "time"
+import (
+	"time"
+
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+)
 
 // Share puts an author's Track into the Shared Library as a Track of its
 // own. Several Users may share the same track: it stays shared while any
@@ -8,14 +13,14 @@ import "time"
 type Share struct {
 	ID uint `gorm:"primaryKey"`
 
-	TrackID uint  `gorm:"not null;index"`
-	Track   Track `gorm:"constraint:OnDelete:CASCADE;"`
+	TrackID uint          `gorm:"not null;index"`
+	Track   library.Track `gorm:"constraint:OnDelete:CASCADE;"`
 
-	SourceTrackID uint  `gorm:"not null;uniqueIndex"`
-	SourceTrack   Track `gorm:"constraint:OnDelete:CASCADE;"`
+	SourceTrackID uint          `gorm:"not null;uniqueIndex"`
+	SourceTrack   library.Track `gorm:"constraint:OnDelete:CASCADE;"`
 
-	UserID uint `gorm:"not null;index"`
-	User   User `gorm:"constraint:OnDelete:CASCADE;"`
+	UserID uint        `gorm:"not null;index"`
+	User   access.User `gorm:"constraint:OnDelete:CASCADE;"`
 
 	// InTop is false for a Share of a track somebody had shared first.
 	InTop bool `gorm:"not null"`
@@ -28,11 +33,11 @@ type Share struct {
 type Take struct {
 	ID uint `gorm:"primaryKey"`
 
-	UserID uint `gorm:"not null;index"`
-	User   User `gorm:"constraint:OnDelete:CASCADE;"`
+	UserID uint        `gorm:"not null;index"`
+	User   access.User `gorm:"constraint:OnDelete:CASCADE;"`
 
-	TrackID uint  `gorm:"not null"`
-	Track   Track `gorm:"constraint:OnDelete:CASCADE;"`
+	TrackID uint          `gorm:"not null"`
+	Track   library.Track `gorm:"constraint:OnDelete:CASCADE;"`
 
 	AuthorID *uint `gorm:"index"`
 
@@ -40,13 +45,13 @@ type Take struct {
 }
 
 // ShareCopy: the first to share the track counts in the Top.
-func ShareCopy(userID uint, source, copied *Track, at time.Time) *Share {
+func ShareCopy(userID uint, source, copied *library.Track, at time.Time) *Share {
 	return &Share{TrackID: copied.ID, SourceTrackID: source.ID, UserID: userID, InTop: true, CreatedAt: at}
 }
 
 // ShareDuplicate: no second copy and no Top, but the track stays shared
 // after its author unshares.
-func ShareDuplicate(userID uint, source, duplicate *Track, at time.Time) *Share {
+func ShareDuplicate(userID uint, source, duplicate *library.Track, at time.Time) *Share {
 	return &Share{TrackID: duplicate.ID, SourceTrackID: source.ID, UserID: userID, CreatedAt: at}
 }
 
@@ -58,7 +63,7 @@ func Author(shares []Share) *Share {
 	return &shares[0]
 }
 
-func NewTake(userID uint, copied *Track, shares []Share, at time.Time) *Take {
+func NewTake(userID uint, copied *library.Track, shares []Share, at time.Time) *Take {
 	take := &Take{UserID: userID, TrackID: copied.ID, CreatedAt: at}
 	if author := Author(shares); author != nil {
 		take.AuthorID = &author.UserID

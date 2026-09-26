@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
+	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
 )
 
 func TestInvite(t *testing.T) {
@@ -26,6 +28,16 @@ func TestInvite(t *testing.T) {
 
 		assert.Contains(t, s.Telegram.Replies(t)[1].Text, "Добро пожаловать")
 		assert.Equal(t, []string{"👀", "👍"}, s.Telegram.ReactionsOn(t, upload.Message.ID))
+	})
+
+	t.Run("newcomer's library is named by their user id", func(t *testing.T) {
+		s := harness.New(t)
+		carol := harness.Newcomer("carol")
+		s.Send(s.TextMessage(carol, "/start "+s.Invite()))
+
+		s.Uploaded(carol, s.UploadAudio("track.mp3"))
+
+		assert.Equal(t, []string{filepath.Join("users", "4", audiofile.FixtureTrackPath)}, s.LibraryFiles())
 	})
 
 	t.Run("used invite is rejected", func(t *testing.T) {
@@ -65,6 +77,18 @@ func TestInvite(t *testing.T) {
 		require.Len(t, replies, 1)
 		assert.Contains(t, replies[0].Text, "только администратор")
 		assert.NotContains(t, replies[0].Text, "?start=")
+	})
+
+	t.Run("admin dropped from config can no longer invite", func(t *testing.T) {
+		s := harness.New(t)
+
+		s.Restart(harness.WithAdmins(alice))
+		s.Send(s.TextMessage(admin, "/invite"))
+		refused := s.LastReply().Text
+		s.Send(s.TextMessage(alice, "/invite"))
+
+		assert.Contains(t, refused, "только администратор")
+		assert.Contains(t, s.LastReply().Text, "?start=")
 	})
 
 	t.Run("stranger gets no answer but to start", func(t *testing.T) {

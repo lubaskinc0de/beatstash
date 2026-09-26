@@ -37,6 +37,9 @@ func (h *Handler) handleLink(
 	deleteMessage(ctx, b, chatID, update.Message.ID)
 
 	err := h.LinkNavidromeAccount.Execute(ctx, navidrome.Credentials{Login: login, Password: password})
+	if err == nil || errors.Is(err, navidrome.ErrAdminAccount) {
+		h.endNavidromeLogin(ctx, chatID)
+	}
 	switch {
 	case err == nil:
 		sendText(ctx, b, chatID, fmt.Sprintf(
@@ -77,7 +80,15 @@ func (h *Handler) handleText(
 	b *bot.Bot,
 	update *models.Update,
 ) {
-	h.registerNavidromeAccount(ctx, b, update.Message.Chat.ID, strings.TrimSpace(update.Message.Text))
+	chatID := update.Message.Chat.ID
+	awaits, err := h.Dialogs.AwaitsNavidromeLogin(ctx, chatID)
+	if err != nil {
+		slog.Error("read_dialog", "error", err)
+		return
+	}
+	if awaits {
+		h.registerNavidromeAccount(ctx, b, chatID, strings.TrimSpace(update.Message.Text))
+	}
 }
 
 func isText(update *models.Update) bool {
@@ -86,8 +97,11 @@ func isText(update *models.Update) bool {
 
 func (h *Handler) registerNavidromeAccount(ctx context.Context, b *bot.Bot, chatID int64, login string) {
 	creds, err := h.RegisterAccount.Execute(ctx, login)
+	if err == nil || errors.Is(err, connect_navidrome.ErrHasNavidromeAccount) {
+		h.endNavidromeLogin(ctx, chatID)
+	}
 	switch {
-	case errors.Is(err, connect_navidrome.ErrNotAwaitingLogin):
+	case errors.Is(err, connect_navidrome.ErrHasNavidromeAccount):
 	case err == nil:
 		sendText(ctx, b, chatID, fmt.Sprintf(
 			"🎧 Аккаунт Navidrome создан, входите в любом клиенте Navidrome или Subsonic\n\n"+
@@ -107,5 +121,11 @@ func (h *Handler) registerNavidromeAccount(ctx context.Context, b *bot.Bot, chat
 	default:
 		slog.Error("register_navidrome_account", "error", err)
 		sendText(ctx, b, chatID, "⚠️ Не удалось создать аккаунт Navidrome. Отправьте желаемый логин ещё раз чуть позже")
+	}
+}
+
+func (h *Handler) endNavidromeLogin(ctx context.Context, chatID int64) {
+	if err := h.Dialogs.EndNavidromeLogin(ctx, chatID); err != nil {
+		slog.Error("end_navidrome_login", "error", err)
 	}
 }

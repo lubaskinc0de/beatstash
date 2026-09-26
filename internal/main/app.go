@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/go-telegram/bot"
 	"gorm.io/gorm"
@@ -26,7 +27,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/start_app"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/sync_collection"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/audio"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/background"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/database"
@@ -35,6 +36,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/secrets"
 	tgbot "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/bot"
 	tgprovider "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/provider"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/store"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/zvuk"
 )
 
@@ -42,6 +44,7 @@ type App struct {
 	bot       *bot.Bot
 	workers   *background.IngestWorkers
 	scheduler *background.Scheduler
+	poller    *tgbot.Poller
 	db        *gorm.DB
 
 	closeOnce sync.Once
@@ -95,18 +98,18 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		MusicDir:  cfg.NavidromeMusicDir,
 	}
 	startApp := &start_app.StartApp{
-		Admins:             users,
-		AdminIDs:           cfg.AdminIDs,
+		Admins:             cfg.Admins,
 		Users:              users,
 		Accounts:           accountRepo,
 		Libraries:          libs,
 		NavidromeLibraries: navidromeLibraries,
+		Clock:              cfg.Clock,
 	}
 	if err := startApp.Execute(ctx); err != nil {
 		return nil, err
 	}
 
-	ids := &tgbot.IDProvider{Users: users}
+	ids := &tgbot.IDProvider{Users: users, Clock: cfg.Clock}
 	options := tgbot.Options(ids)
 	if cfg.BotAPIURL != "" {
 		options = append(options, bot.WithServerURL(cfg.BotAPIURL))
@@ -117,49 +120,45 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	}
 
 	audioSender := &tgbot.AudioSender{Bot: b, MaxPostSize: cfg.MaxPostSize}
+	telegramFiles := &store.Files{DB: db}
 	shares := &database.ShareRepository{DB: db}
 	takes := &database.TakeRepository{DB: db}
 	providerAccountRepo := &database.ProviderAccountRepository{DB: db}
 	providerAccounts := &accounts.ProviderTokens{Repo: providerAccountRepo, Box: box}
 	providers := providers.NewRegistry(
-		&tgprovider.Provider{Bot: b},
+		&tgprovider.Provider{Bot: b, Files: telegramFiles},
 		&zvuk.Provider{
 			Client: zvuk.NewClient(cfg.ZvukURL),
 			Tokens: providerAccounts,
 			Pacer:  &zvuk.Pacer{Min: cfg.ZvukPauseMin, Max: cfg.ZvukPauseMax, PerUser: cfg.ZvukPerUser},
 		},
 	)
-	notifier := &tgbot.Notifier{Bot: b, ProgressInterval: cfg.ProgressInterval}
 	batchRepo := &database.IngestBatchRepository{DB: db}
 	waker := &background.Waker{}
 	// Zvuk gets workers of its own: its downloads wait out pauses that
 	// must not hold up files sent from Telegram.
-	paced := []domain.ProviderName{zvuk.Name}
+	paced := []provider.ProviderName{zvuk.Name}
 	inFlight := &ingest_track.InFlight{}
 	workers := &background.IngestWorkers{
 		ProcessIngestJob: &ingest_track.ProcessIngestJob{
-			Tx:            txManager,
-			Queue:         ingestQueue,
-			Providers:     providers,
-			Tracks:        tracks,
-			Uploads:       uploads,
-			Libraries:     libraryRepo,
-			Lock:          libraryLock,
-			Disk:          fileDisk,
-			Tags:          audio.Tags{},
-			Remuxer:       audio.FFmpeg{},
-			Notifier:      notifier,
-			Batches:       batchRepo,
-			Reporter:      notifier,
-			Sender:        audioSender,
-			InFlight:      inFlight,
-			MusicDir:      cfg.MusicDir,
-			StorageChatID: cfg.StorageChatID,
-			RetryDelays:   cfg.IngestRetryDelays,
+			Tx:          txManager,
+			Queue:       ingestQueue,
+			Providers:   providers,
+			Tracks:      tracks,
+			Uploads:     uploads,
+			Libraries:   libraryRepo,
+			Lock:        libraryLock,
+			Disk:        fileDisk,
+			Tags:        audio.Tags{},
+			Remuxer:     audio.FFmpeg{},
+			Batches:     batchRepo,
+			InFlight:    inFlight,
+			MusicDir:    cfg.MusicDir,
+			RetryDelays: cfg.IngestRetryDelays,
 		},
 		InFlight:      inFlight,
 		Queue:         ingestQueue,
-		SettleBatches: &ingest_track.SettleIngestBatches{Tx: txManager, Queue: ingestQueue, Batches: batchRepo, Reporter: notifier},
+		SettleBatches: &ingest_track.SettleIngestBatches{Queue: ingestQueue, Batches: batchRepo},
 		Disk:          fileDisk,
 		Waker:         waker,
 		Lanes: []background.Lane{
@@ -168,9 +167,25 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		},
 		PollInterval: cfg.IngestPollInterval,
 	}
-	enqueueIngest := &add_track.EnqueueIngest{IDs: ids, Queue: ingestQueue, Waker: waker}
+	enqueueIngest := &add_track.EnqueueIngest{IDs: ids, Queue: ingestQueue, Waker: waker, Clock: time.Now}
+	jobMessages := &store.JobMessages{DB: db}
+	batchMessages := &store.BatchMessages{DB: db}
+	poller := &tgbot.Poller{
+		Bot:             b,
+		Jobs:            &ingest_track.GetIngestJobs{Queue: ingestQueue},
+		JobMessages:     jobMessages,
+		Batches:         &ingest_track.GetIngestBatches{Queue: ingestQueue, Batches: batchRepo},
+		BatchMessages:   batchMessages,
+		InvalidAccounts: &sync_collection.GetInvalidatedProviderAccounts{Accounts: providerAccountRepo},
+		AccountNotices:  &store.AccountNotices{DB: db},
+		Files:           telegramFiles,
+		Sender:          audioSender,
+		StorageChatID:   cfg.StorageChatID,
+		MusicDir:        cfg.MusicDir,
+		Interval:        cfg.TelegramPollInterval,
+	}
 	invites := &database.InviteRepository{DB: db}
-	createInvite := &invite_friend.CreateInvite{IDs: ids, Invites: invites, AdminIDs: cfg.AdminIDs, TTL: cfg.InviteTTL, Clock: cfg.Clock}
+	createInvite := &invite_friend.CreateInvite{IDs: ids, Invites: invites, TTL: cfg.InviteTTL, Clock: cfg.Clock}
 
 	handler := &tgbot.Handler{
 		Zvuk:          zvuk.Name,
@@ -194,11 +209,10 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Navidrome: navidromeClient,
 			Accounts:  navidromeAccounts,
 			Linked:    accountRepo,
-			Users:     users,
 			Libraries: navidromeLibraries,
 		},
 		CreateInvite:   createInvite,
-		CheckCanInvite: &invite_friend.CheckCanInvite{IDs: ids, AdminIDs: cfg.AdminIDs},
+		CheckCanInvite: &invite_friend.CheckCanInvite{IDs: ids},
 		AcceptInvite: &join_by_invite.AcceptInvite{
 			IDs:                ids,
 			Tx:                 txManager,
@@ -212,7 +226,6 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			IDs:       ids,
 			Navidrome: navidromeClient,
 			Accounts:  navidromeAccounts,
-			Users:     users,
 			Libraries: navidromeLibraries,
 			Admin:     navidromeAdmin,
 		},
@@ -233,12 +246,12 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shares: shares,
 			Libraries: libs, Disk: fileDisk, MusicDir: cfg.MusicDir,
 		},
-		ViewFeed: &browse_shared.ViewFeed{IDs: ids, Tracks: tracks, Shares: shares},
+		ViewFeed: &browse_shared.ViewFeed{IDs: ids, Shares: shares},
 		TakeTrack: &browse_shared.TakeTrack{
 			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shares: shares, Takes: takes,
 			Libraries: libs, Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,
 		},
-		SendFile:        &browse_shared.SendFile{IDs: ids, Tx: txManager, Tracks: tracks, Libraries: libs, Sender: audioSender},
+		GetTrackAudio:   &browse_shared.GetTrackAudio{IDs: ids, Tracks: tracks, Libraries: libs},
 		GetTop:          &view_top.GetTop{IDs: ids, Shares: shares, Takes: takes, Clock: cfg.Clock},
 		GetServiceStats: &greet_stranger.GetServiceStats{Users: users, Tracks: tracks, Libraries: libraryRepo},
 		ConnectProviderAccount: &connect_provider.ConnectProviderAccount{
@@ -255,10 +268,14 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Accounts:  providerAccountRepo,
 			Queue:     ingestQueue,
 			BatchRepo: batchRepo,
-			Reporter:  notifier,
 			Waker:     waker,
 		},
-		AdminContact: cfg.AdminContact,
+		AdminContact:  cfg.AdminContact,
+		Dialogs:       &store.Dialogs{DB: db},
+		JobMessages:   jobMessages,
+		BatchMessages: batchMessages,
+		Files:         telegramFiles,
+		Sender:        audioSender,
 	}
 	handler.Register(b)
 
@@ -271,7 +288,6 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Queue:     ingestQueue,
 			BatchRepo: batchRepo,
 			Waker:     waker,
-			Notifier:  notifier,
 			Interval:  cfg.SyncInterval,
 
 			Libraries:         libraryRepo,
@@ -282,7 +298,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		Tick: min(cfg.SyncInterval, cfg.MirrorRetryInterval),
 	}
 
-	return &App{bot: b, workers: workers, scheduler: scheduler, db: db}, nil
+	return &App{bot: b, workers: workers, scheduler: scheduler, poller: poller, db: db}, nil
 }
 
 func (a *App) Bot() *bot.Bot {
@@ -297,17 +313,25 @@ func (a *App) Run(ctx context.Context) {
 
 func (a *App) StartWorkers(ctx context.Context) <-chan struct{} {
 	workers := a.workers.Start(ctx)
+	var wg sync.WaitGroup
+	wg.Go(func() { a.scheduler.Run(ctx) })
+	wg.Go(func() { a.poller.Run(ctx) })
 	stopped := make(chan struct{})
 	go func() {
-		a.scheduler.Run(ctx)
+		wg.Wait()
 		<-workers
 		close(stopped)
 	}()
 	return stopped
 }
 
+// WaitIngest blocks until the queued jobs are done and the users have
+// heard of them.
 func (a *App) WaitIngest(ctx context.Context) error {
-	return a.workers.WaitIdle(ctx)
+	if err := a.workers.WaitIdle(ctx); err != nil {
+		return err
+	}
+	return a.poller.WaitIdle(ctx)
 }
 
 func (a *App) Close() error {

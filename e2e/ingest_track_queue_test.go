@@ -76,6 +76,18 @@ func TestQueue(t *testing.T) {
 		assert.Len(t, s.PersonalFiles(alice), 5)
 	})
 
+	t.Run("track queued before restart gets its reaction after it", func(t *testing.T) {
+		s := harness.New(t, harness.WithoutWorkers())
+		msg := s.AudioMessage(alice, s.UploadAudio("track.mp3"))
+		s.Send(msg)
+
+		s.Restart()
+		s.WaitIngest()
+
+		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.PersonalFiles(alice))
+		assert.Equal(t, []string{"👀", "👍"}, s.Telegram.ReactionsOn(t, msg.Message.ID))
+	})
+
 	t.Run("tracks in progress survive restart", func(t *testing.T) {
 		s := harness.New(t)
 		held := s.Telegram.HoldGetFile()

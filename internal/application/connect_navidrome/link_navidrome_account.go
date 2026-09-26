@@ -16,7 +16,6 @@ type LinkNavidromeAccount struct {
 	Navidrome navidrome.Client
 	Accounts  *accounts.Navidrome
 	Linked    repositories.NavidromeAccounts
-	Users     repositories.Users
 	Libraries *libraries.Navidrome
 }
 
@@ -41,9 +40,6 @@ func (i *LinkNavidromeAccount) Execute(ctx context.Context, creds navidrome.Cred
 		return granted
 	}
 	if err := i.Accounts.Save(ctx, user.ID, creds); err != nil {
-		return err
-	}
-	if err := i.Users.SetAwaitsNavidromeLogin(ctx, user.ID, false); err != nil {
 		return err
 	}
 	return granted

@@ -114,7 +114,7 @@ func TestNavidromeDefaults(t *testing.T) {
 		libraries := s.Navidrome.Libraries(t, account)
 		assert.Contains(t, libraries, s.NavidromePath("shared"))
 		for _, user := range []harness.User{admin, alice, bob} {
-			assert.NotContains(t, libraries, s.NavidromePath(harness.PersonalDir(user)))
+			assert.NotContains(t, libraries, s.NavidromePath(s.PersonalDir(user)))
 		}
 	})
 }
@@ -131,7 +131,7 @@ func TestLinkAfterMove(t *testing.T) {
 		assert.Contains(t, s.LastReply().Text, "Этот аккаунт Navidrome уже привязан к другому пользователю")
 		assert.Equal(t, []string{
 			s.NavidromePath("shared"),
-			s.NavidromePath(harness.PersonalDir(alice)),
+			s.NavidromePath(s.PersonalDir(alice)),
 		}, s.Navidrome.Libraries(t, account))
 	})
 
@@ -143,7 +143,7 @@ func TestLinkAfterMove(t *testing.T) {
 		s.Link(bob, shouted)
 
 		assert.Contains(t, s.LastReply().Text, "уже привязан к другому пользователю")
-		assert.Contains(t, s.Navidrome.Libraries(t, account), s.NavidromePath(harness.PersonalDir(alice)))
+		assert.Contains(t, s.Navidrome.Libraries(t, account), s.NavidromePath(s.PersonalDir(alice)))
 	})
 
 	t.Run("relinking one's own account works", func(t *testing.T) {
@@ -272,7 +272,7 @@ func TestRegistration(t *testing.T) {
 		account := s.IssuedAccount()
 		assert.Equal(t, []string{
 			s.NavidromePath("shared"),
-			s.NavidromePath(harness.PersonalDir(carol)),
+			s.NavidromePath(s.PersonalDir(carol)),
 		}, s.Navidrome.Libraries(t, account))
 	})
 }

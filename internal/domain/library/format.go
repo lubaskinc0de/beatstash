@@ -1,4 +1,4 @@
-package domain
+package library
 
 import (
 	"path/filepath"

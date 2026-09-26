@@ -13,13 +13,15 @@ import (
 	"time"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
-const Name domain.ProviderName = "zvuk"
+const Name provider.ProviderName = "zvuk"
 
 type Tokens interface {
-	Token(ctx context.Context, userID uint, provider domain.ProviderName) (string, error)
+	Token(ctx context.Context, userID uint, providerName provider.ProviderName) (string, error)
 }
 
 type Provider struct {
@@ -28,7 +30,7 @@ type Provider struct {
 	Pacer  *Pacer
 }
 
-func (p *Provider) Name() domain.ProviderName {
+func (p *Provider) Name() provider.ProviderName {
 	return Name
 }
 
@@ -49,7 +51,7 @@ func (p *Provider) CheckToken(ctx context.Context, token string) error {
 
 // Fetch waits out the pause before its first request, so the account's
 // API calls are paced as well as its downloads.
-func (p *Provider) Fetch(ctx context.Context, userID uint, ref domain.TrackRef) (*providers.FetchedAudio, error) {
+func (p *Provider) Fetch(ctx context.Context, userID uint, ref provider.TrackRef) (*providers.FetchedAudio, error) {
 	token, err := p.Tokens.Token(ctx, userID, Name)
 	if err != nil {
 		return nil, err
@@ -67,13 +69,13 @@ func (p *Provider) Fetch(ctx context.Context, userID uint, ref domain.TrackRef) 
 	return audio, nil
 }
 
-func (p *Provider) fetch(ctx context.Context, token string, ref domain.TrackRef) (*providers.FetchedAudio, error) {
+func (p *Provider) fetch(ctx context.Context, token string, ref provider.TrackRef) (*providers.FetchedAudio, error) {
 	tracks, err := p.Client.tracks(ctx, token, []string{ref.ID})
 	if err != nil {
 		return nil, err
 	}
 	if len(tracks) == 0 {
-		return nil, providers.Permanent(providers.ReasonFetchFailed, fmt.Errorf("zvuk has no track %s", ref.ID))
+		return nil, providers.Permanent(ingest.ReasonFetchFailed, fmt.Errorf("zvuk has no track %s", ref.ID))
 	}
 	t := &tracks[0]
 
@@ -87,9 +89,9 @@ func (p *Provider) fetch(ctx context.Context, token string, ref domain.TrackRef)
 	}
 
 	// FLAC comes packed into MP4; Ingest repacks it.
-	format := domain.FormatMP3
+	format := library.FormatMP3
 	if t.HasFlac {
-		format = domain.FormatM4A
+		format = library.FormatM4A
 	}
 	return &providers.FetchedAudio{
 		Body:     body,
@@ -122,8 +124,8 @@ func (p *Provider) cover(ctx context.Context, t *track) []byte {
 	return image
 }
 
-func hint(t *track) domain.Metadata {
-	return domain.Metadata{
+func hint(t *track) library.Metadata {
+	return library.Metadata{
 		AlbumArtist: joinTitles(t.Release.Artists),
 		Artist:      joinTitles(t.Artists),
 		Album:       t.Release.Title,
@@ -169,7 +171,7 @@ func listed(t *track) providers.ListedTrack {
 		bitrate = flacBitrate
 	}
 	return providers.ListedTrack{
-		Ref:         domain.TrackRef{Provider: Name, ID: t.ID},
+		Ref:         provider.TrackRef{Provider: Name, ID: t.ID},
 		DisplayName: displayName(t),
 		Bytes:       int64(t.Duration) * int64(bitrate) / 8,
 	}

@@ -7,8 +7,7 @@ import (
 )
 
 type CheckCanInvite struct {
-	IDs      common.IDProvider
-	AdminIDs []uint64
+	IDs common.IDProvider
 }
 
 func (i *CheckCanInvite) Execute(ctx context.Context) (bool, error) {
@@ -16,5 +15,5 @@ func (i *CheckCanInvite) Execute(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return isAdmin(i.AdminIDs, user), nil
+	return user.Admin, nil
 }

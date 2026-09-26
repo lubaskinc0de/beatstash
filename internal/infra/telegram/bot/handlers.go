@@ -13,8 +13,6 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/add_track"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/browse_shared"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/connect_navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/connect_provider"
@@ -25,14 +23,17 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/share_tracks"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/show_playing"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 	tgprovider "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/provider"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/store"
 )
 
 const recentTracksLimit = 10
 
 type Handler struct {
-	Zvuk domain.ProviderName
+	Zvuk provider.ProviderName
 
 	EnqueueIngest             *add_track.EnqueueIngest
 	GetNowPlaying             *show_playing.GetNowPlaying
@@ -49,7 +50,7 @@ type Handler struct {
 	UnshareAlbum              *share_tracks.UnshareAlbum
 	ViewFeed                  *browse_shared.ViewFeed
 	TakeTrack                 *browse_shared.TakeTrack
-	SendFile                  *browse_shared.SendFile
+	GetTrackAudio             *browse_shared.GetTrackAudio
 	GetTop                    *view_top.GetTop
 	GetServiceStats           *greet_stranger.GetServiceStats
 	ConnectProviderAccount    *connect_provider.ConnectProviderAccount
@@ -57,6 +58,12 @@ type Handler struct {
 	PlanImport                *import_collection.PlanImport
 	StartImport               *import_collection.StartImport
 	AdminContact              string
+
+	Dialogs       *store.Dialogs
+	JobMessages   *store.JobMessages
+	BatchMessages *store.BatchMessages
+	Files         *store.Files
+	Sender        *AudioSender
 }
 
 func (h *Handler) handleAudio(
@@ -68,12 +75,12 @@ func (h *Handler) handleAudio(
 	if !ok {
 		return
 	}
-	msg := common.MessageRef{ChatID: update.Message.Chat.ID, MessageID: update.Message.ID}
+	msg := messageRef{chatID: update.Message.Chat.ID, messageID: update.Message.ID}
 
-	format, ok := domain.FormatOf(file.Name, mime)
+	format, ok := library.FormatOf(file.Name, mime)
 	if !ok {
 		slog.Info("unsupported_format", "file_name", file.Name, "mime_type", mime)
-		reject(ctx, b, msg, failureTexts[providers.ReasonUnsupportedFormat])
+		reject(ctx, b, msg, failureTexts[ingest.ReasonUnsupportedFormat])
 		return
 	}
 	file.Format = format
@@ -81,16 +88,24 @@ func (h *Handler) handleAudio(
 	ref, err := tgprovider.Ref(file)
 	if err != nil {
 		slog.Error("track_ref", "error", err)
-		reject(ctx, b, msg, failureTexts[providers.ReasonInternal])
+		reject(ctx, b, msg, failureTexts[ingest.ReasonInternal])
 		return
 	}
 
-	// 👀 goes first: a worker may finish and set 👍 before Execute returns.
+	// 👀 goes first: the Poller may set 👍 as soon as the job is remembered.
 	setReaction(ctx, b, msg, "👀")
-	err = h.EnqueueIngest.Execute(ctx, add_track.IngestRequest{Ref: ref, Message: msg})
+	jobID, err := h.EnqueueIngest.Execute(ctx, ref)
 	if err != nil {
 		slog.Error("enqueue_ingest", "error", err)
-		reject(ctx, b, msg, failureTexts[providers.ReasonInternal])
+		reject(ctx, b, msg, failureTexts[ingest.ReasonInternal])
+		return
+	}
+	err = h.JobMessages.Remember(ctx, store.JobMessage{
+		JobID: jobID, ChatID: msg.chatID, MessageID: msg.messageID,
+		FileID: file.ID, FileUniqueID: file.UniqueID, FileKind: file.Kind,
+	})
+	if err != nil {
+		slog.Error("remember_job_message", "job_id", jobID, "error", err)
 	}
 }
 
@@ -107,7 +122,7 @@ func audioFile(msg *models.Message) (file tgprovider.File, mimeType string, ok b
 		return tgprovider.File{
 			ID:        msg.Audio.FileID,
 			UniqueID:  msg.Audio.FileUniqueID,
-			Kind:      domain.TelegramFileAudio,
+			Kind:      store.FileAudio,
 			Name:      msg.Audio.FileName,
 			Performer: msg.Audio.Performer,
 			Title:     msg.Audio.Title,
@@ -116,7 +131,7 @@ func audioFile(msg *models.Message) (file tgprovider.File, mimeType string, ok b
 		return tgprovider.File{
 			ID:       msg.Document.FileID,
 			UniqueID: msg.Document.FileUniqueID,
-			Kind:     domain.TelegramFileDocument,
+			Kind:     store.FileDocument,
 			Name:     msg.Document.FileName,
 		}, msg.Document.MimeType, true
 	}
@@ -210,8 +225,8 @@ func (h *Handler) handleNowPlaying(
 		}}}
 	}
 
-	if track.TelegramFile != nil {
-		answerInline(ctx, b, update.InlineQuery.ID, withMarkup(cachedFileResult(track.ID, track.TelegramFile, text), markup))
+	if file := h.fileOf(ctx, track.Track); file != nil {
+		answerInline(ctx, b, update.InlineQuery.ID, withMarkup(cachedFileResult(track.ID, file, text), markup))
 		return
 	}
 
@@ -285,8 +300,8 @@ func (h *Handler) handleRecentlyPlayed(
 			html.EscapeString(track.Title),
 		)
 
-		if track.TelegramFile != nil {
-			results = append(results, cachedFileResult("recent-"+track.ID, track.TelegramFile, caption))
+		if file := h.fileOf(ctx, track.Track); file != nil {
+			results = append(results, cachedFileResult("recent-"+track.ID, file, caption))
 			continue
 		}
 
@@ -401,8 +416,8 @@ func answerInlineArticle(
 	})
 }
 
-func cachedFileResult(id string, file *domain.TelegramFile, caption string) models.InlineQueryResult {
-	if file.Kind == domain.TelegramFileDocument {
+func cachedFileResult(id string, file *store.File, caption string) models.InlineQueryResult {
+	if file.Kind == store.FileDocument {
 		return &models.InlineQueryResultCachedDocument{
 			ID:             id,
 			Title:          "🎧",
