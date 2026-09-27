@@ -114,9 +114,8 @@ func (s *Scenario) DocumentMessage(from User, document models.Document) *models.
 }
 
 func (s *Scenario) Message(from User, fill func(*models.Message)) *models.Update {
-	s.messages++
 	msg := &models.Message{
-		ID:   s.messages,
+		ID:   s.Telegram.NextMessageID(),
 		From: from.telegram(),
 		Chat: models.Chat{ID: from.ID, Type: models.ChatTypePrivate},
 	}
@@ -149,10 +148,15 @@ func (s *Scenario) InlineQuery(from User, query string) *models.Update {
 
 // Press taps the button on the latest message that has it.
 func (s *Scenario) Press(from User, b telegram.Button) *models.Update {
+	return s.PressOn(from, b, s.Telegram.MessageWith(b))
+}
+
+// PressOn taps the button on the message, as if it still had the button.
+func (s *Scenario) PressOn(from User, b telegram.Button, messageID int) *models.Update {
 	update := s.CallbackQuery(from, b.Data)
 	update.CallbackQuery.Message = models.MaybeInaccessibleMessage{
 		Type:    models.MaybeInaccessibleMessageTypeMessage,
-		Message: &models.Message{ID: s.Telegram.MessageWith(b), Chat: models.Chat{ID: from.ID, Type: models.ChatTypePrivate}},
+		Message: &models.Message{ID: messageID, Chat: models.Chat{ID: from.ID, Type: models.ChatTypePrivate}},
 	}
 	s.Send(update)
 	return update

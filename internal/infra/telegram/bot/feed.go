@@ -63,7 +63,7 @@ func (h *Handler) handleTake(ctx context.Context, b *bot.Bot, query *models.Call
 		return
 	}
 	if msg := query.Message.Message; msg != nil {
-		h.show(ctx, b, messageRef{chatID: msg.Chat.ID, messageID: msg.ID}, place{screen: screenFeed}, "")
+		h.show(ctx, b, h.pressedWindow(ctx, msg), place{screen: screenFeed}, "")
 	}
 }
 

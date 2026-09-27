@@ -25,6 +25,12 @@ var migrations = []*gormigrate.Migration{
 			return tx.AutoMigrate(&store.Window{}, &store.User{}, &store.FollowedBatch{})
 		},
 	},
+	{
+		ID: "0003_telegram_window_below",
+		Migrate: func(tx *gorm.DB) error {
+			return tx.AutoMigrate(&store.Window{})
+		},
+	},
 }
 
 func Migrate(db *gorm.DB) error {

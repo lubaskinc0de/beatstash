@@ -53,9 +53,8 @@ type Scenario struct {
 	app    *app.App
 	stop   func()
 
-	updates  int64
-	messages int
-	uploads  int
+	updates int64
+	uploads int
 
 	sharedZvukAudio zvuk.Audio
 }

@@ -122,7 +122,8 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	if err != nil {
 		return nil, err
 	}
-	options := tgbot.Options(ids, telegramUsers, texts)
+	windows := &store.Windows{DB: db}
+	options := tgbot.Options(ids, telegramUsers, windows, texts)
 	if cfg.BotAPIURL != "" {
 		options = append(options, bot.WithServerURL(cfg.BotAPIURL))
 	}
@@ -182,7 +183,6 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	enqueueIngest := &add_track.EnqueueIngest{IDs: ids, Queue: ingestQueue, Waker: waker, Clock: time.Now}
 	jobMessages := &store.JobMessages{DB: db}
 	followed := &store.FollowedBatches{DB: db}
-	windows := &store.Windows{DB: db}
 	poller := &tgbot.Poller{
 		Bot:             b,
 		Jobs:            &ingest_track.GetIngestJobs{Queue: ingestQueue},

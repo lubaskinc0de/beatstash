@@ -235,11 +235,9 @@ func TestRegistration(t *testing.T) {
 		s := harness.New(t)
 		carol := harness.Newcomer("carol")
 		s.Send(s.TextMessage(carol, "/start "+s.Invite()))
-		window := s.Telegram.Window().MessageID
 
 		s.SendText(carol, carol.Username)
 
-		assert.Equal(t, window, s.Telegram.Window().MessageID)
 		assert.NotContains(t, s.WindowText(), "tg-spoiler")
 		assert.Contains(t, s.LastReply().Text, "tg-spoiler")
 	})

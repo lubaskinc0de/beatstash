@@ -115,7 +115,7 @@ func (h *Handler) languagesView(ctx context.Context) view {
 func (h *Handler) chooseLanguage(ctx context.Context, b *bot.Bot, cb windowCallback, lang string) {
 	answerCallback(ctx, b, cb.query.ID, "")
 	if lang == "" {
-		editWindow(ctx, b, cb.messageRef, h.languagesView(ctx))
+		h.show(ctx, b, cb.messageRef, place{screen: screenLanguages}, "")
 		return
 	}
 	c := h.Texts.For(i18n.Language(lang))

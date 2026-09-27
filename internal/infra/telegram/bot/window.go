@@ -29,6 +29,7 @@ const (
 	screenInvite    screen = "invite"
 	screenHowTo     screen = "howto"
 	screenListen    screen = "listen"
+	screenLanguages screen = "languages"
 )
 
 type place struct {
@@ -110,6 +111,8 @@ func (h *Handler) render(ctx context.Context, b *bot.Bot, at place) view {
 		return howToView(ctx)
 	case screenListen:
 		return listenView(ctx)
+	case screenLanguages:
+		return h.languagesView(ctx)
 	default:
 		return h.homeView(ctx, b)
 	}
@@ -149,11 +152,16 @@ func (h *Handler) showInWindow(ctx context.Context, b *bot.Bot, chatID int64, at
 	h.draw(ctx, b, msg, at, notice)
 }
 
-// draw sends a new window when msg has no message id.
+// draw sends a new window when msg has no message id or has moved up the
+// chat: an edit there would go unseen.
 func (h *Handler) draw(ctx context.Context, b *bot.Bot, msg messageRef, at place, notice string) {
 	unlock := h.chats.lock(msg.chatID)
 	defer unlock()
-	if old := h.window(ctx, msg.chatID); old != nil && old.MessageID != msg.messageID {
+	old := h.window(ctx, msg.chatID)
+	if old != nil && old.MessageID == msg.messageID && old.Below > 0 {
+		msg.messageID = 0
+	}
+	if old != nil && old.MessageID != msg.messageID {
 		stripKeyboard(ctx, b, msg.chatID, old.MessageID)
 	}
 
@@ -230,7 +238,7 @@ func stripKeyboard(ctx context.Context, b *bot.Bot, chatID int64, messageID int)
 	}
 }
 
-// windowCallback is a press of a button on the message msg.
+// windowCallback is a press of a button; see pressedWindow.
 type windowCallback struct {
 	messageRef
 	query *models.CallbackQuery
@@ -259,20 +267,23 @@ func (h *Handler) handleWindowCallback(ctx context.Context, b *bot.Bot, query *m
 		answerCallback(ctx, b, query.ID, "")
 		return
 	}
-	handle(ctx, b, windowCallback{messageRef: messageRef{chatID: msg.Chat.ID, messageID: msg.ID}, query: query}, arg)
+	handle(ctx, b, windowCallback{messageRef: h.pressedWindow(ctx, msg), query: query}, arg)
 }
 
-// goTo from another message, like a notice, opens a new window and leaves
-// that message as it is.
+// pressedWindow has no message id for a press on another message, like a
+// notice or an old window: the press opens a new window and leaves that
+// message as it is.
+func (h *Handler) pressedWindow(ctx context.Context, msg *models.Message) messageRef {
+	if window := h.window(ctx, msg.Chat.ID); window == nil || window.MessageID != msg.ID {
+		return messageRef{chatID: msg.Chat.ID}
+	}
+	return messageRef{chatID: msg.Chat.ID, messageID: msg.ID}
+}
+
 func (h *Handler) goTo(ctx context.Context, b *bot.Bot, cb windowCallback, arg string) {
 	name, arg, _ := strings.Cut(arg, ":")
-	to := place{screen(name), arg}
 	answerCallback(ctx, b, cb.query.ID, "")
-	if window := h.window(ctx, cb.chatID); window == nil || window.MessageID != cb.messageID {
-		h.openWindow(ctx, b, cb.chatID, to, "")
-		return
-	}
-	h.show(ctx, b, cb.messageRef, to, "")
+	h.show(ctx, b, cb.messageRef, place{screen(name), arg}, "")
 }
 
 // handleText ignores text unless the window awaits it.

@@ -36,7 +36,7 @@ type API struct {
 	failures map[string]int
 	hold     chan struct{}
 	held     chan struct{}
-	sent     int
+	messages int
 	uploaded []string
 }
 
@@ -147,8 +147,7 @@ func (a *API) botMessage(call *Call, params map[string]string) map[string]any {
 
 	id, err := strconv.Atoi(params["message_id"])
 	if err != nil {
-		a.sent++
-		id = a.sent
+		id = a.nextMessageID()
 	}
 	call.MessageID = id
 	chatID, _ := strconv.ParseInt(params["chat_id"], 10, 64)
@@ -167,6 +166,19 @@ func (a *API) sentAudio(params map[string]string) map[string]any {
 		a.uploaded = append(a.uploaded, id)
 	}
 	return map[string]any{"file_id": id, "file_unique_id": id + "-unique", "duration": 2}
+}
+
+// NextMessageID numbers the messages of users and of the bot in one
+// sequence, as Telegram does within a chat.
+func (a *API) NextMessageID() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.nextMessageID()
+}
+
+func (a *API) nextMessageID() int {
+	a.messages++
+	return a.messages
 }
 
 func (a *API) UploadedFileID(n int) string {

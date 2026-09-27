@@ -2,7 +2,9 @@ package bot
 
 import (
 	"context"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -12,14 +14,18 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/store"
 )
 
-func Options(ids common.IDProvider, users *store.Users, bundle *i18n.Bundle) []bot.Option {
+// pollTimeout is the library's default.
+const pollTimeout = time.Minute
+
+func Options(ids common.IDProvider, users *store.Users, windows *store.Windows, bundle *i18n.Bundle) []bot.Option {
 	return []bot.Option{
+		bot.WithHTTPClient(pollTimeout, watch(windows, &http.Client{Timeout: pollTimeout})),
 		bot.WithAllowedUpdates(bot.AllowedUpdates{
 			"message",
 			"inline_query",
 			"callback_query",
 		}),
-		bot.WithMiddlewares(senderMiddleware, languageMiddleware(users, bundle), membersOnly(ids)),
+		bot.WithMiddlewares(arrivalMiddleware(windows), senderMiddleware, languageMiddleware(users, bundle), membersOnly(ids)),
 	}
 }
 
