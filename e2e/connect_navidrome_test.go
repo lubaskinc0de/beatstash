@@ -126,6 +126,37 @@ func TestNavidromeAccount(t *testing.T) {
 		assertLinkHint(t, s.Telegram.InlineAnswerTo(t, query))
 	})
 
+	t.Run("link with missing password is rejected and the message is deleted", func(t *testing.T) {
+		s := harness.New(t)
+		s.Open(alice, "👤 Аккаунты", "🔗 Привязать")
+
+		input := s.SendText(alice, "alice")
+
+		assert.Contains(t, s.WindowText(), "Нужны логин и пароль через пробел")
+		assert.Equal(t, []string{strconv.Itoa(input.Message.ID)}, s.Telegram.DeletedMessages())
+	})
+
+	t.Run("recent returns a cached document for a played Telegram document", func(t *testing.T) {
+		s := harness.New(t)
+		account := s.LinkNewAccount(alice)
+		document := s.UploadDocument(
+			audiofile.Generate(t, "song.flac", audiofile.Spec{Tags: audiofile.SongTags}),
+			"audio/flac",
+		)
+		s.Send(s.DocumentMessage(alice, document))
+		s.WaitIngest()
+		track := s.Navidrome.IndexedTrack(t, account, s.PersonalPath(alice, ""), "Dup Song")
+		s.Navidrome.Play(t, account, track.ID)
+		query := s.InlineQuery(alice, "recent")
+
+		s.Send(query)
+
+		results := s.Telegram.InlineAnswerTo(t, query).Results
+		require.Len(t, results, 2)
+		assert.Equal(t, "document", results[1].Type)
+		assert.Equal(t, document.FileID, results[1].DocumentFileID)
+	})
+
 	t.Run("inline without account suggests linking", func(t *testing.T) {
 		s := harness.New(t)
 		np := s.InlineQuery(alice, "np")

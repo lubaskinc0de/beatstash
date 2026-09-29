@@ -260,6 +260,61 @@ func TestAttachedLibraryRefresh(t *testing.T) {
 	})
 }
 
+func TestAttachedLibraryChanges(t *testing.T) {
+	t.Parallel()
+
+	t.Run("moving an attached library with the same Navidrome ID keeps it attached", func(t *testing.T) {
+		var account navidrome.Account
+		var own harness.NavidromeLibrary
+		s := harness.NewOwnNavidrome(t, func(s *harness.Scenario) {
+			account = s.Navidrome.CreateAccount(t, "alice")
+			own = s.NewNavidromeLibrary("own", audiofile.Fixture("track.mp3"))
+			s.Navidrome.OpenLibrary(t, account, own.ID)
+			s.Navidrome.UntilSongs(t, own.ID, 1)
+		}, harness.WithAttachInterval(time.Hour))
+		s.Link(alice, account)
+		moved := s.NewNavidromeLibrary("moved", audiofile.Fixture("track.mp3"))
+		s.Navidrome.DeleteLibrary(t, moved.ID)
+		s.Navidrome.MoveLibrary(t, own.ID, moved.Path)
+		s.Restart()
+		s.Navidrome.UntilSongs(t, own.ID, 1)
+		track := s.Navidrome.IndexedTrack(t, account, moved.Path, audiofile.FixtureTitle)
+		s.Navidrome.StartPlaying(t, account, track.ID)
+
+		share := telegram.ButtonNamed(t, s.NowPlayingButtons(alice), "🔗 Поделиться")
+		s.PressInline(alice, share)
+
+		assert.Contains(t, s.LastCallbackAnswer(), "В общей библиотеке")
+		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.SharedFiles())
+	})
+
+	t.Run("replacing a deleted library at the same path attaches the replacement", func(t *testing.T) {
+		var account navidrome.Account
+		var own harness.NavidromeLibrary
+		s := harness.NewOwnNavidrome(t, func(s *harness.Scenario) {
+			account = s.Navidrome.CreateAccount(t, "alice")
+			own = s.NewNavidromeLibrary("own", audiofile.Fixture("track.mp3"))
+			s.Navidrome.OpenLibrary(t, account, own.ID)
+			s.Navidrome.UntilSongs(t, own.ID, 1)
+		})
+		s.Link(alice, account)
+
+		s.Navidrome.DeleteLibrary(t, own.ID)
+		replacementID := s.Navidrome.CreateLibrary(t, "replacement", own.Path)
+		s.Navidrome.OpenLibrary(t, account, replacementID)
+		s.Navidrome.UntilSongs(t, replacementID, 1)
+		s.Restart()
+		s.Link(alice, account)
+
+		assert.Contains(t, s.WindowText(), "Бот видит 1 песню")
+		track := s.Navidrome.IndexedTrack(t, account, own.Path, audiofile.FixtureTitle)
+		s.Navidrome.StartPlaying(t, account, track.ID)
+		share := telegram.ButtonNamed(t, s.NowPlayingButtons(alice), "🔗 Поделиться")
+		s.PressInline(alice, share)
+		assert.Contains(t, s.LastCallbackAnswer(), "В общей библиотеке")
+	})
+}
+
 // untilLinkSays links the account again until the bot's answer has text.
 func untilLinkSays(t *testing.T, s *harness.Scenario, account navidrome.Account, text string) {
 	t.Helper()

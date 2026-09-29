@@ -14,6 +14,35 @@ import (
 func TestTake(t *testing.T) {
 	t.Parallel()
 
+	t.Run("stale Take button says the track is no longer shared", func(t *testing.T) {
+		s := harness.New(t)
+		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), "🔗 Трек")
+		unshare := s.Button("🔒 Убрать трек из общей")
+		s.Open(bob, "🎵 Лента")
+		take := s.Button("1. ➕ Взять себе")
+
+		s.Press(alice, unshare)
+		s.Press(bob, take)
+
+		assert.Contains(t, s.LastCallbackAnswer(), "Трек больше не в общей библиотеке")
+		assert.Empty(t, s.PersonalFiles(bob))
+	})
+
+	t.Run("stale Send File button says the track is no longer shared", func(t *testing.T) {
+		s := harness.New(t)
+		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), "🔗 Трек")
+		unshare := s.Button("🔒 Убрать трек из общей")
+		s.Open(bob, "🎵 Лента")
+		sendFile := s.Button("1. ▶️ Прислать файл")
+
+		s.Press(alice, unshare)
+		s.Press(bob, sendFile)
+
+		assert.Contains(t, s.LastCallbackAnswer(), "Трек больше не в общей библиотеке")
+		assert.Empty(t, s.Telegram.CallsTo("sendAudio"))
+		assert.Empty(t, s.PersonalFiles(bob))
+	})
+
 	t.Run("taken track lands in the taker's Personal Library", func(t *testing.T) {
 		s := harness.New(t)
 		bobAccount := s.LinkNewAccount(bob)

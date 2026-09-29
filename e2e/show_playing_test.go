@@ -34,6 +34,32 @@ func TestNowPlaying(t *testing.T) {
 		assert.Equal(t, audio.FileID, answers[0].Results[0].AudioFileID)
 		assert.Contains(t, answers[0].Results[0].Caption, audiofile.FixtureTitle)
 	})
+
+	t.Run("np explains that nothing is playing for a linked account", func(t *testing.T) {
+		s := harness.New(t)
+		s.LinkNewAccount(alice)
+		query := s.InlineQuery(alice, "np")
+
+		s.Send(query)
+
+		results := s.Telegram.InlineAnswerTo(t, query).Results
+		require.Len(t, results, 1)
+		assert.Contains(t, results[0].Title, "Ничего не играет")
+		assert.Contains(t, results[0].Content.Text, "Сейчас ничего не играет")
+	})
+
+	t.Run("recent explains that the linked account has no history", func(t *testing.T) {
+		s := harness.New(t)
+		s.LinkNewAccount(alice)
+		query := s.InlineQuery(alice, "recent")
+
+		s.Send(query)
+
+		results := s.Telegram.InlineAnswerTo(t, query).Results
+		require.Len(t, results, 1)
+		assert.Contains(t, results[0].Title, "История пуста")
+		assert.Contains(t, results[0].Content.Text, "История прослушиваний пуста")
+	})
 }
 
 func TestInlineHints(t *testing.T) {

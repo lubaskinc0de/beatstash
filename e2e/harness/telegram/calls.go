@@ -30,9 +30,10 @@ type InlineResult struct {
 	Content     struct {
 		Text string `json:"message_text"`
 	} `json:"input_message_content"`
-	AudioFileID string `json:"audio_file_id"`
-	Caption     string `json:"caption"`
-	ReplyMarkup struct {
+	AudioFileID    string `json:"audio_file_id"`
+	DocumentFileID string `json:"document_file_id"`
+	Caption        string `json:"caption"`
+	ReplyMarkup    struct {
 		Rows [][]Button `json:"inline_keyboard"`
 	} `json:"reply_markup"`
 }

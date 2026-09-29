@@ -490,6 +490,23 @@ func (n *Server) GiveToNewAccounts(t *testing.T, libraryID int) {
 	}, nil)
 }
 
+// MoveLibrary changes the path of an existing Navidrome library while keeping
+// its ID, as happens when an administrator relocates a library on disk.
+func (n *Server) MoveLibrary(t *testing.T, libraryID int, path string) {
+	t.Helper()
+
+	var library struct {
+		Name            string `json:"name"`
+		Path            string `json:"path"`
+		DefaultNewUsers bool   `json:"defaultNewUsers"`
+	}
+	n.adminAPI(t, http.MethodGet, fmt.Sprintf("/api/library/%d", libraryID), nil, &library)
+	library.Path = path
+	n.adminAPI(t, http.MethodPut, fmt.Sprintf("/api/library/%d", libraryID), map[string]any{
+		"name": library.Name, "path": library.Path, "defaultNewUsers": library.DefaultNewUsers,
+	}, nil)
+}
+
 func (n *Server) DeleteLibrary(t *testing.T, id int) {
 	t.Helper()
 	n.adminAPIEventually(t, "DELETE", fmt.Sprintf("/api/library/%d", id), nil, nil)

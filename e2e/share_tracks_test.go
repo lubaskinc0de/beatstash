@@ -27,6 +27,20 @@ func TestShareNowPlaying(t *testing.T) {
 		assert.Contains(t, s.LastCallbackAnswer(), "В общей библиотеке")
 	})
 
+	t.Run("another user cannot Share a track from Alice's inline np", func(t *testing.T) {
+		s := harness.New(t)
+		account := s.LinkNewAccount(alice)
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		track := s.Navidrome.IndexedTrack(t, account, s.PersonalPath(alice, ""), audiofile.FixtureTitle)
+		s.Navidrome.StartPlaying(t, account, track.ID)
+		share := telegram.ButtonNamed(t, s.NowPlayingButtons(alice), "🔗 Поделиться")
+
+		s.PressInline(bob, share)
+
+		assert.Contains(t, s.LastCallbackAnswer(), "Этот трек не из вашей библиотеки")
+		assert.Empty(t, s.SharedFiles())
+	})
+
 	t.Run("np of a shared track has no Share button", func(t *testing.T) {
 		s := harness.New(t)
 		account := s.LinkNewAccount(alice)
@@ -84,6 +98,62 @@ func TestShare(t *testing.T) {
 			"Artist/Album/03 - Song 3.mp3",
 		}, s.SharedFiles())
 		assert.Equal(t, []string{"🔒 Убрать трек из общей", "🔒 Убрать альбом из общей"}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
+	})
+
+	t.Run("unsharing an album removes its tracks from the Shared Library", func(t *testing.T) {
+		s := harness.New(t)
+		uploads := s.UploadAlbum(alice, "Album", 3)
+		s.Share(alice, uploads[1], "💿 Альбом целиком")
+
+		s.Press(alice, s.Button("🔒 Убрать альбом из общей"))
+
+		assert.Empty(t, s.SharedFiles())
+		assert.Equal(t, []string{
+			"Artist/Album/01 - Song 1.mp3",
+			"Artist/Album/02 - Song 2.mp3",
+			"Artist/Album/03 - Song 3.mp3",
+		}, s.PersonalFiles(alice))
+		assert.Equal(t, []string{"🔗 Трек", "💿 Альбом целиком"}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
+	})
+
+	t.Run("unsharing an album keeps a track shared by another user", func(t *testing.T) {
+		s := harness.New(t)
+		aliceAlbum := s.UploadAlbum(alice, "Album", 3)
+		s.Share(alice, aliceAlbum[0], "💿 Альбом целиком")
+		unshareAlbum := s.Button("🔒 Убрать альбом из общей")
+		bobAlbum := s.UploadAlbum(bob, "Album", 3)
+		s.Share(bob, bobAlbum[0], "🔗 Трек")
+
+		s.Press(alice, unshareAlbum)
+
+		assert.Equal(t, []string{"Artist/Album/01 - Song 1.mp3"}, s.SharedFiles())
+		assert.Equal(t, []string{
+			"Artist/Album/01 - Song 1.mp3",
+			"Artist/Album/02 - Song 2.mp3",
+			"Artist/Album/03 - Song 3.mp3",
+		}, s.PersonalFiles(alice))
+		assert.Equal(t, []string{
+			"Artist/Album/01 - Song 1.mp3",
+			"Artist/Album/02 - Song 2.mp3",
+			"Artist/Album/03 - Song 3.mp3",
+		}, s.PersonalFiles(bob))
+	})
+
+	t.Run("sharing an album reports tracks already shared by another user", func(t *testing.T) {
+		s := harness.New(t)
+		bobAlbum := s.UploadAlbum(bob, "Album", 3)
+		s.Share(bob, bobAlbum[1], "🔗 Трек")
+		aliceAlbum := s.UploadAlbum(alice, "Album", 3)
+
+		s.Share(alice, aliceAlbum[0], "💿 Альбом целиком")
+
+		assert.Contains(t, s.LastCallbackAnswer(), "2 трека")
+		assert.Contains(t, s.LastCallbackAnswer(), "ещё 1 трек уже были там")
+		assert.Equal(t, []string{
+			"Artist/Album/01 - Song 1.mp3",
+			"Artist/Album/02 - Song 2.mp3",
+			"Artist/Album/03 - Song 3.mp3",
+		}, s.SharedFiles())
 	})
 
 	t.Run("unshared track disappears for others", func(t *testing.T) {
