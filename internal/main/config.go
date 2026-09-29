@@ -42,6 +42,9 @@ type Config struct {
 	NavidromeURL      string
 	// NavidromePublicURL is where users open Navidrome; empty hides it.
 	NavidromePublicURL string
+	// AttachInterval is how often the bot looks for songs of Attached
+	// Libraries; zero takes no Attached Libraries at all.
+	AttachInterval time.Duration
 
 	InviteTTL time.Duration
 	Clock     func() time.Time
@@ -86,9 +89,10 @@ type fileConfig struct {
 	} `toml:"library"`
 
 	Navidrome struct {
-		URL       string `toml:"url"`
-		PublicURL string `toml:"public_url"`
-		User      string `toml:"user"`
+		URL            string        `toml:"url"`
+		PublicURL      string        `toml:"public_url"`
+		User           string        `toml:"user"`
+		AttachInterval time.Duration `toml:"attach_interval"`
 	} `toml:"navidrome"`
 
 	Invites struct {
@@ -116,6 +120,7 @@ func defaultFileConfig() fileConfig {
 	f.ServiceName = "navidrome-tg"
 	f.I18n.DefaultLanguage = "en"
 	f.Telegram.PollInterval = 2 * time.Second
+	f.Navidrome.AttachInterval = time.Hour
 	f.Invites.TTL = 7 * 24 * time.Hour
 	f.Ingest.Workers = 2
 	f.Ingest.RetryDelays = []time.Duration{10 * time.Second, time.Minute, 5 * time.Minute}
@@ -180,6 +185,7 @@ func LoadConfig() (Config, error) {
 		NavidromePassword:    secret("NAVIDROME_PASSWORD"),
 		NavidromeURL:         file.Navidrome.URL,
 		NavidromePublicURL:   strings.TrimSpace(file.Navidrome.PublicURL),
+		AttachInterval:       file.Navidrome.AttachInterval,
 
 		InviteTTL: file.Invites.TTL,
 		Clock:     time.Now,
@@ -218,6 +224,9 @@ func readFile(path string, file *fileConfig) []error {
 	require(file.Library.MusicDir == "", "library.music_dir")
 	require(file.Navidrome.URL == "", "navidrome.url")
 	require(file.Navidrome.User == "", "navidrome.user")
+	if file.Navidrome.AttachInterval < 0 {
+		problems = append(problems, errors.New("navidrome.attach_interval must not be negative"))
+	}
 	if file.Telegram.PollInterval <= 0 {
 		problems = append(problems, errors.New("telegram.poll_interval must be positive"))
 	}

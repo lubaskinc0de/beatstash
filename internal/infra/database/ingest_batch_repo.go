@@ -19,8 +19,10 @@ func (r *IngestBatchRepository) Save(ctx context.Context, batch *ingest.IngestBa
 	return dbForContext(ctx, r.DB).Omit("User").Save(batch).Error
 }
 
-func (r *IngestBatchRepository) Get(ctx context.Context, id uint) (*ingest.IngestBatch, error) {
-	return first[ingest.IngestBatch](dbForContext(ctx, r.DB).Where("id = ?", id), repositories.ErrBatchNotFound)
+func (r *IngestBatchRepository) Get(ctx context.Context, ids []uint) ([]ingest.IngestBatch, error) {
+	var batches []ingest.IngestBatch
+	err := dbForContext(ctx, r.DB).Where("id IN ?", ids).Order("id").Find(&batches).Error
+	return batches, err
 }
 
 func (r *IngestBatchRepository) Unfinished(ctx context.Context) ([]ingest.IngestBatch, error) {

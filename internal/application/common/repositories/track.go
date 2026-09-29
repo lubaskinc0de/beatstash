@@ -9,24 +9,43 @@ import (
 )
 
 type Tracks interface {
-	FindSource(ctx context.Context, libraryID uint, providerName provider.ProviderName, ref string) (*library.TrackSource, error)
-	// FindDuplicate finds a Track that is a Duplicate of the audio: artist,
-	// title and album match ignoring case, and durations differ by at most
-	// library.DuplicateToleranceMs. Audio without artist or title has no
-	// Duplicates.
-	FindDuplicate(ctx context.Context, libraryID uint, m library.Metadata, durationMs int) (*library.Track, error)
-	// FindByMetadata matches artist and title in any of the libraries,
-	// preferring the same album.
-	FindByMetadata(ctx context.Context, libraryIDs []uint, m library.Metadata) (*library.Track, error)
+	// FindSource finds the Track Source of the ref in any of the libraries.
+	FindSource(ctx context.Context, libraryIDs []uint, providerName provider.ProviderName, ref string) (*library.TrackSource, error)
+	// FindDuplicate finds a Track in any of the libraries that is a
+	// Duplicate of the audio: artist, title and album match ignoring case,
+	// and durations differ by at most library.DuplicateToleranceMs. Audio
+	// without artist or title has no Duplicates.
+	FindDuplicate(ctx context.Context, libraryIDs []uint, m library.Metadata, durationMs int) (*library.Track, error)
+	// FindByMetadata finds a Track for each metadata, nil where none: artist
+	// and title match in any of the libraries, and the same album wins.
+	FindByMetadata(ctx context.Context, libraryIDs []uint, ms []library.Metadata) ([]*library.Track, error)
 	// SaveTrack saves the Track's new Sources along with it.
 	SaveTrack(ctx context.Context, track *library.Track) error
+	// SaveTracks saves many Tracks in a few statements.
+	SaveTracks(ctx context.Context, tracks []*library.Track) error
 	Get(ctx context.Context, id uint) (*library.Track, error)
+	// GetMany leaves out the Tracks that are gone.
+	GetMany(ctx context.Context, ids []uint) ([]library.Track, error)
+	// WithDuplicates tells which of the tracks have a Duplicate in any of
+	// the libraries.
+	WithDuplicates(ctx context.Context, libraryIDs []uint, tracks []library.Track) (map[uint]bool, error)
+	// KnownSources tells which of the refs any of the libraries has a Track
+	// Source for.
+	KnownSources(ctx context.Context, libraryIDs []uint, refs []provider.TrackRef) (map[provider.TrackRef]bool, error)
 	// Album lists the library's Tracks of the album, by track number.
 	Album(ctx context.Context, libraryID uint, albumArtist, album string) ([]library.Track, error)
-	KnownRefs(ctx context.Context, libraryID uint, providerName provider.ProviderName, refs []string) ([]string, error)
 	// SourcePaths maps the refs the library has a Track Source for to the
 	// paths of their Tracks.
 	SourcePaths(ctx context.Context, libraryID uint, providerName provider.ProviderName, refs []string) (map[string]string, error)
+	// SourceSongs maps the refs the libraries have a Track Source for to the
+	// Navidrome songs of their Tracks.
+	SourceSongs(ctx context.Context, libraryIDs []uint, providerName provider.ProviderName, refs []string) (map[string]string, error)
+	// InLibrary loads the Tracks without their Sources.
+	InLibrary(ctx context.Context, libraryID uint) ([]library.Track, error)
+	// BySongs maps the Navidrome songs the libraries have Tracks of to them.
+	BySongs(ctx context.Context, libraryIDs []uint, songIDs []string) (map[string]*library.Track, error)
+	CountIn(ctx context.Context, libraryIDs []uint) (int64, error)
+	Delete(ctx context.Context, ids []uint) error
 }
 
 var (

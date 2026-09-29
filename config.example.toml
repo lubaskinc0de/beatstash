@@ -54,6 +54,11 @@ url = "http://localhost:4533"
 public_url = ""
 # Navidrome admin: the bot creates accounts for invited users with it.
 user = "admin"
+# Navidrome libraries outside navidrome_music_dir are Attached Libraries:
+# the bot tracks their songs but never touches their files. How often it
+# rescans them (also at start); "0" turns them off, e.g. when several bots
+# share one Navidrome.
+attach_interval = "1h"
 
 [invites]
 ttl = "168h"

@@ -16,8 +16,11 @@ type IngestQueue struct {
 	DB *gorm.DB
 }
 
-func (q *IngestQueue) Enqueue(ctx context.Context, job *ingest.IngestJob) error {
-	return dbForContext(ctx, q.DB).Omit("User", "Batch").Create(job).Error
+func (q *IngestQueue) Enqueue(ctx context.Context, jobs ...*ingest.IngestJob) error {
+	if len(jobs) == 0 {
+		return nil
+	}
+	return dbForContext(ctx, q.DB).Omit("User", "Batch").CreateInBatches(jobs, saveBatch).Error
 }
 
 // ClaimNext keeps the job pending while locked, so a crashed worker's job
@@ -128,43 +131,57 @@ func (q *IngestQueue) CountUnfinished(ctx context.Context) (int64, error) {
 	return count, err
 }
 
-func (q *IngestQueue) BatchProgress(ctx context.Context, batchID uint) (repositories.BatchProgress, error) {
+func (q *IngestQueue) BatchProgress(ctx context.Context, batchIDs []uint) (map[uint]repositories.BatchProgress, error) {
 	var rows []struct {
-		Status ingest.IngestJobStatus
-		Count  int
+		BatchID uint
+		Status  ingest.IngestJobStatus
+		Count   int
 	}
 	err := dbForContext(ctx, q.DB).
 		Model(&ingest.IngestJob{}).
-		Select("status, COUNT(*) AS count").
-		Where("batch_id = ?", batchID).
-		Group("status").
+		Select("batch_id, status, COUNT(*) AS count").
+		Where("batch_id IN ?", batchIDs).
+		Group("batch_id, status").
 		Scan(&rows).Error
 	if err != nil {
-		return repositories.BatchProgress{}, err
+		return nil, err
 	}
 
-	var progress repositories.BatchProgress
+	progress := make(map[uint]repositories.BatchProgress, len(batchIDs))
 	for _, row := range rows {
+		p := progress[row.BatchID]
 		switch row.Status {
 		case ingest.IngestJobDone:
-			progress.Done = row.Count
+			p.Done = row.Count
 		case ingest.IngestJobFailed:
-			progress.Failed = row.Count
+			p.Failed = row.Count
 		case ingest.IngestJobPending:
-			progress.Pending = row.Count
+			p.Pending = row.Count
 		}
+		progress[row.BatchID] = p
 	}
 	return progress, nil
 }
 
-func (q *IngestQueue) FailedNames(ctx context.Context, batchID uint) ([]string, error) {
-	var names []string
+func (q *IngestQueue) FailedNames(ctx context.Context, batchIDs []uint) (map[uint][]string, error) {
+	var rows []struct {
+		BatchID     uint
+		DisplayName string
+	}
 	err := dbForContext(ctx, q.DB).
 		Model(&ingest.IngestJob{}).
-		Where("batch_id = ? AND status = ?", batchID, ingest.IngestJobFailed).
+		Select("batch_id, display_name").
+		Where("batch_id IN ? AND status = ?", batchIDs, ingest.IngestJobFailed).
 		Order("id").
-		Pluck("display_name", &names).Error
-	return names, err
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[uint][]string, len(batchIDs))
+	for _, row := range rows {
+		names[row.BatchID] = append(names[row.BatchID], row.DisplayName)
+	}
+	return names, nil
 }
 
 func (q *IngestQueue) PendingRefs(ctx context.Context, userID uint, providerName provider.ProviderName) ([]string, error) {

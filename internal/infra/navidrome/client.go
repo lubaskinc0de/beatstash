@@ -18,6 +18,7 @@ import (
 	"time"
 
 	appnd "github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
 const nativeAuthHeader = "X-Nd-Authorization"
@@ -82,7 +83,7 @@ type nowPlayingResponse struct {
 }
 
 func addAuth(q url.Values, creds appnd.Credentials) {
-	salt := randomSalt()
+	salt := rand.Text()
 
 	hash := md5.Sum([]byte(creds.Password + salt)) //nolint:gosec // G401: Subsonic token auth is md5 by spec
 	token := hex.EncodeToString(hash[:])
@@ -311,19 +312,19 @@ func (c *Client) CreateAccount(ctx context.Context, admin, account appnd.Credent
 	return err
 }
 
-type library struct {
+type libraryJSON struct {
 	ID              int    `json:"id,omitempty"`
 	Name            string `json:"name"`
 	Path            string `json:"path"`
 	DefaultNewUsers bool   `json:"defaultNewUsers"`
 }
 
-func toLibrary(l appnd.Library) library {
-	return library{Name: l.Name, Path: l.Path, DefaultNewUsers: l.DefaultNewUsers}
+func toLibrary(l appnd.Library) libraryJSON {
+	return libraryJSON{Name: l.Name, Path: l.Path, DefaultNewUsers: l.DefaultNewUsers}
 }
 
 func (c *Client) Libraries(ctx context.Context, admin appnd.Credentials) ([]appnd.Library, error) {
-	var libraries []library
+	var libraries []libraryJSON
 	if err := c.native(ctx, admin, nativeRequest{method: http.MethodGet, path: "/api/library"}, &libraries); err != nil {
 		return nil, err
 	}
@@ -367,30 +368,46 @@ func (c *Client) UpdateLibrary(ctx context.Context, admin appnd.Credentials, l a
 	return err
 }
 
-func (c *Client) SetLibraries(ctx context.Context, admin appnd.Credentials, login string, libraryIDs []int) error {
-	var users []struct {
-		ID       string `json:"id"`
-		UserName string `json:"userName"`
-		IsAdmin  bool   `json:"isAdmin"`
-	}
-	if err := c.native(ctx, admin, nativeRequest{method: http.MethodGet, path: "/api/user"}, &users); err != nil {
-		return err
-	}
+type userJSON struct {
+	ID        string `json:"id"`
+	UserName  string `json:"userName"`
+	IsAdmin   bool   `json:"isAdmin"`
+	Libraries []struct {
+		ID int `json:"id"`
+	} `json:"libraries"`
+}
 
-	for _, user := range users {
-		if !strings.EqualFold(user.UserName, login) {
-			continue
-		}
-		if user.IsAdmin {
-			return appnd.ErrAdminAccount
-		}
-		return c.native(ctx, admin, nativeRequest{
-			method: http.MethodPut,
-			path:   "/api/user/" + user.ID + "/library",
-			body:   map[string]any{"libraryIds": libraryIDs},
-		}, nil)
+func (c *Client) user(ctx context.Context, admin appnd.Credentials, login string) (*userJSON, error) {
+	var users []userJSON
+	if err := c.native(ctx, admin, nativeRequest{method: http.MethodGet, path: "/api/user"}, &users); err != nil {
+		return nil, err
 	}
-	return fmt.Errorf("navidrome has no user %q", login)
+	for n := range users {
+		if strings.EqualFold(users[n].UserName, login) {
+			return &users[n], nil
+		}
+	}
+	return nil, fmt.Errorf("%w: %q", appnd.ErrAccountNotFound, login)
+}
+
+func (c *Client) Account(ctx context.Context, admin appnd.Credentials, login string) (*appnd.Account, error) {
+	u, err := c.user(ctx, admin, login)
+	if err != nil {
+		return nil, err
+	}
+	account := &appnd.Account{ID: u.ID, Access: library.NavidromeAccess{Admin: u.IsAdmin}}
+	for _, l := range u.Libraries {
+		account.Access.LibraryIDs = append(account.Access.LibraryIDs, l.ID)
+	}
+	return account, nil
+}
+
+func (c *Client) SetLibraries(ctx context.Context, admin appnd.Credentials, accountID string, libraryIDs []int) error {
+	return c.native(ctx, admin, nativeRequest{
+		method: http.MethodPut,
+		path:   "/api/user/" + accountID + "/library",
+		body:   map[string]any{"libraryIds": libraryIDs},
+	}, nil)
 }
 
 func (c *Client) Authenticate(ctx context.Context, creds appnd.Credentials) error {
@@ -441,10 +458,6 @@ func (c *Client) login(ctx context.Context, creds appnd.Credentials) (string, er
 	}
 
 	return result.Token, nil
-}
-
-func randomSalt() string {
-	return rand.Text()
 }
 
 const subsonicNotFound = 70
@@ -529,6 +542,89 @@ func (c *Client) Songs(ctx context.Context, creds appnd.Credentials, libraryID i
 			return songs, nil
 		}
 	}
+}
+
+type songJSON struct {
+	ID          string  `json:"id"`
+	Path        string  `json:"path"`
+	Title       string  `json:"title"`
+	Artist      string  `json:"artist"`
+	AlbumArtist string  `json:"albumArtist"`
+	Album       string  `json:"album"`
+	Year        int     `json:"year"`
+	TrackNumber int     `json:"trackNumber"`
+	Duration    float64 `json:"duration"`
+	Suffix      string  `json:"suffix"`
+	BitRate     int     `json:"bitRate"`
+	Codec       string  `json:"codec"`
+}
+
+func (c *Client) LibrarySongs(ctx context.Context, admin appnd.Credentials, libraryID int) ([]appnd.Song, error) {
+	var songs []appnd.Song
+	for start := 0; ; start += songsPage {
+		q := url.Values{}
+		q.Set("library_id", strconv.Itoa(libraryID))
+		q.Set("missing", "false")
+		q.Set("_sort", "id")
+		q.Set("_start", strconv.Itoa(start))
+		q.Set("_end", strconv.Itoa(start+songsPage))
+
+		var page []songJSON
+		if err := c.native(ctx, admin, nativeRequest{method: http.MethodGet, path: "/api/song", query: q}, &page); err != nil {
+			return nil, err
+		}
+		for _, s := range page {
+			songs = append(songs, appnd.Song{
+				ID:          s.ID,
+				Path:        s.Path,
+				AlbumArtist: s.AlbumArtist,
+				Artist:      s.Artist,
+				Album:       s.Album,
+				Title:       s.Title,
+				Year:        s.Year,
+				TrackNumber: s.TrackNumber,
+				DurationMs:  int(s.Duration * 1000),
+				Suffix:      strings.ToLower(s.Suffix),
+				Codec:       s.Codec,
+				BitrateKbps: s.BitRate,
+			})
+		}
+		if len(page) < songsPage {
+			return songs, nil
+		}
+	}
+}
+
+func (c *Client) Download(ctx context.Context, creds appnd.Credentials, songID string) (io.ReadCloser, error) {
+	q := url.Values{"id": {songID}}
+	addAuth(q, creds)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/rest/download?"+q.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	// A big file takes longer than a call to the API.
+	resp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		_ = resp.Body.Close()
+		return nil, fmt.Errorf("navidrome download returned status %s", resp.Status)
+	}
+	// Subsonic answers an error with a JSON body and status 200.
+	if strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
+		defer resp.Body.Close()
+		var envelope struct {
+			Response struct {
+				Error subsonicError `json:"error"`
+			} `json:"subsonic-response"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+			return nil, err
+		}
+		return nil, &envelope.Response.Error
+	}
+	return resp.Body, nil
 }
 
 func (c *Client) Star(ctx context.Context, creds appnd.Credentials, songIDs []string) error {

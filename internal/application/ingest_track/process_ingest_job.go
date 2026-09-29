@@ -24,6 +24,7 @@ type ProcessIngestJob struct {
 	Tracks    repositories.Tracks
 	Uploads   UploadRepository
 	Libraries repositories.Libraries
+	Attached  *libraries.Attached
 	Lock      repositories.LibraryLock
 	Disk      common.Disk
 	Tags      AudioTags
@@ -221,11 +222,15 @@ func (i *ProcessIngestJob) process(ctx context.Context, job *ingest.IngestJob, f
 	if err != nil {
 		return nil, wrapStep(stepSource, err)
 	}
-	libs := libraries.UserLibraries{Personal: personal, Shared: shared}
+	libs := libraries.ManagedLibraries{Personal: personal, Shared: shared}
 
+	attached, err := i.Attached.VisibleTo(ctx, job.UserID)
+	if err != nil {
+		return nil, wrapStep(stepSource, err)
+	}
 	// A forwarded copy of a known file needs no download at all, and
 	// neither does the very file somebody shared or the service gave out.
-	if result, err := i.knownSource(ctx, job, personal, ref); result != nil || err != nil {
+	if result, err := i.knownSource(ctx, job, library.KeptLibraries(personal, attached), ref); result != nil || err != nil {
 		return result, wrapStep(stepSource, err)
 	}
 	inShared, err := i.inLibrary(ctx, shared, ref)
@@ -240,6 +245,10 @@ func (i *ProcessIngestJob) process(ctx context.Context, job *ingest.IngestJob, f
 		if result, err := i.lockAndRecheck(ctx, job, libs, ref, files); result != nil || err != nil {
 			return result, wrapStep(stepSource, err)
 		}
+	}
+
+	if result, err := i.attachedByDescription(ctx, job, attached, ref); result != nil || err != nil {
+		return result, wrapStep(stepSource, err)
 	}
 
 	// A Provider without the Capability will not grow it on retry.
@@ -311,7 +320,15 @@ func (i *ProcessIngestJob) process(ctx context.Context, job *ingest.IngestJob, f
 		staged: staged,
 		files:  files,
 	}
-	duplicate, err := i.Tracks.FindDuplicate(ctx, personal.ID, in.Metadata, in.DurationMs)
+	attachedTrack, err := i.attachedDuplicate(ctx, attached, in.Metadata, in.DurationMs)
+	if err != nil {
+		return nil, wrapStep(stepStore, err)
+	}
+	if attachedTrack != nil {
+		result, err := i.mergeDuplicate(ctx, st, attachedTrack, in)
+		return result, wrapStep(stepStore, err)
+	}
+	duplicate, err := i.Tracks.FindDuplicate(ctx, []uint{personal.ID}, in.Metadata, in.DurationMs)
 	switch {
 	case err == nil:
 		result, err := i.mergeDuplicate(ctx, st, duplicate, in)
@@ -341,10 +358,10 @@ func (i *ProcessIngestJob) release(ctx context.Context, job *ingest.IngestJob) e
 func (i *ProcessIngestJob) knownSource(
 	ctx context.Context,
 	job *ingest.IngestJob,
-	lib *library.Library,
+	libs []*library.Library,
 	ref provider.TrackRef,
 ) (*jobResult, error) {
-	source, err := i.Tracks.FindSource(ctx, lib.ID, ref.Provider, ref.ID)
+	source, err := i.Tracks.FindSource(ctx, libraries.IDs(libs), ref.Provider, ref.ID)
 	if errors.Is(err, repositories.ErrSourceNotFound) {
 		return nil, nil
 	}
@@ -358,6 +375,70 @@ func (i *ProcessIngestJob) knownSource(
 	return alreadyExists(source.TrackID), nil
 }
 
+// attachedByDescription spares the download of a track an Attached Library the
+// user sees has already, by what the Provider tells of it. Without a
+// description the audio is fetched and checked by its tags.
+func (i *ProcessIngestJob) attachedByDescription(
+	ctx context.Context,
+	job *ingest.IngestJob,
+	attached []*library.Library,
+	ref provider.TrackRef,
+) (*jobResult, error) {
+	if len(attached) == 0 {
+		return nil, nil
+	}
+	describer, err := i.Providers.Describer(ref.Provider)
+	if errors.Is(err, providers.ErrCapabilityNotSupported) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	described, err := describer.Describe(ctx, job.UserID, ref)
+	if err != nil {
+		slog.Warn("describe_track", "job_id", job.ID, "error", err)
+		return nil, nil
+	}
+	if described == nil {
+		return nil, nil
+	}
+	attachedTrack, err := i.attachedDuplicate(ctx, attached, described.Metadata.Normalize(), described.DurationMs)
+	if err != nil || attachedTrack == nil {
+		return nil, err
+	}
+	if err := i.recordUpload(ctx, job.UserID, attachedTrack, ref); err != nil {
+		return nil, err
+	}
+	return alreadyExists(attachedTrack.ID), nil
+}
+
+// attachedDuplicate finds the audio in the Attached Libraries and locks the
+// one holding it, as the Track gains a Source there. It returns nil if none
+// has it.
+func (i *ProcessIngestJob) attachedDuplicate(
+	ctx context.Context,
+	attached []*library.Library,
+	m library.Metadata,
+	durationMs int,
+) (*library.Track, error) {
+	found, err := i.Tracks.FindDuplicate(ctx, libraries.IDs(attached), m, durationMs)
+	if errors.Is(err, repositories.ErrTrackNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	// Found again under the lock: the song may have gone meanwhile.
+	if err := i.Lock.Lock(ctx, found.LibraryID); err != nil {
+		return nil, err
+	}
+	track, err := i.Tracks.FindDuplicate(ctx, []uint{found.LibraryID}, m, durationMs)
+	if errors.Is(err, repositories.ErrTrackNotFound) {
+		return nil, nil
+	}
+	return track, err
+}
+
 type recognition struct {
 	own    *library.Track
 	shared *library.Track
@@ -369,7 +450,7 @@ func (r recognition) any() bool {
 
 // recognize asks the Provider whether the ref is a file the service gave
 // out; the Tracks of other users' libraries stay unseen.
-func (i *ProcessIngestJob) recognize(ctx context.Context, libs libraries.UserLibraries, ref provider.TrackRef) (recognition, error) {
+func (i *ProcessIngestJob) recognize(ctx context.Context, libs libraries.ManagedLibraries, ref provider.TrackRef) (recognition, error) {
 	recognizer, err := i.Providers.Recognizer(ref.Provider)
 	if errors.Is(err, providers.ErrCapabilityNotSupported) {
 		return recognition{}, nil
@@ -382,15 +463,13 @@ func (i *ProcessIngestJob) recognize(ctx context.Context, libs libraries.UserLib
 		return recognition{}, err
 	}
 
+	tracks, err := i.Tracks.GetMany(ctx, ids)
+	if err != nil {
+		return recognition{}, err
+	}
 	var r recognition
-	for _, id := range ids {
-		track, err := i.Tracks.Get(ctx, id)
-		if errors.Is(err, repositories.ErrTrackNotFound) {
-			continue
-		}
-		if err != nil {
-			return recognition{}, err
-		}
+	for n := range tracks {
+		track := &tracks[n]
 		switch {
 		case r.own == nil && track.In(libs.Personal):
 			r.own = track
@@ -410,7 +489,7 @@ func (i *ProcessIngestJob) recognize(ctx context.Context, libs libraries.UserLib
 func (i *ProcessIngestJob) lockAndRecheck(
 	ctx context.Context,
 	job *ingest.IngestJob,
-	libs libraries.UserLibraries,
+	libs libraries.ManagedLibraries,
 	ref provider.TrackRef,
 	files *libraries.FileChanges,
 ) (*jobResult, error) {
@@ -431,7 +510,7 @@ func (i *ProcessIngestJob) lockAndRecheck(
 		return nil, err
 	}
 
-	if result, err := i.knownSource(ctx, job, libs.Personal, ref); result != nil || err != nil {
+	if result, err := i.knownSource(ctx, job, []*library.Library{libs.Personal}, ref); result != nil || err != nil {
 		return result, err
 	}
 	if recognized.own != nil {
@@ -460,7 +539,7 @@ func (i *ProcessIngestJob) stillShared(
 	recognized *library.Track,
 ) (*library.Track, error) {
 	var trackID uint
-	source, err := i.Tracks.FindSource(ctx, shared.ID, ref.Provider, ref.ID)
+	source, err := i.Tracks.FindSource(ctx, []uint{shared.ID}, ref.Provider, ref.ID)
 	switch {
 	case err == nil:
 		trackID = source.TrackID
@@ -479,7 +558,7 @@ func (i *ProcessIngestJob) stillShared(
 }
 
 func (i *ProcessIngestJob) inLibrary(ctx context.Context, lib *library.Library, ref provider.TrackRef) (bool, error) {
-	_, err := i.Tracks.FindSource(ctx, lib.ID, ref.Provider, ref.ID)
+	_, err := i.Tracks.FindSource(ctx, []uint{lib.ID}, ref.Provider, ref.ID)
 	if errors.Is(err, repositories.ErrSourceNotFound) {
 		return false, nil
 	}
@@ -492,12 +571,12 @@ func (i *ProcessIngestJob) inLibrary(ctx context.Context, lib *library.Library, 
 func (i *ProcessIngestJob) linkShared(
 	ctx context.Context,
 	job *ingest.IngestJob,
-	libs libraries.UserLibraries,
+	libs libraries.ManagedLibraries,
 	ref provider.TrackRef,
 	shared *library.Track,
 	files *libraries.FileChanges,
 ) (*jobResult, error) {
-	own, err := i.Tracks.FindDuplicate(ctx, libs.Personal.ID, shared.Metadata, shared.DurationMs)
+	own, err := i.Tracks.FindDuplicate(ctx, []uint{libs.Personal.ID}, shared.Metadata, shared.DurationMs)
 	if err == nil {
 		if err := i.recordUpload(ctx, job.UserID, own, ref); err != nil {
 			return nil, err

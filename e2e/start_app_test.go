@@ -21,7 +21,7 @@ func TestNavidromeLibraryGone(t *testing.T) {
 	t.Parallel()
 
 	t.Run("library deleted in Navidrome is found again by its path", func(t *testing.T) {
-		s := harness.New(t)
+		s := harness.NewOwnNavidrome(t, nil)
 		account := s.LinkNewAccount(alice)
 		s.Navidrome.DeleteLibrary(t, s.Navidrome.LibraryAt(t, s.NavidromePath("shared")))
 		id := s.Navidrome.CreateLibrary(t, navidrome.UniqueLogin("moved"), s.NavidromePath("shared"))
@@ -29,6 +29,7 @@ func TestNavidromeLibraryGone(t *testing.T) {
 		s.Restart()
 
 		assert.Equal(t, []string{
+			navidrome.RootLibraryPath,
 			s.NavidromePath("shared"),
 			s.NavidromePath(s.PersonalDir(alice)),
 		}, s.Navidrome.Libraries(t, account))
@@ -36,13 +37,14 @@ func TestNavidromeLibraryGone(t *testing.T) {
 	})
 
 	t.Run("library deleted in Navidrome is created again", func(t *testing.T) {
-		s := harness.New(t)
+		s := harness.NewOwnNavidrome(t, nil)
 		account := s.LinkNewAccount(alice)
 		s.Navidrome.DeleteLibrary(t, s.Navidrome.LibraryAt(t, s.NavidromePath("shared")))
 
 		s.Restart()
 
 		assert.Equal(t, []string{
+			navidrome.RootLibraryPath,
 			s.NavidromePath("shared"),
 			s.NavidromePath(s.PersonalDir(alice)),
 		}, s.Navidrome.Libraries(t, account))

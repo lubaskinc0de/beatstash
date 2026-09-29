@@ -102,6 +102,20 @@ func (p *Provider) fetch(ctx context.Context, token string, ref provider.TrackRe
 	}, nil
 }
 
+// Describe asks for the track's metadata only, which needs no pause: the
+// pause guards downloads.
+func (p *Provider) Describe(ctx context.Context, userID uint, ref provider.TrackRef) (*providers.Description, error) {
+	token, err := p.Tokens.Token(ctx, userID, Name)
+	if err != nil {
+		return nil, err
+	}
+	tracks, err := p.Client.tracks(ctx, token, []string{ref.ID})
+	if err != nil || len(tracks) == 0 {
+		return nil, err
+	}
+	return &providers.Description{Metadata: hint(&tracks[0]), DurationMs: tracks[0].Duration * 1000}, nil
+}
+
 // cover is a nicety: a track without one is still worth storing.
 func (p *Provider) cover(ctx context.Context, t *track) []byte {
 	src := t.Release.Image.Src

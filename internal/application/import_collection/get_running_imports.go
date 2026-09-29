@@ -30,13 +30,17 @@ func (i *GetRunningImports) Execute(ctx context.Context) ([]RunningImport, error
 	if err != nil {
 		return nil, err
 	}
+	ids := make([]uint, 0, len(batches))
+	for _, batch := range batches {
+		ids = append(ids, batch.ID)
+	}
+	progress, err := i.Queue.BatchProgress(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
 	running := make([]RunningImport, 0, len(batches))
 	for _, batch := range batches {
-		progress, err := i.Queue.BatchProgress(ctx, batch.ID)
-		if err != nil {
-			return nil, err
-		}
-		running = append(running, RunningImport{Provider: batch.Provider, Total: batch.Total, Progress: progress})
+		running = append(running, RunningImport{Provider: batch.Provider, Total: batch.Total, Progress: progress[batch.ID]})
 	}
 	return running, nil
 }

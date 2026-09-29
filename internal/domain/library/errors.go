@@ -3,7 +3,7 @@ package library
 import "errors"
 
 var (
-	ErrNotOwnTrack      = errors.New("track is not in the user's Personal Library")
+	ErrNotKeptTrack     = errors.New("track is in none of the user's libraries")
 	ErrInboxTrack       = errors.New("inbox track cannot be shared")
-	ErrAlreadyInLibrary = errors.New("the track is in the user's Personal Library already")
+	ErrAlreadyInLibrary = errors.New("the user has the track already")
 )

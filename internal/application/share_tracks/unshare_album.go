@@ -6,6 +6,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
 type UnshareAlbum struct {
@@ -20,35 +21,28 @@ type UnshareAlbum struct {
 }
 
 func (i *UnshareAlbum) Execute(ctx context.Context, trackID uint) (*ShareState, error) {
-	user, libs, err := libraries.Current(ctx, i.IDs, i.Libraries)
+	_, libs, err := libraries.CurrentManaged(ctx, i.IDs, i.Libraries)
 	if err != nil {
 		return nil, err
 	}
 	var state *ShareState
 	err = libraries.Within(ctx, i.Tx, i.Lock, i.Disk, libs, func(ctx context.Context, changes *libraries.FileChanges) error {
-		op := &operation{
-			tracks:   i.Tracks,
-			shared:   i.Shared,
-			disk:     i.Disk,
-			musicDir: i.MusicDir,
-			user:     user,
-			libs:     libs,
-			changes:  changes,
-		}
-		track, err := own(ctx, i.Tracks, libs.Personal, trackID)
+		sharedDir := libraries.Dir(i.MusicDir, libs.Shared)
+		personal := []*library.Library{libs.Personal}
+		track, err := keptTrack(ctx, i.Tracks, personal, trackID)
 		if err != nil {
 			return err
 		}
-		tracks, err := album(ctx, i.Tracks, libs.Personal, track)
+		tracks, err := album(ctx, i.Tracks, personal, track)
 		if err != nil {
 			return err
 		}
 		for j := range tracks {
-			if err := op.unshare(ctx, &tracks[j]); err != nil {
+			if err := unshare(ctx, i.Shared, sharedDir, changes, &tracks[j]); err != nil {
 				return err
 			}
 		}
-		state, err = shareState(ctx, i.Tracks, i.Shared, libs.Personal, track)
+		state, err = shareState(ctx, i.Shared, track, tracks)
 		return err
 	})
 	return state, err

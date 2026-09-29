@@ -14,7 +14,10 @@ type Libraries interface {
 	Personal(ctx context.Context, userID uint) (*library.Library, error)
 	Get(ctx context.Context, id uint) (*library.Library, error)
 	All(ctx context.Context) ([]library.Library, error)
+	Attached(ctx context.Context) ([]library.Library, error)
 	Save(ctx context.Context, lib *library.Library) error
+	// Delete removes the libraries along with their Tracks.
+	Delete(ctx context.Context, ids []uint) error
 }
 
 var ErrLibraryNotFound = errors.New("library not found")

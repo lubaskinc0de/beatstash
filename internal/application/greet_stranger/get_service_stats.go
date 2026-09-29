@@ -22,7 +22,7 @@ type UserCounter interface {
 }
 
 type TrackCounter interface {
-	Count(ctx context.Context, libraryID uint) (int64, error)
+	CountIn(ctx context.Context, libraryIDs []uint) (int64, error)
 }
 
 func (i *GetServiceStats) Execute(ctx context.Context) (ServiceStats, error) {
@@ -34,7 +34,7 @@ func (i *GetServiceStats) Execute(ctx context.Context) (ServiceStats, error) {
 	if err != nil {
 		return ServiceStats{}, err
 	}
-	tracks, err := i.Tracks.Count(ctx, shared.ID)
+	tracks, err := i.Tracks.CountIn(ctx, []uint{shared.ID})
 	if err != nil {
 		return ServiceStats{}, err
 	}

@@ -6,6 +6,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
@@ -17,20 +18,25 @@ type ShowShareOptions struct {
 }
 
 func (i *ShowShareOptions) Execute(ctx context.Context, ref provider.TrackRef) (*ShareState, error) {
-	_, libs, err := libraries.Current(ctx, i.IDs, i.Libraries)
+	_, libs, err := libraries.CurrentManaged(ctx, i.IDs, i.Libraries)
 	if err != nil {
 		return nil, err
 	}
-	source, err := i.Tracks.FindSource(ctx, libs.Personal.ID, ref.Provider, ref.ID)
+	source, err := i.Tracks.FindSource(ctx, []uint{libs.Personal.ID}, ref.Provider, ref.ID)
 	if err != nil {
 		return nil, err
 	}
-	track, err := own(ctx, i.Tracks, libs.Personal, source.TrackID)
+	personal := []*library.Library{libs.Personal}
+	track, err := keptTrack(ctx, i.Tracks, personal, source.TrackID)
 	if err != nil {
 		return nil, err
 	}
-	if err := track.ShareableBy(libs.Personal); err != nil {
+	if err := track.ShareableBy(personal); err != nil {
 		return nil, err
 	}
-	return shareState(ctx, i.Tracks, i.Shared, libs.Personal, track)
+	albumTracks, err := album(ctx, i.Tracks, personal, track)
+	if err != nil {
+		return nil, err
+	}
+	return shareState(ctx, i.Shared, track, albumTracks)
 }

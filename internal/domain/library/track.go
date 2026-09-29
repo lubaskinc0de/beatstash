@@ -1,6 +1,7 @@
 package library
 
 import (
+	"slices"
 	"time"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
@@ -19,6 +20,10 @@ type Track struct {
 
 	DurationMs int
 	Format     Format
+
+	// SongID is the Navidrome song a Track of an Attached Library follows;
+	// empty for other Tracks.
+	SongID string `gorm:"index"`
 
 	// Sources: one per Track Ref.
 	Sources []*TrackSource `gorm:"constraint:OnDelete:CASCADE;"`
@@ -66,12 +71,41 @@ func NewTrack(lib *Library, in Incoming) (*Track, Outcome) {
 	return t, Stored
 }
 
+// NewAttachedTrack follows a song of an Attached Library. It has no Layout
+// and no Sources yet.
+func NewAttachedTrack(lib *Library, song Song) *Track {
+	t := &Track{LibraryID: lib.ID}
+	t.Follow(song)
+	return t
+}
+
+// Follow takes the song as Navidrome has it now, with the tags' spaces
+// tidied so Duplicates match; changed is false if nothing differs.
+func (t *Track) Follow(song Song) (changed bool) {
+	before := *t
+	t.SongID = song.ID
+	t.Path = song.Path
+	t.Metadata = song.Metadata.Normalize()
+	t.DurationMs = song.DurationMs
+	t.Format = song.Format
+	t.Quality = song.Quality
+	return before.SongID != t.SongID || before.Path != t.Path || before.Metadata != t.Metadata ||
+		before.DurationMs != t.DurationMs || before.Format != t.Format || before.Quality != t.Quality
+}
+
+// Attached reports whether the Track is in an Attached Library: the bot
+// never replaces, moves, retags or deletes its file.
+func (t *Track) Attached() bool {
+	return t.SongID != ""
+}
+
 // Absorb handles incoming audio that is a Duplicate of the Track. The
 // Source is always added. The file is replaced only if the new Quality is
-// better. The metadata stays, so only the path's extension can change.
+// better and the Track is not Attached. The metadata stays, so only the
+// path's extension can change.
 func (t *Track) Absorb(in Incoming) Outcome {
 	t.AddSource(in.Ref)
-	if !in.Quality.Better(t.Quality) {
+	if t.Attached() || !in.Quality.Better(t.Quality) {
 		return AlreadyExists
 	}
 	t.Path = LayoutPath(t.Metadata, in.Format, in.OriginalName)
@@ -81,8 +115,12 @@ func (t *Track) Absorb(in Incoming) Outcome {
 	return Replaced
 }
 
-// MoveTo sets a new path, for example when the chosen one is taken.
+// MoveTo sets a new path, for example when the chosen one is taken; an
+// Attached Track keeps its own.
 func (t *Track) MoveTo(path string) {
+	if t.Attached() {
+		return
+	}
 	t.Path = path
 }
 
@@ -101,19 +139,19 @@ func (t *Track) In(library *Library) bool {
 	return t.LibraryID == library.ID
 }
 
-// OwnedBy returns ErrNotOwnTrack unless the Track is in the personal Library.
-func (t *Track) OwnedBy(personal *Library) error {
-	if !t.In(personal) {
-		return ErrNotOwnTrack
+// KeptIn returns ErrNotKeptTrack unless one of the user's Kept Libraries
+// has the Track.
+func (t *Track) KeptIn(kept []*Library) error {
+	if !slices.ContainsFunc(kept, t.In) {
+		return ErrNotKeptTrack
 	}
 	return nil
 }
 
-// ShareableBy reports why the owner of personal cannot share the Track: it
-// is not theirs, or it is in the Inbox (without artist or title nobody would
-// find it).
-func (t *Track) ShareableBy(personal *Library) error {
-	if err := t.OwnedBy(personal); err != nil {
+// ShareableBy reports why a user cannot share the Track: it is not theirs,
+// or it is in the Inbox (without artist or title nobody would find it).
+func (t *Track) ShareableBy(kept []*Library) error {
+	if err := t.KeptIn(kept); err != nil {
 		return err
 	}
 	if !t.Complete() {
@@ -126,9 +164,9 @@ func (t *Track) Single() bool {
 	return t.Album == ""
 }
 
-// CopyTo copies the Track without Sources. A Track Ref can be used once
+// CopyTo copies the Track without Sources: a Track Ref can be used once
 // per Library, and only the caller can check which ones the target Library
-// already has.
+// already has. The copy is the bot's own and follows no song.
 func (t *Track) CopyTo(library *Library, path string) *Track {
 	return &Track{
 		LibraryID:  library.ID,

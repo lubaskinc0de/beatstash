@@ -61,12 +61,12 @@ func (h *Handler) linkNavidrome(ctx context.Context, b *bot.Bot, in windowInput)
 		return
 	}
 
-	err := h.LinkNavidromeAccount.Execute(ctx, navidrome.Credentials{Login: login, Password: password})
+	songs, err := h.LinkNavidromeAccount.Execute(ctx, navidrome.Credentials{Login: login, Password: password})
 	switch {
 	case err == nil:
-		h.showInWindow(ctx, b, in.chatID, done, c.Linked(login))
+		h.showInWindow(ctx, b, in.chatID, done, c.Linked(login, songs))
 	case errors.Is(err, navidrome.ErrAdminAccount):
-		h.showInWindow(ctx, b, in.chatID, done, c.LinkedAdmin(login))
+		h.showInWindow(ctx, b, in.chatID, done, c.LinkedAdmin(login, songs))
 	case errors.Is(err, connect_navidrome.ErrNavidromeAccountTaken):
 		h.showInWindow(ctx, b, in.chatID, here, c.LinkTaken())
 	case errors.Is(err, navidrome.ErrInvalidCredentials):

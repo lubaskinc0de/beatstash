@@ -25,19 +25,34 @@ type Navidrome struct {
 	MusicDir  string
 }
 
-// Grant lets the Navidrome Account see the user's Personal Library and the
-// Shared Library, and nothing else.
-func (n *Navidrome) Grant(ctx context.Context, user *access.User, login string) error {
+// Grant creates the user's libraries in Navidrome and gives the account the
+// access library.Grant decides; it returns what the account sees then.
+func (n *Navidrome) Grant(ctx context.Context, user *access.User, login string) (library.NavidromeAccess, error) {
 	libs, err := n.Libraries.Of(ctx, user)
 	if err != nil {
-		return err
+		return library.NavidromeAccess{}, err
 	}
 	for _, lib := range []*library.Library{libs.Personal, libs.Shared} {
 		if err := n.Create(ctx, lib); err != nil {
-			return err
+			return library.NavidromeAccess{}, err
 		}
 	}
-	return n.Navidrome.SetLibraries(ctx, n.Admin, login, []int{libs.Personal.NavidromeID, libs.Shared.NavidromeID})
+	account, err := n.Navidrome.Account(ctx, n.Admin, login)
+	if err != nil {
+		return library.NavidromeAccess{}, err
+	}
+	if account.Access.Admin {
+		return account.Access, navidrome.ErrAdminAccount
+	}
+	all, err := n.Libraries.Repo.All(ctx)
+	if err != nil {
+		return library.NavidromeAccess{}, err
+	}
+	ids := library.Grant(account.Access.LibraryIDs, all, libs.Personal, libs.Shared)
+	if err := n.Navidrome.SetLibraries(ctx, n.Admin, account.ID, ids); err != nil {
+		return library.NavidromeAccess{}, err
+	}
+	return library.NavidromeAccess{LibraryIDs: ids}, nil
 }
 
 // Create creates the library in Navidrome unless it is there

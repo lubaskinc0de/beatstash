@@ -120,7 +120,8 @@ navidrome:
   link_another: 🔗 Link another
   prompt: "🔗 Send your Navidrome login and password in one message, separated by a space: <code>login password</code>. I'll delete the message right away"
   malformed: ✏️ I need a login and a password separated by a space. The message is deleted, send it again
-  done: ✅ Navidrome account <b>{{.Login}}</b> is linked. In Navidrome it now sees only your Personal Library and the Shared one. The message with the password is deleted
+  done: ✅ Navidrome account <b>{{.Login}}</b> is linked. In Navidrome it now sees your Personal Library and the Shared one, but not other users' Personal Libraries. The message with the password is deleted
+  sees_songs: 🎶 The bot sees {{.Songs}} from your Navidrome libraries
   done_admin: ✅ Navidrome account <b>{{.Login}}</b> is linked. It is a Navidrome admin, so it sees every library. The message with the password is deleted
   taken: ⛔ This Navidrome account is linked to another user. The message with the password is deleted
   wrong_password: ❌ Wrong Navidrome login or password. The message with the password is deleted, try again
@@ -164,6 +165,10 @@ top:
 tracks:
   one: "{{.Count}} track"
   other: "{{.Count}} tracks"
+
+songs:
+  one: "{{.Count}} song"
+  other: "{{.Count}} songs"
 
 size:
   mb: "{{.N}} MB"

@@ -63,3 +63,7 @@ func WithServiceName(name string) Option {
 func WithTranslations(dir string) Option {
 	return func(c *app.Config) { c.TranslationsDir = dir }
 }
+
+func WithAttachInterval(d time.Duration) Option {
+	return func(c *app.Config) { c.AttachInterval = d }
+}

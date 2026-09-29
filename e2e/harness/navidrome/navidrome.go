@@ -30,6 +30,9 @@ const dockerImage = "deluan/navidrome:0.64.1"
 
 const LibraryMount = "/music"
 
+// RootLibraryPath is Navidrome's own library, empty in scenarios.
+const RootLibraryPath = LibraryMount + "/" + RootLibrary
+
 // RootLibrary keeps Navidrome's own library, which can be neither
 // moved nor deleted, away from the scenarios' libraries.
 const RootLibrary = ".navidrome-root"
@@ -103,8 +106,26 @@ type Track struct {
 	Path   string `json:"path"`
 }
 
-func (n *Server) startScan() error {
-	return n.subsonicAs(adminAccount, "startScan", nil, nil)
+// startScan scans only the libraries given: Navidrome holds the libraries
+// of every scenario, and a scan of them all grows slower with each one.
+func (n *Server) startScan(libraryIDs ...int) error {
+	if len(libraryIDs) == 0 {
+		return nil
+	}
+	targets := url.Values{}
+	for _, id := range libraryIDs {
+		targets.Add("target", fmt.Sprintf("%d:", id))
+	}
+	return n.subsonicAs(adminAccount, "startScan", targets, nil)
+}
+
+// scanFor scans the libraries the account sees.
+func (n *Server) scanFor(account Account) error {
+	u, err := n.user(account)
+	if err != nil {
+		return err
+	}
+	return n.startScan(u.libraryIDs()...)
 }
 
 func (n *Server) subsonicAs(user Account, endpoint string, params url.Values, out any) error {
@@ -164,7 +185,7 @@ func (n *Server) IndexedTrack(t *testing.T, account Account, libraryDir string, 
 
 	var found Track
 	require.Eventually(t, func() bool {
-		_ = n.startScan()
+		_ = n.scanFor(account)
 		songs, err := n.search(account, libraryDir, title)
 		if err != nil || len(songs) == 0 {
 			return false
@@ -174,6 +195,23 @@ func (n *Server) IndexedTrack(t *testing.T, account Account, libraryDir string, 
 	}, time.Minute, 200*time.Millisecond, "%s did not find %q in %s", account.Login, title, libraryDir)
 
 	return found
+}
+
+// SongAt finds the account's song with the title in the file at hostPath:
+// other files may hold songs of the same title.
+func (n *Server) SongAt(t *testing.T, account Account, title, hostPath string) Track {
+	t.Helper()
+
+	dir, name := filepath.Base(filepath.Dir(hostPath)), filepath.Base(hostPath)
+	songs, err := n.search(account, dir, title)
+	require.NoError(t, err)
+	for _, song := range songs {
+		if strings.HasSuffix(song.Path, dir+"/"+name) {
+			return song
+		}
+	}
+	t.Fatalf("%s finds no song at %s", account.Login, hostPath)
+	return Track{}
 }
 
 // SearchFor lists songs the account finds in libraryDir; call it after
@@ -215,27 +253,44 @@ func (n *Server) search(account Account, libraryDir string, title string) ([]Tra
 func (n *Server) Libraries(t *testing.T, account Account) []string {
 	t.Helper()
 
-	var users []struct {
-		ID        string `json:"id"`
-		UserName  string `json:"userName"`
-		Libraries []struct {
-			Path string `json:"path"`
-		} `json:"libraries"`
+	u, err := n.user(account)
+	require.NoError(t, err)
+	var paths []string
+	for _, library := range u.Libraries {
+		paths = append(paths, library.Path)
 	}
-	n.adminAPI(t, http.MethodGet, "/api/user", nil, &users)
-	for _, user := range users {
-		if user.UserName != account.Login {
-			continue
-		}
-		var paths []string
-		for _, library := range user.Libraries {
-			paths = append(paths, library.Path)
-		}
-		slices.Sort(paths)
-		return paths
+	slices.Sort(paths)
+	return paths
+}
+
+type user struct {
+	ID        string `json:"id"`
+	UserName  string `json:"userName"`
+	Libraries []struct {
+		ID   int    `json:"id"`
+		Path string `json:"path"`
+	} `json:"libraries"`
+}
+
+func (u *user) libraryIDs() []int {
+	ids := make([]int, 0, len(u.Libraries))
+	for _, library := range u.Libraries {
+		ids = append(ids, library.ID)
 	}
-	t.Fatalf("navidrome has no user %s", account.Login)
-	return nil
+	return ids
+}
+
+func (n *Server) user(account Account) (*user, error) {
+	var users []user
+	if err := n.callAdminAPI(http.MethodGet, "/api/user", nil, &users); err != nil {
+		return nil, err
+	}
+	for i := range users {
+		if users[i].UserName == account.Login {
+			return &users[i], nil
+		}
+	}
+	return nil, fmt.Errorf("navidrome has no user %s", account.Login)
 }
 
 func (n *Server) adminAPI(t *testing.T, method, path string, body, out any) {
@@ -326,7 +381,33 @@ func UniqueLogin(prefix string) string {
 	return fmt.Sprintf("%s%d", prefix, loginSeq.Add(1))
 }
 
+// CreateAccount gives the account only Navidrome's own library, as an admin
+// may: by default it would get the Shared Libraries of all scenarios.
 func (n *Server) CreateAccount(t *testing.T, prefix string) Account {
+	t.Helper()
+
+	account := n.CreateAccountWithDefaults(t, prefix)
+	n.setLibraries(t, account, []int{rootLibraryID})
+	return account
+}
+
+// rootLibraryID is the library Navidrome makes from ND_MUSICFOLDER.
+const rootLibraryID = 1
+
+// CreateAccountWithDefaults makes an account that gets the libraries
+// Navidrome gives new accounts.
+func (n *Server) CreateAccountWithDefaults(t *testing.T, prefix string) Account {
+	t.Helper()
+	return n.createAccount(t, prefix, false)
+}
+
+// CreateAdminAccount makes a Navidrome admin, who sees every library.
+func (n *Server) CreateAdminAccount(t *testing.T, prefix string) Account {
+	t.Helper()
+	return n.createAccount(t, prefix, true)
+}
+
+func (n *Server) createAccount(t *testing.T, prefix string, admin bool) Account {
 	t.Helper()
 
 	user := Account{Login: UniqueLogin(prefix), Password: "secret-" + prefix}
@@ -337,7 +418,7 @@ func (n *Server) CreateAccount(t *testing.T, prefix string) Account {
 		"userName": user.Login,
 		"name":     user.Login,
 		"password": user.Password,
-		"isAdmin":  false,
+		"isAdmin":  admin,
 	})
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, n.URL+"/api/user", bytes.NewReader(body))
 	require.NoError(t, err)
@@ -416,30 +497,37 @@ func (n *Server) LibraryAt(t *testing.T, path string) int {
 	return 0
 }
 
-func (n *Server) GrantAllLibraries(t *testing.T, account Account) {
+// DeleteLibrariesUnder deletes the libraries whose path lies in dir.
+func (n *Server) DeleteLibrariesUnder(t *testing.T, dir string) {
 	t.Helper()
 
 	var libraries []struct {
-		ID int `json:"id"`
+		ID   int    `json:"id"`
+		Path string `json:"path"`
 	}
-	n.adminAPI(t, "GET", "/api/library", nil, &libraries)
-	ids := make([]int, 0, len(libraries))
+	n.adminAPI(t, http.MethodGet, "/api/library", nil, &libraries)
 	for _, library := range libraries {
-		ids = append(ids, library.ID)
-	}
-
-	var users []struct {
-		ID       string `json:"id"`
-		UserName string `json:"userName"`
-	}
-	n.adminAPI(t, "GET", "/api/user", nil, &users)
-	for _, user := range users {
-		if user.UserName == account.Login {
-			n.adminAPI(t, "PUT", "/api/user/"+user.ID+"/library", map[string]any{"libraryIds": ids}, nil)
-			return
+		if library.Path == dir || strings.HasPrefix(library.Path, dir+"/") {
+			n.DeleteLibrary(t, library.ID)
 		}
 	}
-	t.Fatalf("navidrome has no user %s", account.Login)
+}
+
+func (n *Server) setLibraries(t *testing.T, account Account, ids []int) {
+	t.Helper()
+
+	u, err := n.user(account)
+	require.NoError(t, err)
+	n.adminAPI(t, http.MethodPut, "/api/user/"+u.ID+"/library", map[string]any{"libraryIds": ids}, nil)
+}
+
+// OpenLibrary adds the library to those the account may see.
+func (n *Server) OpenLibrary(t *testing.T, account Account, libraryID int) {
+	t.Helper()
+
+	u, err := n.user(account)
+	require.NoError(t, err)
+	n.setLibraries(t, account, append(u.libraryIDs(), libraryID))
 }
 
 // UntilGone rescans until the account no longer finds the song in libraryDir.
@@ -447,13 +535,32 @@ func (n *Server) UntilGone(t *testing.T, account Account, libraryDir string, tit
 	t.Helper()
 
 	require.Eventually(t, func() bool {
-		_ = n.startScan()
+		_ = n.scanFor(account)
 		songs, err := n.search(account, libraryDir, title)
 		return err == nil && len(songs) == 0
 	}, time.Minute, 200*time.Millisecond, "%s still finds %q in %s", account.Login, title, libraryDir)
 }
 
-func (n *Server) Scan(t *testing.T) {
+// UntilSongs rescans until the library holds exactly count songs.
+func (n *Server) UntilSongs(t *testing.T, libraryID int, count int) {
 	t.Helper()
-	require.NoError(t, n.startScan())
+
+	var got int
+	require.Eventually(t, func() bool {
+		_ = n.startScan(libraryID)
+		var songs []struct {
+			ID string `json:"id"`
+		}
+		query := fmt.Sprintf("/api/song?library_id=%d&missing=false&_start=0&_end=1000", libraryID)
+		if err := n.callAdminAPI(http.MethodGet, query, nil, &songs); err != nil {
+			return false
+		}
+		got = len(songs)
+		return got == count
+	}, time.Minute, 200*time.Millisecond, "library %d has %d songs", libraryID, &got)
+}
+
+func (n *Server) Scan(t *testing.T, account Account) {
+	t.Helper()
+	require.NoError(t, n.scanFor(account))
 }

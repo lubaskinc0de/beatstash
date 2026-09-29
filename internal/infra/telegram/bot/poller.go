@@ -39,6 +39,8 @@ type Poller struct {
 
 	Interval time.Duration
 
+	wake chan struct{}
+
 	mu sync.Mutex
 	// unpostable are the Tracks the storage chat did not take, e.g. too big.
 	unpostable []uint
@@ -46,9 +48,28 @@ type Poller struct {
 	rounds int
 }
 
+// Wake starts the next round now: something may have happened that the
+// user should hear of.
+func (p *Poller) Wake() {
+	select {
+	case p.wakeChan() <- struct{}{}:
+	default:
+	}
+}
+
+func (p *Poller) wakeChan() chan struct{} {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.wake == nil {
+		p.wake = make(chan struct{}, 1)
+	}
+	return p.wake
+}
+
 func (p *Poller) Run(ctx context.Context) {
 	ticker := time.NewTicker(p.Interval)
 	defer ticker.Stop()
+	wake := p.wakeChan()
 
 	steps := []struct {
 		name string
@@ -74,6 +95,7 @@ func (p *Poller) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+		case <-wake:
 		}
 	}
 }
@@ -98,8 +120,11 @@ func (p *Poller) WaitIdle(ctx context.Context) error {
 			idleSince = -1
 		case idleSince < 0:
 			idleSince = rounds
+			p.Wake()
 		case rounds >= idleSince+2:
 			return nil
+		default:
+			p.Wake()
 		}
 
 		select {
@@ -210,7 +235,7 @@ func (p *Poller) summarizeBatches(ctx context.Context) error {
 
 	for _, f := range followed {
 		state, known := byID[f.BatchID]
-		if known && !state.Finished() {
+		if known && !state.Batch.Finished() {
 			continue
 		}
 		if known {

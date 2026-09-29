@@ -2,12 +2,12 @@ package libraries
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
 // CopyTrack expects a transaction holding both libraries. The copy gets the
@@ -31,19 +31,28 @@ func CopyTrack(
 		return nil, "", err
 	}
 
-	copied = track.CopyTo(to, rel)
+	copied, err = SaveCopy(ctx, tracks, track, to, rel)
+	return copied, target, err
+}
+
+// SaveCopy saves the copy with the Track's Sources the target Library lacks.
+func SaveCopy(ctx context.Context, tracks repositories.Tracks, track *library.Track, to *library.Library, rel string) (*library.Track, error) {
+	copied := track.CopyTo(to, rel)
+	refs := make([]provider.TrackRef, 0, len(track.Sources))
 	for _, source := range track.Sources {
-		_, err := tracks.FindSource(ctx, to.ID, source.Provider, source.Ref)
-		if err == nil {
-			continue
+		refs = append(refs, source.TrackRef())
+	}
+	known, err := tracks.KnownSources(ctx, []uint{to.ID}, refs)
+	if err != nil {
+		return nil, err
+	}
+	for _, ref := range refs {
+		if !known[ref] {
+			copied.AddSource(ref)
 		}
-		if !errors.Is(err, repositories.ErrSourceNotFound) {
-			return nil, "", err
-		}
-		copied.AddSource(source.TrackRef())
 	}
 	if err := tracks.SaveTrack(ctx, copied); err != nil {
-		return nil, "", err
+		return nil, err
 	}
-	return copied, target, nil
+	return copied, nil
 }

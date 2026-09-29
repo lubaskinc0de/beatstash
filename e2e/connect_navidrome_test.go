@@ -152,7 +152,7 @@ func TestNavidromeDefaults(t *testing.T) {
 	t.Run("account made in Navidrome sees the Shared Library but no Personal one", func(t *testing.T) {
 		s := harness.New(t)
 
-		account := s.Navidrome.CreateAccount(t, "dave")
+		account := s.Navidrome.CreateAccountWithDefaults(t, "dave")
 
 		libraries := s.Navidrome.Libraries(t, account)
 		assert.Contains(t, libraries, s.NavidromePath("shared"))
@@ -173,6 +173,7 @@ func TestLinkAfterMove(t *testing.T) {
 
 		assert.Contains(t, s.WindowText(), "Этот аккаунт Navidrome уже привязан к другому пользователю")
 		assert.Equal(t, []string{
+			navidrome.RootLibraryPath,
 			s.NavidromePath("shared"),
 			s.NavidromePath(s.PersonalDir(alice)),
 		}, s.Navidrome.Libraries(t, account))
@@ -198,18 +199,34 @@ func TestLinkAfterMove(t *testing.T) {
 		assert.Contains(t, s.WindowText(), "привязан. Теперь")
 	})
 
+	t.Run("link keeps the account's own library", func(t *testing.T) {
+		s := harness.New(t)
+		account := s.Navidrome.CreateAccount(t, "alice")
+		own := s.NewNavidromeLibrary("own")
+		s.Navidrome.OpenLibrary(t, account, own.ID)
+
+		s.Link(alice, account)
+
+		assert.Equal(t, []string{
+			navidrome.RootLibraryPath,
+			own.Path,
+			s.NavidromePath("shared"),
+			s.NavidromePath(s.PersonalDir(alice)),
+		}, s.Navidrome.Libraries(t, account))
+	})
+
 	t.Run("link warns and hides others' Personal Libraries", func(t *testing.T) {
 		s := harness.New(t)
 		s.Send(s.AudioMessage(bob, s.UploadAudio("track.mp3")))
 		s.WaitIngest()
 		account := s.Navidrome.CreateAccount(t, "alice")
-		s.Navidrome.GrantAllLibraries(t, account)
+		s.Navidrome.OpenLibrary(t, account, s.Navidrome.LibraryAt(t, s.NavidromePath(s.PersonalDir(bob))))
 		bobAccount := s.LinkNewAccount(bob)
 		s.Navidrome.IndexedTrack(t, bobAccount, s.Library, audiofile.FixtureTitle)
 
 		s.Link(alice, account)
 
-		assert.Contains(t, s.WindowText(), "только вашу личную библиотеку и общую")
+		assert.Contains(t, s.WindowText(), "а чужие личные — нет")
 		assert.Empty(t, s.Navidrome.SearchFor(t, account, s.Library, audiofile.FixtureTitle))
 	})
 }
@@ -299,7 +316,7 @@ func TestRegistration(t *testing.T) {
 	})
 
 	t.Run("registered user sees their np", func(t *testing.T) {
-		s := harness.New(t)
+		s := harness.NewOwnNavidrome(t, nil)
 		carol := harness.Newcomer("carol")
 		account := s.Register(carol)
 		audio := s.UploadAudio("track.mp3")
@@ -314,13 +331,14 @@ func TestRegistration(t *testing.T) {
 		assert.Equal(t, audio.FileID, answer.Results[0].AudioFileID)
 	})
 
-	t.Run("newcomer's account sees only their own and the Shared Library", func(t *testing.T) {
-		s := harness.New(t)
+	t.Run("newcomer's account sees their own and the Shared Library", func(t *testing.T) {
+		s := harness.NewOwnNavidrome(t, nil)
 		carol := harness.Newcomer("carol")
 
 		account := s.Register(carol)
 
 		assert.Equal(t, []string{
+			navidrome.RootLibraryPath,
 			s.NavidromePath("shared"),
 			s.NavidromePath(s.PersonalDir(carol)),
 		}, s.Navidrome.Libraries(t, account))

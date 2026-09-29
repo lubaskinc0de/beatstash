@@ -59,7 +59,7 @@ func (i *RegisterNavidromeAccount) register(ctx context.Context, user *access.Us
 		return navidrome.Credentials{}, err
 	}
 	// The account already exists: failing here would strand it, and the next start grants again.
-	if err := i.Libraries.Grant(ctx, user, creds.Login); err != nil {
+	if _, err := i.Libraries.Grant(ctx, user, creds.Login); err != nil {
 		slog.Error("grant_navidrome_libraries", "user_id", user.ID, "error", err)
 	}
 	return creds, nil

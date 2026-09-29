@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -85,4 +86,17 @@ func (s *Scenario) PersonalPath(user User, rel string) string {
 func (s *Scenario) SharedFiles() []string {
 	s.t.Helper()
 	return filesUnder(s.t, filepath.Join(s.Library, "shared"))
+}
+
+// FilesWithContent maps the files under root to their bytes.
+func FilesWithContent(t *testing.T, root string) map[string]string {
+	t.Helper()
+
+	files := map[string]string{}
+	for _, rel := range filesUnder(t, root) {
+		data, err := os.ReadFile(filepath.Join(root, rel)) //nolint:gosec // G304: paths come from the scenario
+		require.NoError(t, err)
+		files[rel] = string(data)
+	}
+	return files
 }

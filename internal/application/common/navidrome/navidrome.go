@@ -2,6 +2,7 @@ package navidrome
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
@@ -23,12 +24,19 @@ type Client interface {
 	// CreateLibrary returns ErrNameTaken if another library has the name.
 	CreateLibrary(ctx context.Context, admin Credentials, lib Library) (int, error)
 	UpdateLibrary(ctx context.Context, admin Credentials, lib Library) error
+	// Account returns ErrAccountNotFound if Navidrome has no such login.
+	Account(ctx context.Context, admin Credentials, login string) (*Account, error)
 	// SetLibraries replaces the libraries the account may see.
-	SetLibraries(ctx context.Context, admin Credentials, login string, libraryIDs []int) error
+	SetLibraries(ctx context.Context, admin Credentials, accountID string, libraryIDs []int) error
 
 	// Songs maps paths relative to the library to song ids, for the songs
 	// Navidrome has indexed.
 	Songs(ctx context.Context, creds Credentials, libraryID int) (map[string]string, error)
+	// LibrarySongs lists the songs Navidrome has indexed in the library and
+	// whose files are still there.
+	LibrarySongs(ctx context.Context, admin Credentials, libraryID int) ([]Song, error)
+	// Download streams the song's file as it is; the caller closes it.
+	Download(ctx context.Context, creds Credentials, songID string) (io.ReadCloser, error)
 	Star(ctx context.Context, creds Credentials, songIDs []string) error
 	Unstar(ctx context.Context, creds Credentials, songIDs []string) error
 	// SavePlaylist replaces the songs of the playlist, or creates it when
@@ -42,6 +50,29 @@ type Library struct {
 	Path string
 	// DefaultNewUsers: Navidrome gives the library to every account it creates.
 	DefaultNewUsers bool
+}
+
+type Account struct {
+	// ID is Navidrome's id of the account, not its login.
+	ID     string
+	Access library.NavidromeAccess
+}
+
+type Song struct {
+	ID string
+	// Path is relative to the library.
+	Path        string
+	AlbumArtist string
+	Artist      string
+	Album       string
+	Title       string
+	Year        int
+	TrackNumber int
+	DurationMs  int
+	// Suffix is the file's extension without the dot.
+	Suffix      string
+	Codec       string
+	BitrateKbps int
 }
 
 type Track struct {

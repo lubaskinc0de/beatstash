@@ -9,6 +9,7 @@ import (
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/accounts"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
@@ -28,6 +29,7 @@ type SyncCollection struct {
 	Interval  time.Duration
 
 	Libraries         repositories.Libraries
+	Attached          *libraries.Attached
 	Tracks            repositories.Tracks
 	Navidrome         navidrome.Client
 	NavidromeAccounts *accounts.Navidrome
@@ -107,14 +109,14 @@ func (i *SyncCollection) remember(ctx context.Context, userID uint, providerName
 	}
 	snapshot := collection.Snapshot()
 	added := providers.RefSet(snapshot.Added(account.Collection))
+	var jobs []*ingest.IngestJob
 	for _, track := range collection.Tracks() {
-		if !added[track.Ref.ID] {
-			continue
+		if added[track.Ref.ID] {
+			jobs = append(jobs, ingest.NewJob(userID, track.Ref, track.DisplayName, time.Now()))
 		}
-		job := ingest.NewJob(userID, track.Ref, track.DisplayName, time.Now())
-		if err := i.Queue.Enqueue(ctx, job); err != nil {
-			return err
-		}
+	}
+	if err := i.Queue.Enqueue(ctx, jobs...); err != nil {
+		return err
 	}
 
 	account.Remember(snapshot, time.Now())
@@ -224,7 +226,8 @@ type songLookup struct {
 }
 
 // songs finds the Navidrome songs of the Collection's tracks by the paths of
-// their Tracks' files; nil until the Personal Library is in Navidrome.
+// their Tracks' files; nil until the Personal Library is in Navidrome. A
+// track kept in an Attached Library is its song.
 func (i *SyncCollection) songs(
 	ctx context.Context,
 	account *provider.ProviderAccount,
@@ -254,9 +257,17 @@ func (i *SyncCollection) songs(
 		return nil, err
 	}
 	queued := providers.RefSet(pending)
+	kept, err := i.keptSongs(ctx, account, refs)
+	if err != nil {
+		return nil, err
+	}
 
 	s := &songLookup{found: map[string]string{}, coming: map[string]bool{}}
 	for _, ref := range refs {
+		if song, ok := kept[ref]; ok {
+			s.found[ref] = song
+			continue
+		}
 		path, stored := paths[ref]
 		song, ok := indexed[path]
 		switch {
@@ -267,4 +278,12 @@ func (i *SyncCollection) songs(
 		}
 	}
 	return s, nil
+}
+
+func (i *SyncCollection) keptSongs(ctx context.Context, account *provider.ProviderAccount, refs []string) (map[string]string, error) {
+	attached, err := i.Attached.VisibleTo(ctx, account.UserID)
+	if err != nil || len(attached) == 0 {
+		return nil, err
+	}
+	return i.Tracks.SourceSongs(ctx, libraries.IDs(attached), account.Provider, refs)
 }

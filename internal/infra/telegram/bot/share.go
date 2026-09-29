@@ -110,7 +110,7 @@ func (h *Handler) handleShareCallback(ctx context.Context, b *bot.Bot, query *mo
 	}
 
 	switch {
-	case errors.Is(err, library.ErrNotOwnTrack):
+	case errors.Is(err, library.ErrNotKeptTrack):
 		answerCallback(ctx, b, query.ID, c.NotOwnTrack())
 		return
 	case errors.Is(err, library.ErrInboxTrack):

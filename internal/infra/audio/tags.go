@@ -37,14 +37,12 @@ func (Tags) Probe(path string) (*library.Probe, error) {
 	}, nil
 }
 
+// isLossless: MP4 holds either AAC or ALAC, so its inner codec decides.
 func isLossless(props taglib.Properties) bool {
-	switch props.Format {
-	case "flac", "wav":
-		return true
-	case "mp4":
-		return props.InnerCodec == "alac"
+	if props.Format == "mp4" {
+		return library.LosslessCodec(props.InnerCodec)
 	}
-	return false
+	return library.LosslessCodec(props.Format)
 }
 
 func metadataFromTags(tags map[string][]string) library.Metadata {

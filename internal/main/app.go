@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/add_track"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/attach_libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/browse_shared"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/accounts"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
@@ -47,6 +48,7 @@ type App struct {
 	bot       *bot.Bot
 	workers   *background.IngestWorkers
 	scheduler *background.Scheduler
+	attacher  *background.Attacher
 	poller    *tgbot.Poller
 	db        *gorm.DB
 
@@ -111,6 +113,23 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	if err := startApp.Execute(ctx); err != nil {
 		return nil, err
 	}
+	attachLibraries := &attach_libraries.AttachLibraries{
+		Tx:        txManager,
+		Libraries: libraryRepo,
+		Lock:      libraryLock,
+		Tracks:    tracks,
+		Navidrome: navidromeClient,
+		Admin:     navidromeAdmin,
+		MusicDir:  cfg.NavidromeMusicDir,
+	}
+	attacher := &background.Attacher{Attach: attachLibraries, Interval: cfg.AttachInterval}
+	attacher.Once(ctx)
+	attached := &libraries.Attached{
+		Repo:      libraryRepo,
+		Accounts:  accountRepo,
+		Navidrome: navidromeClient,
+		Admin:     navidromeAdmin,
+	}
 
 	ids := &tgbot.IDProvider{Users: users, Clock: cfg.Clock}
 	telegramUsers := &store.Users{DB: db}
@@ -160,6 +179,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Tracks:    tracks,
 			Uploads:   uploads,
 			Libraries: libraryRepo,
+			Attached:  attached,
 			Lock:      libraryLock,
 			Disk:      fileDisk,
 			Tags:      audio.Tags{},
@@ -196,6 +216,11 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	invites := &database.InviteRepository{DB: db}
 	createInvite := &invite_friend.CreateInvite{IDs: ids, Invites: invites, TTL: cfg.InviteTTL, Clock: cfg.Clock}
 
+	shareDeps := share_tracks.ShareDeps{
+		IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks,
+		Libraries: libs, Attached: attached, Navidrome: navidromeClient, Admin: navidromeAdmin,
+		Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,
+	}
 	handler := &tgbot.Handler{
 		IDs:           ids,
 		EnqueueIngest: enqueueIngest,
@@ -205,6 +230,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Repo:      tracks,
 			Accounts:  navidromeAccounts,
 			Libraries: libs,
+			Attached:  attached,
 		},
 		GetRecentlyPlayed: &show_playing.GetRecentlyPlayed{
 			IDs:       ids,
@@ -212,6 +238,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Repo:      tracks,
 			Accounts:  navidromeAccounts,
 			Libraries: libs,
+			Attached:  attached,
 		},
 		LinkNavidromeAccount: &connect_navidrome.LinkNavidromeAccount{
 			IDs:       ids,
@@ -219,6 +246,8 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Accounts:  navidromeAccounts,
 			Linked:    accountRepo,
 			Libraries: navidromeLibraries,
+			Attached:  libraryRepo,
+			Tracks:    tracks,
 		},
 		GetNavidromeAccount: &connect_navidrome.GetNavidromeAccount{IDs: ids, Accounts: accountRepo},
 		CreateInvite:        createInvite,
@@ -240,14 +269,8 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Admin:     navidromeAdmin,
 		},
 		ShowShareOptions: &share_tracks.ShowShareOptions{IDs: ids, Tracks: tracks, Shared: sharedTracks, Libraries: libs},
-		ShareTrack: &share_tracks.ShareTrack{
-			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks,
-			Libraries: libs, Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,
-		},
-		ShareAlbum: &share_tracks.ShareAlbum{
-			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks,
-			Libraries: libs, Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,
-		},
+		ShareTrack:       &share_tracks.ShareTrack{ShareDeps: shareDeps},
+		ShareAlbum:       &share_tracks.ShareAlbum{ShareDeps: shareDeps},
 		UnshareTrack: &share_tracks.UnshareTrack{
 			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks,
 			Libraries: libs, Disk: fileDisk, MusicDir: cfg.MusicDir,
@@ -256,10 +279,10 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks,
 			Libraries: libs, Disk: fileDisk, MusicDir: cfg.MusicDir,
 		},
-		ViewFeed: &browse_shared.ViewFeed{IDs: ids, Shared: sharedTracks, Tracks: tracks, Libraries: libs},
+		ViewFeed: &browse_shared.ViewFeed{IDs: ids, Shared: sharedTracks, Tracks: tracks, Libraries: libs, Attached: attached},
 		TakeTrack: &browse_shared.TakeTrack{
 			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks, Takes: takes,
-			Libraries: libs, Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,
+			Libraries: libs, Attached: attached, Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,
 		},
 		GetTrackAudio:   &browse_shared.GetTrackAudio{IDs: ids, Shared: sharedTracks, Libraries: libs},
 		GetTop:          &view_top.GetTop{IDs: ids, Shared: sharedTracks, Takes: takes, Clock: cfg.Clock},
@@ -269,12 +292,15 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		},
 		DisconnectProviderAccount: &connect_provider.DisconnectProviderAccount{IDs: ids, Tx: txManager, Accounts: providerAccountRepo},
 		ListImportSources:         &import_collection.ListImportSources{IDs: ids, Providers: providers, Accounts: providerAccountRepo},
-		PlanImport:                &import_collection.PlanImport{IDs: ids, Providers: providers, Libraries: libraryRepo, Tracks: tracks},
+		PlanImport: &import_collection.PlanImport{
+			IDs: ids, Providers: providers, Libraries: libraryRepo, Attached: attached, Tracks: tracks,
+		},
 		StartImport: &import_collection.StartImport{
 			IDs:       ids,
 			Tx:        txManager,
 			Providers: providers,
 			Libraries: libraryRepo,
+			Attached:  attached,
 			Tracks:    tracks,
 			Accounts:  providerAccountRepo,
 			Queue:     ingestQueue,
@@ -293,6 +319,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	}
 	handler.Register(b)
 	poller.Handler = handler
+	workers.Processed = poller.Wake
 	if err := tgbot.Describe(ctx, b, texts); err != nil {
 		slog.Error("describe_bot", "error", err)
 	}
@@ -309,6 +336,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Interval:  cfg.SyncInterval,
 
 			Libraries:         libraryRepo,
+			Attached:          attached,
 			Tracks:            tracks,
 			Navidrome:         navidromeClient,
 			NavidromeAccounts: navidromeAccounts,
@@ -316,7 +344,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		Tick: min(cfg.SyncInterval, cfg.MirrorRetryInterval),
 	}
 
-	return &App{bot: b, workers: workers, scheduler: scheduler, poller: poller, db: db}, nil
+	return &App{bot: b, workers: workers, scheduler: scheduler, attacher: attacher, poller: poller, db: db}, nil
 }
 
 func (a *App) Bot() *bot.Bot {
@@ -333,6 +361,7 @@ func (a *App) StartWorkers(ctx context.Context) <-chan struct{} {
 	workers := a.workers.Start(ctx)
 	var wg sync.WaitGroup
 	wg.Go(func() { a.scheduler.Run(ctx) })
+	wg.Go(func() { a.attacher.Run(ctx) })
 	wg.Go(func() { a.poller.Run(ctx) })
 	stopped := make(chan struct{})
 	go func() {

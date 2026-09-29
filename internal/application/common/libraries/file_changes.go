@@ -88,7 +88,7 @@ func Within(
 	tx repositories.TxManager,
 	lock repositories.LibraryLock,
 	disk common.Disk,
-	libs UserLibraries,
+	libs ManagedLibraries,
 	fn func(ctx context.Context, changes *FileChanges) error,
 ) error {
 	changes := NewFileChanges(disk)

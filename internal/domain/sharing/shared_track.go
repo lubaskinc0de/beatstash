@@ -24,8 +24,10 @@ type Share struct {
 	TrackID uint          `gorm:"not null;index"`
 	Track   library.Track `gorm:"constraint:OnDelete:CASCADE;"`
 
-	SourceTrackID uint          `gorm:"not null;uniqueIndex"`
-	SourceTrack   library.Track `gorm:"constraint:OnDelete:CASCADE;"`
+	// SourceTrackID is nil once the source is gone: a song of an Attached
+	// Library may vanish, and its Share stays.
+	SourceTrackID *uint          `gorm:"uniqueIndex"`
+	SourceTrack   *library.Track `gorm:"constraint:OnDelete:SET NULL;"`
 
 	UserID uint        `gorm:"not null;index"`
 	User   access.User `gorm:"constraint:OnDelete:CASCADE;"`
@@ -54,7 +56,7 @@ func (s *SharedTrack) ShareBy(sharer *access.User, source *library.Track, at tim
 func (s *SharedTrack) add(sharer *access.User, source *library.Track, inTop bool, at time.Time) *Share {
 	s.Shares = append(s.Shares, Share{
 		TrackID:       s.Track.ID,
-		SourceTrackID: source.ID,
+		SourceTrackID: &source.ID,
 		UserID:        sharer.ID,
 		User:          *sharer,
 		InTop:         inTop,
@@ -67,7 +69,7 @@ func (s *SharedTrack) add(sharer *access.User, source *library.Track, inTop bool
 // Shares are left and the Track must leave the Shared Library.
 func (s *SharedTrack) Unshare(source *library.Track) (gone bool) {
 	s.Shares = slices.DeleteFunc(s.Shares, func(share Share) bool {
-		return share.SourceTrackID == source.ID
+		return share.SourceTrackID != nil && *share.SourceTrackID == source.ID
 	})
 	return len(s.Shares) == 0
 }

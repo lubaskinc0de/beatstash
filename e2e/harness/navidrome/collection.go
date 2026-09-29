@@ -46,7 +46,7 @@ func (n *Server) UntilStarred(t *testing.T, account Account, names []string) {
 
 	var got []string
 	require.Eventually(t, func() bool {
-		_ = n.startScan()
+		_ = n.scanFor(account)
 		got = n.Starred(t, account)
 		return slices.Equal(got, names)
 	}, time.Minute, 200*time.Millisecond, "starred: %v", &got)
@@ -59,7 +59,7 @@ func (n *Server) UntilStarredByDate(t *testing.T, account Account, names []strin
 
 	var got []string
 	require.Eventually(t, func() bool {
-		_ = n.startScan()
+		_ = n.scanFor(account)
 		got = n.starredByDate(t, account)
 		return slices.Equal(got, names)
 	}, time.Minute, 200*time.Millisecond, "starred: %v", &got)
@@ -135,7 +135,7 @@ func (n *Server) UntilPlaylist(t *testing.T, account Account, name string, songs
 
 	var got []string
 	require.Eventually(t, func() bool {
-		_ = n.startScan()
+		_ = n.scanFor(account)
 		got = n.playlist(t, account, name)
 		return slices.Equal(got, songs)
 	}, time.Minute, 200*time.Millisecond, "playlist %s: %v", name, &got)

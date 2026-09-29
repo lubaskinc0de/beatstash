@@ -26,8 +26,12 @@ type IngestWorkers struct {
 	Disk             common.Disk
 	Waker            *Waker
 
-	Lanes        []Lane
+	Lanes []Lane
+	// PollInterval: queued jobs wake the workers, so polling finds only
+	// the jobs whose retry has come.
 	PollInterval time.Duration
+	// Processed hears of each job the workers have taken on.
+	Processed func()
 }
 
 // Start runs the workers until ctx is done; the returned channel closes
@@ -86,6 +90,7 @@ func (w *IngestWorkers) loop(ctx context.Context, filter repositories.JobFilter,
 
 	for {
 		for w.ProcessIngestJob.Execute(ctx, filter) {
+			w.Processed()
 		}
 
 		select {

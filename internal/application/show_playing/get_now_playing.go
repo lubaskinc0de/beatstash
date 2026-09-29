@@ -17,8 +17,9 @@ type NowPlaying struct {
 	navidrome.PlayingTrack
 	// Track is nil if the user's libraries hold no such Track.
 	Track *library.Track
-	// ShareableTrackID is the playing Track of the user's Personal Library
-	// that is not in the Shared Library yet; zero means np offers no Share.
+	// ShareableTrackID is the playing Track of the user's Personal Library,
+	// or of an Attached Library they see, that is not in the Shared Library
+	// yet; zero means np offers no Share.
 	ShareableTrackID uint
 }
 
@@ -28,6 +29,7 @@ type GetNowPlaying struct {
 	Repo      repositories.Tracks
 	Accounts  *accounts.Navidrome
 	Libraries *libraries.Libraries
+	Attached  *libraries.Attached
 }
 
 func (i *GetNowPlaying) Execute(
@@ -55,43 +57,40 @@ func (i *GetNowPlaying) Execute(
 		return nil, nil
 	}
 
+	visible, err := i.Attached.VisibleTo(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	attached := libraries.IDs(visible)
 	nowPlaying := &NowPlaying{PlayingTrack: *track}
 
-	nowPlaying.Track, err = findPlayed(ctx, i.Repo, libs, track.Metadata())
+	found, err := findTracks(ctx, i.Repo, libs.IDs(), attached, []navidrome.Track{track.Track})
 	if err != nil {
 		slog.Error("find_track", "error", err)
+		return nowPlaying, nil
 	}
+	nowPlaying.Track = found[0]
 
-	nowPlaying.ShareableTrackID, err = i.shareable(ctx, libs, track.Metadata())
+	nowPlaying.ShareableTrackID, err = i.shareable(ctx, libs.Shared, nowPlaying.Track)
 	if err != nil {
 		slog.Error("find_shareable_track", "error", err)
 	}
 	return nowPlaying, nil
 }
 
-func (i *GetNowPlaying) shareable(ctx context.Context, libs libraries.UserLibraries, m library.Metadata) (uint, error) {
-	own, err := i.Repo.FindByMetadata(ctx, []uint{libs.Personal.ID}, m)
-	if errors.Is(err, repositories.ErrTrackNotFound) {
+// shareable is the playing Track unless it is in the Shared Library or has
+// a Duplicate there.
+func (i *GetNowPlaying) shareable(ctx context.Context, shared *library.Library, track *library.Track) (uint, error) {
+	if track == nil || track.In(shared) {
 		return 0, nil
 	}
-	if err != nil {
-		return 0, err
-	}
-	_, err = i.Repo.FindDuplicate(ctx, libs.Shared.ID, own.Metadata, own.DurationMs)
+	_, err := i.Repo.FindDuplicate(ctx, []uint{shared.ID}, track.Metadata, track.DurationMs)
 	switch {
 	case err == nil:
 		return 0, nil
 	case errors.Is(err, repositories.ErrTrackNotFound):
-		return own.ID, nil
+		return track.ID, nil
 	default:
 		return 0, err
 	}
-}
-
-func findPlayed(ctx context.Context, tracks repositories.Tracks, libs libraries.UserLibraries, m library.Metadata) (*library.Track, error) {
-	track, err := tracks.FindByMetadata(ctx, libs.IDs(), m)
-	if errors.Is(err, repositories.ErrTrackNotFound) {
-		return nil, nil
-	}
-	return track, err
 }

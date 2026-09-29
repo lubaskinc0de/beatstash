@@ -6,6 +6,7 @@ import (
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/accounts"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
@@ -17,6 +18,7 @@ type StartImport struct {
 	Tx        repositories.TxManager
 	Providers *providers.Registry
 	Libraries repositories.Libraries
+	Attached  *libraries.Attached
 	Tracks    repositories.Tracks
 	Accounts  repositories.ProviderAccounts
 	Queue     repositories.IngestQueue
@@ -37,7 +39,7 @@ func (i *StartImport) Execute(ctx context.Context, providerName provider.Provide
 		return nil, accounts.ErrBatchRunning
 	}
 
-	collection, missing, err := survey(ctx, i.Providers, i.Libraries, i.Tracks, user.ID, providerName)
+	collection, missing, err := survey(ctx, i.Providers, i.Libraries, i.Attached, i.Tracks, user.ID, providerName)
 	if err != nil {
 		return nil, err
 	}
@@ -82,13 +84,11 @@ func (i *StartImport) startBatch(
 		if err := i.BatchRepo.Save(ctx, batch); err != nil {
 			return err
 		}
+		jobs := make([]*ingest.IngestJob, 0, len(tracks))
 		for _, track := range tracks {
-			job := batch.NewJob(track.Ref, track.DisplayName, time.Now())
-			if err := i.Queue.Enqueue(ctx, job); err != nil {
-				return err
-			}
+			jobs = append(jobs, batch.NewJob(track.Ref, track.DisplayName, time.Now()))
 		}
-		return nil
+		return i.Queue.Enqueue(ctx, jobs...)
 	})
 	if err != nil {
 		return 0, err

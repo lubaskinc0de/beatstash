@@ -131,12 +131,21 @@ func (c Catalog) LinkTaken() string          { return c.t("navidrome.taken", nil
 func (c Catalog) LinkWrongPassword() string  { return c.t("navidrome.wrong_password", nil) }
 func (c Catalog) LinkFailed() string         { return c.t("navidrome.failed", nil) }
 
-func (c Catalog) Linked(login string) string {
-	return c.t("navidrome.done", args{"Login": esc(login)})
+// Linked and LinkedAdmin tell of the songs of Attached Libraries the bot
+// sees, if any.
+func (c Catalog) Linked(login string, songs int) string {
+	return c.withSongs(c.t("navidrome.done", args{"Login": esc(login)}), songs)
 }
 
-func (c Catalog) LinkedAdmin(login string) string {
-	return c.t("navidrome.done_admin", args{"Login": esc(login)})
+func (c Catalog) LinkedAdmin(login string, songs int) string {
+	return c.withSongs(c.t("navidrome.done_admin", args{"Login": esc(login)}), songs)
+}
+
+func (c Catalog) withSongs(text string, songs int) string {
+	if songs == 0 {
+		return text
+	}
+	return text + "\n\n" + c.t("navidrome.sees_songs", args{"Songs": c.count("songs", songs)})
 }
 
 func (c Catalog) Feed(entries []browse_shared.FeedEntry) string {

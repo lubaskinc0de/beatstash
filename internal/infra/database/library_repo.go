@@ -38,6 +38,23 @@ func (r *LibraryRepository) All(ctx context.Context) ([]library.Library, error) 
 	return libraries, err
 }
 
+func (r *LibraryRepository) Attached(ctx context.Context) ([]library.Library, error) {
+	var libraries []library.Library
+	err := dbForContext(ctx, r.DB).Where("kind = ?", library.LibraryAttached).Order("id").Find(&libraries).Error
+	return libraries, err
+}
+
+func (r *LibraryRepository) Delete(ctx context.Context, ids []uint) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	db := dbForContext(ctx, r.DB)
+	if err := db.Where("library_id IN ?", ids).Delete(&library.Track{}).Error; err != nil {
+		return err
+	}
+	return db.Delete(&library.Library{}, ids).Error
+}
+
 func (r *LibraryRepository) Save(ctx context.Context, lib *library.Library) error {
 	return dbForContext(ctx, r.DB).Save(lib).Error
 }

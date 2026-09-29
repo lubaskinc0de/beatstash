@@ -7,15 +7,12 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/require"
 
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
 )
@@ -601,13 +598,17 @@ var Cover = []byte{
 func NewAudio(t *testing.T, seconds float64) Audio {
 	t.Helper()
 
-	flac := filepath.Join(t.TempDir(), "flac.mp4")
-	source := fmt.Sprintf("anoisesrc=duration=%g:sample_rate=44100", seconds)
-	out, err := exec.CommandContext(t.Context(), //nolint:gosec // G204: fixture generation with test-controlled args
-		"ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", source,
-		"-ac", "2", "-c:a", "flac", "-f", "mp4", flac,
-	).CombinedOutput()
-	require.NoError(t, err, string(out))
+	flac := audiofile.Cached(t, fmt.Sprintf("zvuk-flac|%g", seconds), "flac.mp4", func(path string) error {
+		source := fmt.Sprintf("anoisesrc=duration=%g:sample_rate=44100", seconds)
+		out, err := exec.Command( //nolint:gosec,noctx // G204: fixture generation with test-controlled args; outlives the test that asked first
+			"ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", source,
+			"-ac", "2", "-c:a", "flac", "-f", "mp4", path,
+		).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("ffmpeg: %w: %s", err, out)
+		}
+		return nil
+	})
 
 	return Audio{
 		flac: flac,

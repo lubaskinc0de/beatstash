@@ -52,7 +52,7 @@ func (i *StartApp) Execute(ctx context.Context) error {
 		return err
 	}
 	for _, account := range accounts {
-		err := i.NavidromeLibraries.Grant(ctx, byID[account.UserID], account.Login)
+		_, err := i.NavidromeLibraries.Grant(ctx, byID[account.UserID], account.Login)
 		if err != nil && !errors.Is(err, navidrome.ErrAdminAccount) {
 			slog.Error("grant_navidrome_libraries", "user_id", account.UserID, "error", err)
 		}
@@ -63,6 +63,9 @@ func (i *StartApp) Execute(ctx context.Context) error {
 		return err
 	}
 	for n := range libraries {
+		if libraries[n].Attached() {
+			continue
+		}
 		if err := i.NavidromeLibraries.Create(ctx, &libraries[n]); err != nil {
 			slog.Error("create_library_in_navidrome", "dir", libraries[n].Dir, "error", err)
 		}

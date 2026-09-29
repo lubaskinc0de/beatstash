@@ -43,6 +43,19 @@ func (r *SharedTrackRepository) BySource(ctx context.Context, sourceTrackID uint
 	return r.Get(ctx, share.TrackID)
 }
 
+func (r *SharedTrackRepository) SharedSources(ctx context.Context, sourceTrackIDs []uint) (map[uint]bool, error) {
+	var ids []uint
+	err := dbForContext(ctx, r.DB).
+		Model(&sharing.Share{}).
+		Where("source_track_id IN ?", sourceTrackIDs).
+		Pluck("source_track_id", &ids).Error
+	shared := make(map[uint]bool, len(ids))
+	for _, id := range ids {
+		shared[id] = true
+	}
+	return shared, err
+}
+
 func (r *SharedTrackRepository) Save(ctx context.Context, shared *sharing.SharedTrack) error {
 	db := dbForContext(ctx, r.DB)
 	kept := []uint{0}

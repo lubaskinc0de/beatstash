@@ -21,8 +21,8 @@ func finishBatch(
 		if err != nil {
 			return err
 		}
-		progress, err := queue.BatchProgress(ctx, batchID)
-		if err != nil || progress.Pending > 0 {
+		progress, err := queue.BatchProgress(ctx, []uint{batchID})
+		if err != nil || progress[batchID].Pending > 0 {
 			return err
 		}
 		if !batch.Finish(time.Now()) {

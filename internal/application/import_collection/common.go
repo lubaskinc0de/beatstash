@@ -3,8 +3,10 @@ package import_collection
 import (
 	"context"
 
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
@@ -18,11 +20,13 @@ type Plan struct {
 	BatchID uint
 }
 
-// survey lists the collection and the tracks of it the library lacks.
+// survey lists the collection and the tracks of it the user lacks: neither
+// their Personal Library nor an Attached Library they see has the track.
 func survey(
 	ctx context.Context,
 	registry *providers.Registry,
-	libraries repositories.Libraries,
+	libs repositories.Libraries,
+	attached *libraries.Attached,
 	tracks repositories.Tracks,
 	userID uint,
 	providerName provider.ProviderName,
@@ -35,19 +39,27 @@ func survey(
 	if err != nil {
 		return nil, nil, err
 	}
-	library, err := libraries.Personal(ctx, userID)
+	personal, err := libs.Personal(ctx, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+	visible, err := attached.VisibleTo(ctx, userID)
 	if err != nil {
 		return nil, nil, err
 	}
 	all := collection.Tracks()
-	known, err := tracks.KnownRefs(ctx, library.ID, providerName, providers.RefIDs(all))
+	refs := make([]provider.TrackRef, 0, len(all))
+	for _, track := range all {
+		refs = append(refs, track.Ref)
+	}
+	kept := library.KeptLibraries(personal, visible)
+	have, err := tracks.KnownSources(ctx, libraries.IDs(kept), refs)
 	if err != nil {
 		return nil, nil, err
 	}
-	have := providers.RefSet(known)
 	var missing []providers.ListedTrack
 	for _, track := range all {
-		if !have[track.Ref.ID] {
+		if !have[track.Ref] {
 			missing = append(missing, track)
 		}
 	}

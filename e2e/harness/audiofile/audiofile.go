@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -32,7 +34,7 @@ var ffmpegCodecs = map[string][]string{
 }
 
 // Generate generates an audio file with ffmpeg; the extension of name
-// picks the format.
+// picks the format. Files of the same Spec are generated once per run.
 func Generate(t *testing.T, name string, spec Spec) string {
 	t.Helper()
 
@@ -40,30 +42,99 @@ func Generate(t *testing.T, name string, spec Spec) string {
 	if seconds == 0 {
 		seconds = 1.5
 	}
-	source := fmt.Sprintf("sine=frequency=440:duration=%g", seconds)
-	if spec.Noise {
-		source = fmt.Sprintf("anoisesrc=duration=%g:sample_rate=44100", seconds)
-	}
-
-	path := filepath.Join(t.TempDir(), name)
-	args := []string{"-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", source, "-map_metadata", "-1"}
-	if spec.Noise {
-		args = append(args, "-ac", "2")
-	}
-	for key, value := range spec.Tags {
-		args = append(args, "-metadata", key+"="+value)
-	}
 	codec, ok := ffmpegCodecs[filepath.Ext(name)]
 	require.True(t, ok, "no codec for %s", name)
-	args = append(args, codec...)
-	if spec.Bitrate != "" {
-		args = append(args, "-b:a", spec.Bitrate)
-	}
-	args = append(args, path)
 
-	out, err := exec.CommandContext(t.Context(), "ffmpeg", args...).CombinedOutput() //nolint:gosec // G204: fixture generation with test-controlled args
-	require.NoError(t, err, string(out))
+	tags := make([]string, 0, len(spec.Tags))
+	for key, value := range spec.Tags {
+		tags = append(tags, key+"="+value)
+	}
+	slices.Sort(tags)
+	key := fmt.Sprintf("%s|%g|%s|%t|%q", filepath.Ext(name), seconds, spec.Bitrate, spec.Noise, tags)
+
+	return Cached(t, key, name, func(path string) error {
+		source := fmt.Sprintf("sine=frequency=440:duration=%g", seconds)
+		if spec.Noise {
+			source = fmt.Sprintf("anoisesrc=duration=%g:sample_rate=44100", seconds)
+		}
+		args := []string{"-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", source, "-map_metadata", "-1"}
+		if spec.Noise {
+			args = append(args, "-ac", "2")
+		}
+		for _, tag := range tags {
+			args = append(args, "-metadata", tag)
+		}
+		args = append(args, codec...)
+		if spec.Bitrate != "" {
+			args = append(args, "-b:a", spec.Bitrate)
+		}
+		args = append(args, path)
+
+		out, err := exec.Command("ffmpeg", args...).CombinedOutput() //nolint:gosec,noctx // G204: fixture generation with test-controlled args; outlives the test that asked first
+		if err != nil {
+			return fmt.Errorf("ffmpeg: %w: %s", err, out)
+		}
+		return nil
+	})
+}
+
+// cache keeps generated files for the whole run: ffmpeg would otherwise
+// make the same fixtures again in every scenario.
+var cache struct {
+	mu      sync.Mutex
+	dir     string
+	entries map[string]*cacheEntry
+}
+
+type cacheEntry struct {
+	once sync.Once
+	path string
+	err  error
+}
+
+// Cached returns a copy, named name, of the file generate makes for key;
+// the copy is the test's own to change.
+func Cached(t *testing.T, key, name string, generate func(path string) error) string {
+	t.Helper()
+
+	entry, err := cacheEntryFor(key, filepath.Ext(name))
+	require.NoError(t, err)
+	entry.once.Do(func() { entry.err = generate(entry.path) })
+	require.NoError(t, entry.err)
+
+	data, err := os.ReadFile(entry.path)
+	require.NoError(t, err)
+	path := filepath.Join(t.TempDir(), name)
+	require.NoError(t, os.WriteFile(path, data, 0o644)) //nolint:gosec // G306: Navidrome container reads fixtures
 	return path
+}
+
+func cacheEntryFor(key, ext string) (*cacheEntry, error) {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+	if cache.dir == "" {
+		dir, err := os.MkdirTemp("", "navidrome-tg-fixtures-")
+		if err != nil {
+			return nil, err
+		}
+		cache.dir = dir
+		cache.entries = map[string]*cacheEntry{}
+	}
+	entry, ok := cache.entries[key]
+	if !ok {
+		entry = &cacheEntry{path: filepath.Join(cache.dir, fmt.Sprintf("%d%s", len(cache.entries), ext))}
+		cache.entries[key] = entry
+	}
+	return entry, nil
+}
+
+// RemoveCache deletes the generated files once the run is over.
+func RemoveCache() {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+	if cache.dir != "" {
+		_ = os.RemoveAll(cache.dir)
+	}
 }
 
 func WriteFile(t *testing.T, name string, content []byte) string {

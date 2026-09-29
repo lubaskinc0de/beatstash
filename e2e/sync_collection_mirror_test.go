@@ -80,7 +80,7 @@ func TestZvukToNavidrome(t *testing.T) {
 		s.ImportZvuk(alice)
 		s.WaitIngest()
 
-		s.Navidrome.Scan(t)
+		s.Navidrome.Scan(t, account)
 
 		s.Navidrome.UntilStarred(t, account, []string{
 			"Liked/Song 1", "Liked/Song 2", "Liked/Song 3", "Liked/Song 4", "Liked/Song 5",

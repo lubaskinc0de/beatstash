@@ -20,6 +20,18 @@ type Fetcher interface {
 	Fetch(ctx context.Context, userID uint, ref provider.TrackRef) (*FetchedAudio, error)
 }
 
+// Describer tells what a track is before it is fetched, so a track the user
+// has already need not be downloaded.
+type Describer interface {
+	// Describe returns nil if the Provider knows no such track.
+	Describe(ctx context.Context, userID uint, ref provider.TrackRef) (*Description, error)
+}
+
+type Description struct {
+	Metadata   library.Metadata
+	DurationMs int
+}
+
 // Releaser frees what Fetch left on the Provider side. It is called once
 // the job is finished for good, so retries can fetch again.
 type Releaser interface {

@@ -24,6 +24,7 @@ type GetRecentlyPlayed struct {
 	Repo      repositories.Tracks
 	Accounts  *accounts.Navidrome
 	Libraries *libraries.Libraries
+	Attached  *libraries.Attached
 }
 
 func (i *GetRecentlyPlayed) Execute(
@@ -49,15 +50,23 @@ func (i *GetRecentlyPlayed) Execute(
 		return nil, err
 	}
 
-	tracks := make([]RecentTrack, 0, len(played))
+	visible, err := i.Attached.VisibleTo(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	attached := libraries.IDs(visible)
+	songs := make([]navidrome.Track, 0, len(played))
 	for _, p := range played {
-		track := RecentTrack{PlayedTrack: p}
-
-		if track.Track, err = findPlayed(ctx, i.Repo, libs, p.Metadata()); err != nil {
-			slog.Error("find_track", "error", err)
-		}
-
-		tracks = append(tracks, track)
+		songs = append(songs, p.Track)
+	}
+	found, err := findTracks(ctx, i.Repo, libs.IDs(), attached, songs)
+	if err != nil {
+		slog.Error("find_track", "error", err)
+		found = make([]*library.Track, len(played))
+	}
+	tracks := make([]RecentTrack, 0, len(played))
+	for n, p := range played {
+		tracks = append(tracks, RecentTrack{PlayedTrack: p, Track: found[n]})
 	}
 
 	return tracks, nil

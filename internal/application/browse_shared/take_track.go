@@ -2,7 +2,6 @@ package browse_shared
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
@@ -19,13 +18,14 @@ type TakeTrack struct {
 	Shared    repositories.SharedTracks
 	Takes     repositories.Takes
 	Libraries *libraries.Libraries
+	Attached  *libraries.Attached
 	Disk      common.Disk
 	MusicDir  string
 	Clock     func() time.Time
 }
 
 func (i *TakeTrack) Execute(ctx context.Context, sharedTrackID uint) error {
-	user, libs, err := libraries.Current(ctx, i.IDs, i.Libraries)
+	user, libs, kept, err := libraries.CurrentKept(ctx, i.IDs, i.Libraries, i.Attached)
 	if err != nil {
 		return err
 	}
@@ -36,12 +36,12 @@ func (i *TakeTrack) Execute(ctx context.Context, sharedTrackID uint) error {
 		}
 		track := shared.Track
 
-		_, err = i.Tracks.FindDuplicate(ctx, libs.Personal.ID, track.Metadata, track.DurationMs)
-		if err == nil {
-			return library.ErrAlreadyInLibrary
-		}
-		if !errors.Is(err, repositories.ErrTrackNotFound) {
+		alreadyKept, err := i.Tracks.WithDuplicates(ctx, libraries.IDs(kept), []library.Track{*track})
+		if err != nil {
 			return err
+		}
+		if alreadyKept[track.ID] {
+			return library.ErrAlreadyInLibrary
 		}
 
 		copied, _, err := libraries.CopyTrack(ctx, i.Tracks, i.Disk, i.MusicDir, track, libs.Shared, libs.Personal, changes)

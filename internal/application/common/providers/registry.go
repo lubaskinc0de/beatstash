@@ -15,6 +15,10 @@ func (r *Registry) Fetcher(name provider.ProviderName) (Fetcher, error) {
 	return capability[Fetcher](r, name)
 }
 
+func (r *Registry) Describer(name provider.ProviderName) (Describer, error) {
+	return capability[Describer](r, name)
+}
+
 func (r *Registry) Releaser(name provider.ProviderName) (Releaser, error) {
 	return capability[Releaser](r, name)
 }

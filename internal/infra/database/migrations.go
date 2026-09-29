@@ -4,6 +4,7 @@ import (
 	"github.com/go-gormigrate/gormigrate/v2"
 	"gorm.io/gorm"
 
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/store"
 )
 
@@ -29,6 +30,19 @@ var migrations = []*gormigrate.Migration{
 		ID: "0003_telegram_window_below",
 		Migrate: func(tx *gorm.DB) error {
 			return tx.AutoMigrate(&store.Window{})
+		},
+	},
+	{
+		ID: "0004_attached_library",
+		Migrate: func(tx *gorm.DB) error {
+			if err := tx.AutoMigrate(&library.Track{}); err != nil {
+				return err
+			}
+			return tx.Exec(`
+				ALTER TABLE shares ALTER COLUMN source_track_id DROP NOT NULL;
+				ALTER TABLE shares DROP CONSTRAINT IF EXISTS fk_shares_source_track;
+				ALTER TABLE shares ADD CONSTRAINT fk_shares_source_track
+					FOREIGN KEY (source_track_id) REFERENCES tracks(id) ON DELETE SET NULL`).Error
 		},
 	},
 }

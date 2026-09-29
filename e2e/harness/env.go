@@ -14,8 +14,14 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 
+	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/navidrome"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/database"
 )
+
+// templateDatabase has the schema: migrating anew for each scenario would
+// take a good part of its time.
+const templateDatabase = "scenario_template"
 
 var env struct {
 	postgresHost string
@@ -26,6 +32,7 @@ var env struct {
 
 func Run(m *testing.M) int {
 	ctx := context.Background()
+	defer audiofile.RemoveCache()
 
 	libraryRoot, err := os.MkdirTemp("", "navidrome-tg-library-")
 	if err != nil {
@@ -64,6 +71,10 @@ func Run(m *testing.M) int {
 		return 1
 	}
 	env.postgresPort = port.Port()
+	if err := migrateTemplate(ctx); err != nil {
+		log.Printf("migrate template database: %v", err)
+		return 1
+	}
 
 	nd, container, err := navidrome.Start(ctx, libraryRoot)
 	defer func() { _ = testcontainers.TerminateContainer(container) }()
@@ -87,9 +98,28 @@ func postgresDSN(database string) string {
 	)
 }
 
+func migrateTemplate(ctx context.Context) error {
+	conn, err := pgx.Connect(ctx, postgresDSN("postgres"))
+	if err != nil {
+		return err
+	}
+	defer conn.Close(ctx)
+	if _, err := conn.Exec(ctx, "CREATE DATABASE "+templateDatabase); err != nil {
+		return err
+	}
+
+	db, err := database.New(postgresDSN(templateDatabase))
+	if err != nil {
+		return err
+	}
+	// A template must have no connections while databases are made from it.
+	defer func() { _ = database.Close(db) }()
+	return database.Migrate(db)
+}
+
 var databaseSeq, newcomerSeq atomic.Int64
 
-// NewDatabase creates an empty database and returns its DSN.
+// NewDatabase creates a database with the schema and returns its DSN.
 func NewDatabase(t *testing.T) string {
 	t.Helper()
 
@@ -99,7 +129,7 @@ func NewDatabase(t *testing.T) string {
 	require.NoError(t, err)
 	defer conn.Close(context.Background())
 
-	_, err = conn.Exec(t.Context(), "CREATE DATABASE "+name)
+	_, err = conn.Exec(t.Context(), "CREATE DATABASE "+name+" TEMPLATE "+templateDatabase)
 	require.NoError(t, err)
 	return postgresDSN(name)
 }

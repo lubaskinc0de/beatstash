@@ -1,6 +1,7 @@
 package harness
 
 import (
+	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -67,4 +68,57 @@ func (s *Scenario) Register(newcomer User) navidrome.Account {
 	s.Send(s.TextMessage(newcomer, "/start "+s.Invite()))
 	s.SendText(newcomer, newcomer.Username)
 	return s.IssuedAccount()
+}
+
+// NavidromeLibrary is a library made in Navidrome outside music_dir, like
+// the one a person kept before the bot.
+type NavidromeLibrary struct {
+	ID int
+	// Dir is where its files lie on the host; Path is where Navidrome sees them.
+	Dir  string
+	Path string
+}
+
+// NewNavidromeLibrary copies the audio files into a new library's root.
+func (s *Scenario) NewNavidromeLibrary(name string, files ...string) NavidromeLibrary {
+	s.t.Helper()
+
+	dir, err := os.MkdirTemp(s.navidromeRoot, name+"-")
+	require.NoError(s.t, err)
+	nd := s.Navidrome
+	s.t.Cleanup(func() {
+		nd.DeleteLibrariesUnder(s.t, navidrome.LibraryMount+"/"+filepath.Base(dir))
+		_ = os.RemoveAll(dir)
+	})
+	require.NoError(s.t, os.Chmod(dir, 0o755)) //nolint:gosec // G302: Navidrome container reads the library
+	for _, file := range files {
+		s.AddToNavidromeLibrary(NavidromeLibrary{Dir: dir}, file, filepath.Base(file))
+	}
+
+	path := navidrome.LibraryMount + "/" + filepath.Base(dir)
+	return NavidromeLibrary{ID: s.Navidrome.CreateLibrary(s.t, filepath.Base(dir), path), Dir: dir, Path: path}
+}
+
+// AddToNavidromeLibrary copies the file to rel within the library.
+func (s *Scenario) AddToNavidromeLibrary(lib NavidromeLibrary, file, rel string) {
+	s.t.Helper()
+
+	data, err := os.ReadFile(file) //nolint:gosec // G304: paths come from the scenario
+	require.NoError(s.t, err)
+	target := filepath.Join(lib.Dir, rel)
+	require.NoError(s.t, os.MkdirAll(filepath.Dir(target), 0o755)) //nolint:gosec // G301: Navidrome container reads the library
+	require.NoError(s.t, os.WriteFile(target, data, 0o644))        //nolint:gosec // G306: Navidrome container reads the library
+}
+
+// NewNavidromeRootLibrary makes a library of everything Navidrome sees,
+// music_dir included, with the files at its top.
+func (s *Scenario) NewNavidromeRootLibrary(files ...string) NavidromeLibrary {
+	s.t.Helper()
+
+	lib := NavidromeLibrary{Dir: s.navidromeRoot, Path: navidrome.LibraryMount}
+	for _, file := range files {
+		s.AddToNavidromeLibrary(lib, file, filepath.Base(file))
+	}
+	lib.ID = s.Navidrome.CreateLibrary(s.t, "whole-"+filepath.Base(s.navidromeRoot), lib.Path)
+	return lib
 }
