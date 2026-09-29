@@ -42,9 +42,12 @@ poll_interval = "2s"
 # In compose: "/music".
 music_dir = "~/navidrome-tg/test_data"
 # music_dir as the Navidrome container sees it, if the path differs; empty
-# means the same. The bot keeps music_dir/shared and music_dir/users/<user id>
-# as Navidrome libraries; point ND_MUSICFOLDER at music_dir/shared once it
-# exists, or Navidrome's own library shows admins every track twice.
+# means the same. The bot writes only to music_dir/shared, music_dir/users
+# and music_dir/.navidrome-tg. A new install: point ND_MUSICFOLDER at
+# music_dir/shared once it exists, or Navidrome's own library shows admins
+# every track twice. Music you had before: keep it in a folder of its own,
+# beside music_dir or in it next to the bot's folders, as a Navidrome
+# library; a library that holds the bot's folders is ignored.
 navidrome_music_dir = "/music"
 
 [navidrome]

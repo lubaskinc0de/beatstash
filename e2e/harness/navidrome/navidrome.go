@@ -475,6 +475,21 @@ func (n *Server) CreateLibrary(t *testing.T, name, path string) int {
 	return id
 }
 
+// GiveToNewAccounts makes Navidrome give the library to every account it
+// creates from now on.
+func (n *Server) GiveToNewAccounts(t *testing.T, libraryID int) {
+	t.Helper()
+
+	var library struct {
+		Name string `json:"name"`
+		Path string `json:"path"`
+	}
+	n.adminAPI(t, http.MethodGet, fmt.Sprintf("/api/library/%d", libraryID), nil, &library)
+	n.adminAPI(t, http.MethodPut, fmt.Sprintf("/api/library/%d", libraryID), map[string]any{
+		"name": library.Name, "path": library.Path, "defaultNewUsers": true,
+	}, nil)
+}
+
 func (n *Server) DeleteLibrary(t *testing.T, id int) {
 	t.Helper()
 	n.adminAPIEventually(t, "DELETE", fmt.Sprintf("/api/library/%d", id), nil, nil)

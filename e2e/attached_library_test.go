@@ -75,6 +75,45 @@ func TestAttachedLibraryAccess(t *testing.T) {
 		assert.NotContains(t, s.WindowText(), "Бот видит")
 	})
 
+	t.Run("library inside music_dir but apart from the bot's folders is attached", func(t *testing.T) {
+		var account navidrome.Account
+		s := harness.NewOwnNavidrome(t, func(s *harness.Scenario) {
+			account = s.Navidrome.CreateAccount(t, "alice")
+			own := s.NewMusicDirLibrary("own", audiofile.Fixture("track.mp3"))
+			s.Navidrome.OpenLibrary(t, account, own.ID)
+			s.Navidrome.UntilSongs(t, own.ID, 1)
+		})
+
+		s.Link(alice, account)
+
+		assert.Contains(t, s.WindowText(), "Бот видит 1 песню")
+	})
+
+	t.Run("attached library keeps the admin's default for new accounts", func(t *testing.T) {
+		var own harness.NavidromeLibrary
+		s := harness.NewOwnNavidrome(t, func(s *harness.Scenario) {
+			own = s.NewMusicDirLibrary("own")
+			s.Navidrome.GiveToNewAccounts(t, own.ID)
+		})
+
+		account := s.Navidrome.CreateAccountWithDefaults(t, "dave")
+
+		assert.Contains(t, s.Navidrome.Libraries(t, account), own.Path)
+	})
+
+	t.Run("link takes away a library that holds other users' Personal Libraries", func(t *testing.T) {
+		var account navidrome.Account
+		s := harness.NewOwnNavidrome(t, func(s *harness.Scenario) {
+			account = s.Navidrome.CreateAccount(t, "alice")
+			whole := s.NewNavidromeRootLibrary()
+			s.Navidrome.OpenLibrary(t, account, whole.ID)
+		})
+
+		s.Link(alice, account)
+
+		assert.NotContains(t, s.Navidrome.Libraries(t, account), navidrome.LibraryMount)
+	})
+
 	t.Run("library spanning music_dir is not attached", func(t *testing.T) {
 		var account navidrome.Account
 		s := harness.NewOwnNavidrome(t, func(s *harness.Scenario) {

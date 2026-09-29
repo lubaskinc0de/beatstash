@@ -9,11 +9,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-)
 
-// scratchDir lives inside music_dir so the final rename is atomic;
-// Navidrome skips hidden directories.
-const scratchDir = ".navidrome-tg"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+)
 
 type Disk struct {
 	MusicDir string
@@ -67,7 +65,7 @@ func (d *Disk) MakeDir(dir string) error {
 }
 
 func (d *Disk) Stage(audio io.Reader, ext string) (string, error) {
-	dir := filepath.Join(d.MusicDir, scratchDir)
+	dir := filepath.Join(d.MusicDir, library.ScratchDir)
 	if err := d.MakeDir(dir); err != nil {
 		return "", err
 	}
@@ -87,5 +85,5 @@ func (d *Disk) Stage(audio io.Reader, ext string) (string, error) {
 }
 
 func (d *Disk) ClearScratch() error {
-	return os.RemoveAll(filepath.Join(d.MusicDir, scratchDir))
+	return os.RemoveAll(filepath.Join(d.MusicDir, library.ScratchDir))
 }

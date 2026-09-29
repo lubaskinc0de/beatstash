@@ -70,8 +70,8 @@ func (s *Scenario) Register(newcomer User) navidrome.Account {
 	return s.IssuedAccount()
 }
 
-// NavidromeLibrary is a library made in Navidrome outside music_dir, like
-// the one a person kept before the bot.
+// NavidromeLibrary is a library made in Navidrome by hand, like the one a
+// person kept before the bot.
 type NavidromeLibrary struct {
 	ID int
 	// Dir is where its files lie on the host; Path is where Navidrome sees them.
@@ -79,24 +79,36 @@ type NavidromeLibrary struct {
 	Path string
 }
 
-// NewNavidromeLibrary copies the audio files into a new library's root.
+// NewNavidromeLibrary copies the audio files into a new library's root,
+// outside music_dir.
 func (s *Scenario) NewNavidromeLibrary(name string, files ...string) NavidromeLibrary {
 	s.t.Helper()
+	return s.newNavidromeLibrary(s.navidromeRoot, navidrome.LibraryMount, name, files)
+}
 
-	dir, err := os.MkdirTemp(s.navidromeRoot, name+"-")
+// NewMusicDirLibrary is NewNavidromeLibrary inside music_dir, next to the
+// bot's own folders.
+func (s *Scenario) NewMusicDirLibrary(name string, files ...string) NavidromeLibrary {
+	s.t.Helper()
+	return s.newNavidromeLibrary(s.Library, s.config.NavidromeMusicDir, name, files)
+}
+
+func (s *Scenario) newNavidromeLibrary(hostParent, navidromeParent, name string, files []string) NavidromeLibrary {
+	s.t.Helper()
+
+	dir, err := os.MkdirTemp(hostParent, name+"-")
 	require.NoError(s.t, err)
+	ndPath := navidromeParent + "/" + filepath.Base(dir)
 	nd := s.Navidrome
 	s.t.Cleanup(func() {
-		nd.DeleteLibrariesUnder(s.t, navidrome.LibraryMount+"/"+filepath.Base(dir))
+		nd.DeleteLibrariesUnder(s.t, ndPath)
 		_ = os.RemoveAll(dir)
 	})
 	require.NoError(s.t, os.Chmod(dir, 0o755)) //nolint:gosec // G302: Navidrome container reads the library
 	for _, file := range files {
 		s.AddToNavidromeLibrary(NavidromeLibrary{Dir: dir}, file, filepath.Base(file))
 	}
-
-	path := navidrome.LibraryMount + "/" + filepath.Base(dir)
-	return NavidromeLibrary{ID: s.Navidrome.CreateLibrary(s.t, filepath.Base(dir), path), Dir: dir, Path: path}
+	return NavidromeLibrary{ID: s.Navidrome.CreateLibrary(s.t, filepath.Base(dir), ndPath), Dir: dir, Path: ndPath}
 }
 
 // AddToNavidromeLibrary copies the file to rel within the library.

@@ -9,9 +9,14 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 )
 
+// The bot writes to these folders of music_dir only; the rest of it may
+// hold Attached Libraries.
 const (
 	SharedLibraryDir     = "shared"
 	PersonalLibrariesDir = "users"
+	// ScratchDir holds files on their way into a library. Navidrome skips
+	// hidden directories.
+	ScratchDir = ".navidrome-tg"
 )
 
 // Library is an aggregate root. It does not hold its Tracks: Tracks refer to
@@ -100,9 +105,10 @@ func (l *Library) MoveAttached(path string) {
 }
 
 // Grant returns the Navidrome libraries an account linked to the owner of
-// personal may see: the ones it sees now without other users' Personal
-// Libraries, plus personal and shared. Libraries the bot did not create stay.
-func Grant(current []int, all []Library, personal, shared *Library) []int {
+// personal may see: the ones it sees now, plus personal and shared, but
+// none that shows other users' Personal Libraries: theirs, or one that holds
+// the bot's folders. paths maps Navidrome's library ids to their paths.
+func Grant(current []int, all []Library, paths map[int]string, musicDir string, personal, shared *Library) []int {
 	others := map[int]bool{}
 	for _, lib := range all {
 		if lib.Kind == LibraryPersonal && lib.ID != personal.ID {
@@ -111,7 +117,8 @@ func Grant(current []int, all []Library, personal, shared *Library) []int {
 	}
 	ids := []int{personal.NavidromeID, shared.NavidromeID}
 	for _, id := range current {
-		if !others[id] && !slices.Contains(ids, id) {
+		around := PlacementOf(paths[id], musicDir) == PlacedAround
+		if !others[id] && !around && !slices.Contains(ids, id) {
 			ids = append(ids, id)
 		}
 	}

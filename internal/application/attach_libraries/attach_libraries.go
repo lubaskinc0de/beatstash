@@ -10,8 +10,8 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
-// AttachLibraries takes every Navidrome library outside music_dir into
-// account as an Attached Library and brings its Tracks in step with the
+// AttachLibraries takes every Navidrome library apart from the bot's folders
+// into account as an Attached Library and brings its Tracks in step with the
 // songs Navidrome has indexed there. A library gone from Navidrome, and its
 // Tracks, go too.
 type AttachLibraries struct {
@@ -40,7 +40,7 @@ func (i *AttachLibraries) Execute(ctx context.Context) error {
 		switch library.PlacementOf(nd.Path, i.MusicDir) {
 		case library.PlacedInside:
 		case library.PlacedAround:
-			slog.Warn("navidrome_library_spans_music_dir", "library", nd.Name, "path", nd.Path)
+			slog.Warn("navidrome_library_holds_bot_folders", "library", nd.Name, "path", nd.Path)
 		default:
 			attachable[nd.ID] = nd
 		}
