@@ -217,7 +217,7 @@ func TestShareFromAttachedLibrary(t *testing.T) {
 		s.Link(alice, account)
 		before := harness.FilesWithContent(t, own.Dir)
 		s.Navidrome.StartPlaying(t, account, s.Navidrome.IndexedTrack(t, account, own.Dir, audiofile.FixtureTitle).ID)
-		share := telegram.ButtonNamed(t, s.NowPlayingButtons(alice), "🔗 Поделиться")
+		share := telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), "🔗 Поделиться")
 
 		s.PressInline(alice, share)
 
@@ -248,7 +248,7 @@ func TestAttachedLibraryRefresh(t *testing.T) {
 		)
 		s.Link(alice, account)
 		s.Navidrome.StartPlaying(t, account, s.Navidrome.SongAt(t, account, audiofile.FixtureTitle, filepath.Join(own.Dir, "track.mp3")).ID)
-		s.PressInline(alice, telegram.ButtonNamed(t, s.NowPlayingButtons(alice), "🔗 Поделиться"))
+		s.PressInline(alice, telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), "🔗 Поделиться"))
 
 		require.NoError(t, os.Remove(filepath.Join(own.Dir, "track.mp3")))
 		s.Navidrome.UntilSongs(t, own.ID, 1)
@@ -281,7 +281,7 @@ func TestAttachedLibraryChanges(t *testing.T) {
 		track := s.Navidrome.IndexedTrack(t, account, moved.Path, audiofile.FixtureTitle)
 		s.Navidrome.StartPlaying(t, account, track.ID)
 
-		share := telegram.ButtonNamed(t, s.NowPlayingButtons(alice), "🔗 Поделиться")
+		share := telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), "🔗 Поделиться")
 		s.PressInline(alice, share)
 
 		assert.Contains(t, s.LastCallbackAnswer(), "В общей библиотеке")
@@ -309,7 +309,7 @@ func TestAttachedLibraryChanges(t *testing.T) {
 		assert.Contains(t, s.WindowText(), "Бот видит 1 песню")
 		track := s.Navidrome.IndexedTrack(t, account, own.Path, audiofile.FixtureTitle)
 		s.Navidrome.StartPlaying(t, account, track.ID)
-		share := telegram.ButtonNamed(t, s.NowPlayingButtons(alice), "🔗 Поделиться")
+		share := telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), "🔗 Поделиться")
 		s.PressInline(alice, share)
 		assert.Contains(t, s.LastCallbackAnswer(), "В общей библиотеке")
 	})

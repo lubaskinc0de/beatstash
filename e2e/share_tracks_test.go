@@ -19,7 +19,7 @@ func TestShareNowPlaying(t *testing.T) {
 		account := s.LinkNewAccount(alice)
 		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 		s.Navidrome.StartPlaying(t, account, s.Navidrome.IndexedTrack(t, account, s.Library, audiofile.FixtureTitle).ID)
-		share := telegram.ButtonNamed(t, s.NowPlayingButtons(alice), "🔗 Поделиться")
+		share := telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), "🔗 Поделиться")
 
 		s.PressInline(alice, share)
 
@@ -33,7 +33,7 @@ func TestShareNowPlaying(t *testing.T) {
 		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 		track := s.Navidrome.IndexedTrack(t, account, s.PersonalPath(alice, ""), audiofile.FixtureTitle)
 		s.Navidrome.StartPlaying(t, account, track.ID)
-		share := telegram.ButtonNamed(t, s.NowPlayingButtons(alice), "🔗 Поделиться")
+		share := telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), "🔗 Поделиться")
 
 		s.PressInline(bob, share)
 

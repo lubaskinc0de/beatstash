@@ -38,6 +38,7 @@ type API struct {
 	held     chan struct{}
 	messages int
 	uploaded []string
+	refusals int
 }
 
 const UploadedFileParam = "uploaded_file"
@@ -95,6 +96,23 @@ func (a *API) ReleaseGetFile() {
 	a.hold = nil
 }
 
+// RefuseUploads makes Telegram turn down the next n uploaded files.
+func (a *API) RefuseUploads(n int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.refusals = n
+}
+
+func (a *API) refuseUpload(params map[string]string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if params[UploadedFileParam] == "" || a.refusals == 0 {
+		return false
+	}
+	a.refusals--
+	return true
+}
+
 func (a *API) handle(w http.ResponseWriter, r *http.Request) {
 	method, ok := strings.CutPrefix(r.URL.Path, "/bot"+Token+"/")
 	if !ok {
@@ -132,6 +150,10 @@ func (a *API) handle(w http.ResponseWriter, r *http.Request) {
 	case "sendMessage", "editMessageText":
 		writeResult(w, a.botMessage(call, params))
 	case "sendAudio":
+		if a.refuseUpload(params) {
+			writeError(w, http.StatusBadRequest, "Bad Request: wrong file")
+			return
+		}
 		msg := a.botMessage(call, params)
 		msg["audio"] = a.sentAudio(params)
 		writeResult(w, msg)

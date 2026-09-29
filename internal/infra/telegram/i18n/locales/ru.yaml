@@ -248,6 +248,7 @@ playing:
   failed_title: ⚠️ Navidrome недоступен
   failed_description: Не удалось получить текущий трек
   failed_message: ⚠️ Не удалось получить текущий трек
+  file_not_sent: Не удалось прислать файл
 
 recent:
   title: 📜 Последние {{.Tracks}}

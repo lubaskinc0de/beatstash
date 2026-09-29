@@ -349,6 +349,18 @@ func (c Catalog) NowPlayingArticle(track *show_playing.NowPlaying) Article {
 	return nowPlayingArticle(track, c.NowPlaying(track))
 }
 
+// NotSentCaption replaces PendingCaption when the file cannot be sent.
+func (c Catalog) NotSentCaption(artist, title string, tooLarge bool) string {
+	return TrackCaption(artist, title) + "\n" + c.NotSentNote(tooLarge)
+}
+
+func (c Catalog) NotSentNote(tooLarge bool) string {
+	if tooLarge {
+		return "⚠️ " + esc(c.FileTooLarge())
+	}
+	return "⚠️ " + esc(c.t("playing.file_not_sent", nil))
+}
+
 func (c Catalog) NothingPlaying() Article   { return c.article("playing.nothing") }
 func (c Catalog) NowPlayingFailed() Article { return c.article("playing.failed") }
 func (c Catalog) HistoryEmpty() Article     { return c.article("recent.empty") }

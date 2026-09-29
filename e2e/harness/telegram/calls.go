@@ -46,6 +46,19 @@ func (r InlineResult) Buttons() []Button {
 	return buttons
 }
 
+// InlineEdit is how the bot changed a message the user sent through
+// inline mode.
+type InlineEdit struct {
+	Method string
+	Text   string
+	Media  struct {
+		Type    string `json:"type"`
+		Media   string `json:"media"`
+		Caption string `json:"caption"`
+	}
+	Buttons []Button
+}
+
 type Reply struct {
 	ReplyTo int
 	Text    string
@@ -151,6 +164,24 @@ func (a *API) InlineAnswerTo(t *testing.T, query *models.Update) InlineAnswer {
 	}
 	t.Fatalf("inline query %s is not answered", query.InlineQuery.ID)
 	return InlineAnswer{}
+}
+
+func (a *API) InlineEdits(t *testing.T, inlineMessageID string) []InlineEdit {
+	t.Helper()
+
+	var edits []InlineEdit
+	for _, call := range a.AllCalls() {
+		if call.Params["inline_message_id"] != inlineMessageID {
+			continue
+		}
+		edit := InlineEdit{Method: call.Method, Text: call.Params["text"]}
+		if media := call.Params["media"]; media != "" {
+			mustUnmarshal(t, media, &edit.Media)
+		}
+		edit.Buttons, _ = keyboardOf(call)
+		edits = append(edits, edit)
+	}
+	return edits
 }
 
 func (a *API) DeletedMessages() []string {

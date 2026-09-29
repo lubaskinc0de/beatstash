@@ -9,4 +9,5 @@ var Models = []any{
 	&FollowedBatch{},
 	&AccountNotice{},
 	&File{},
+	&Upload{},
 }

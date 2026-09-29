@@ -11,6 +11,7 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/store"
 )
@@ -66,17 +67,25 @@ func (h *Handler) handleNowPlaying(ctx context.Context, b *bot.Bot, queryID stri
 
 	var markup models.ReplyMarkup
 	if track.ShareableTrackID != 0 {
-		markup = &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
-			{Text: c.ShareButton(), CallbackData: callbackData(actionShareTrack, track.ShareableTrackID)},
-		}}}
+		markup = shareTrackKeyboard(c, track.ShareableTrackID)
 	}
-	if file := h.fileOf(ctx, track.Track); file != nil {
+	if file := h.filesOf(ctx, track.Track).of(track.Track); file != nil {
 		answerInline(ctx, b, queryID, withMarkup(cachedFileResult(track.ID, file, c.NowPlaying(track)), markup))
+		return
+	}
+	if h.pending(track.Track) {
+		answerInline(ctx, b, queryID, pendingResult(pendingResultID(track.Track.ID, 0, markup != nil), c.NowPlayingArticle(track), track.Track, markup))
 		return
 	}
 	result := article(track.ID, c.NowPlayingArticle(track))
 	result.ReplyMarkup = markup
 	answerInline(ctx, b, queryID, result)
+}
+
+func shareTrackKeyboard(c i18n.Catalog, trackID uint) *models.InlineKeyboardMarkup {
+	return &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
+		{Text: c.ShareButton(), CallbackData: callbackData(actionShareTrack, trackID)},
+	}}}
 }
 
 func (h *Handler) handleRecentlyPlayed(ctx context.Context, b *bot.Bot, queryID string) {
@@ -98,22 +107,28 @@ func (h *Handler) handleRecentlyPlayed(ctx context.Context, b *bot.Bot, queryID 
 	now := time.Now()
 	results := make([]models.InlineQueryResult, 0, len(tracks)+1)
 	results = append(results, article("recent-list", c.RecentList(tracks, now)))
+	found := make([]*library.Track, 0, len(tracks))
+	for i := range tracks {
+		found = append(found, tracks[i].Track)
+	}
+	files := h.filesOf(ctx, found...)
 	for i := range tracks {
 		track := &tracks[i]
 		caption := i18n.TrackCaption(track.Artist, track.Title)
-		if file := h.fileOf(ctx, track.Track); file != nil {
+		if file := files.of(track.Track); file != nil {
 			results = append(results, cachedFileResult("recent-"+track.ID, file, caption))
 			continue
 		}
-		results = append(results, &models.InlineQueryResultArticle{
-			ID:          "recent-" + track.ID,
+		a := i18n.Article{
 			Title:       i18n.ResultTitle(track.Artist, track.Title),
 			Description: c.RecentDescription(track, now),
-			InputMessageContent: &models.InputTextMessageContent{
-				MessageText: caption,
-				ParseMode:   models.ParseModeHTML,
-			},
-		})
+			Message:     caption,
+		}
+		if h.pending(track.Track) {
+			results = append(results, pendingResult(pendingResultID(track.Track.ID, i, false), a, track.Track, nil))
+			continue
+		}
+		results = append(results, article("recent-"+track.ID, a))
 	}
 	answerInline(ctx, b, queryID, results...)
 }

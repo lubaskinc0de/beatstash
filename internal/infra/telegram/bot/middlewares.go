@@ -22,6 +22,8 @@ func updateSender(update *models.Update) *models.User {
 		return update.InlineQuery.From
 	case update.CallbackQuery != nil:
 		return &update.CallbackQuery.From
+	case update.ChosenInlineResult != nil:
+		return &update.ChosenInlineResult.From
 	}
 
 	return nil

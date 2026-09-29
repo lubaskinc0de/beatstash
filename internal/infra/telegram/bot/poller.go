@@ -32,10 +32,7 @@ type Poller struct {
 	InvalidAccounts *sync_collection.GetInvalidatedProviderAccounts
 	AccountNotices  *store.AccountNotices
 
-	// StorageChatID gets the Tracks without a Telegram file, so inline mode
-	// sends them as audio; zero turns it off.
-	StorageChatID int64
-	MusicDir      string
+	MusicDir string
 
 	Interval time.Duration
 
@@ -321,23 +318,19 @@ func (p *Poller) postToStorageChat(ctx context.Context) error {
 	}
 	for n := range tracks {
 		track := &tracks[n]
-		posted, err := p.Handler.Sender.Post(ctx, p.StorageChatID, filepath.Join(p.MusicDir, track.Dir, track.Path), &track.Track)
+		_, _, err := p.Handler.fileFor(ctx, p.Handler.StorageChatID, &track.Track, filepath.Join(p.MusicDir, track.Dir, track.Path))
 		if err != nil {
 			slog.Error("post_track_to_storage_chat", "track_id", track.ID, "error", err)
 			p.mu.Lock()
 			p.unpostable = append(p.unpostable, track.ID)
 			p.mu.Unlock()
-			continue
-		}
-		if err := p.Handler.Files.Remember(ctx, *posted); err != nil {
-			return err
 		}
 	}
 	return nil
 }
 
 func (p *Poller) unposted(ctx context.Context, limit int) ([]store.Unfiled, error) {
-	if p.StorageChatID == 0 {
+	if p.Handler.StorageChatID == 0 {
 		return nil, nil
 	}
 	p.mu.Lock()

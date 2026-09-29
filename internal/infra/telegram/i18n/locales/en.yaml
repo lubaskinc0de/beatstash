@@ -255,6 +255,7 @@ playing:
   failed_title: ⚠️ Navidrome is unavailable
   failed_description: Could not get the current track
   failed_message: ⚠️ Could not get the current track
+  file_not_sent: Could not send the file
 
 recent:
   title: 📜 Last {{.Tracks}}

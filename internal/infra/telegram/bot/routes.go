@@ -24,6 +24,7 @@ func Options(ids common.IDProvider, users *store.Users, windows *store.Windows, 
 			"message",
 			"inline_query",
 			"callback_query",
+			"chosen_inline_result",
 		}),
 		bot.WithMiddlewares(arrivalMiddleware(windows), senderMiddleware, languageMiddleware(users, bundle), membersOnly(ids)),
 	}
@@ -38,6 +39,7 @@ func (h *Handler) Register(b *bot.Bot) {
 	b.RegisterHandlerMatchFunc(isText, h.handleText)
 	b.RegisterHandlerMatchFunc(isInlineQuery, h.handleInlineQuery)
 	b.RegisterHandlerMatchFunc(isCallbackQuery, h.handleCallbackQuery)
+	b.RegisterHandlerMatchFunc(isChosenInlineResult, h.handleChosenInlineResult)
 }
 
 func isInlineQuery(update *models.Update) bool {

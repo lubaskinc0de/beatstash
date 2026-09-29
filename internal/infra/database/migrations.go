@@ -45,6 +45,12 @@ var migrations = []*gormigrate.Migration{
 					FOREIGN KEY (source_track_id) REFERENCES tracks(id) ON DELETE SET NULL`).Error
 		},
 	},
+	{
+		ID: "0005_telegram_uploads",
+		Migrate: func(tx *gorm.DB) error {
+			return tx.AutoMigrate(&store.Upload{})
+		},
+	},
 }
 
 func Migrate(db *gorm.DB) error {

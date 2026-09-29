@@ -148,6 +148,15 @@ func (t *Track) KeptIn(kept []*Library) error {
 	return nil
 }
 
+// AudibleBy returns ErrNotKeptTrack unless the user can listen to the
+// Track: one of their Kept Libraries or the Shared Library has it.
+func (t *Track) AudibleBy(kept []*Library, shared *Library) error {
+	if t.In(shared) {
+		return nil
+	}
+	return t.KeptIn(kept)
+}
+
 // ShareableBy reports why a user cannot share the Track: it is not theirs,
 // or it is in the Inbox (without artist or title nobody would find it).
 func (t *Track) ShareableBy(kept []*Library) error {

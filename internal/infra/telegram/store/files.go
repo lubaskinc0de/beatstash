@@ -3,8 +3,8 @@ package store
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -31,6 +31,21 @@ func (File) TableName() string {
 	return "telegram_files"
 }
 
+// Upload claims a Track's upload to Telegram: the claimant uploads, the
+// others wait for the file instead of uploading it too.
+type Upload struct {
+	TrackID   uint      `gorm:"primaryKey;autoIncrement:false"`
+	StartedAt time.Time `gorm:"not null"`
+}
+
+func (Upload) TableName() string {
+	return "telegram_uploads"
+}
+
+// uploadTTL outlasts any upload, bounded by the Bot API client's timeout:
+// an older claim was left by a bot that stopped mid-upload.
+const uploadTTL = "5 minutes"
+
 // copiesOf lists the Tracks sharing a Track Ref with @track: copies made by
 // Share and Take, and the same file sent by several users. They have the
 // same audio, so one file serves them all.
@@ -43,24 +58,33 @@ type Files struct {
 	DB *gorm.DB
 }
 
-// For returns nil if neither the Track nor any copy of it has a file; it
-// prefers the Track's own file, then one Telegram plays as audio.
-func (f *Files) For(ctx context.Context, trackID uint) (*File, error) {
-	var file File
-	err := f.DB.WithContext(ctx).Raw(`
-		SELECT * FROM telegram_files
-		WHERE track_id = @track OR track_id IN (`+copiesOf+`)
-		ORDER BY track_id = @track DESC, kind = @audio DESC, track_id
-		LIMIT 1`,
-		sql.Named("track", trackID), sql.Named("audio", FileAudio),
-	).Take(&file).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, nil
+// Of maps each of the Tracks that has a file, of its own or of a copy, to
+// it; it prefers the Track's own file, then one Telegram plays as audio.
+func (f *Files) Of(ctx context.Context, trackIDs []uint) (map[uint]*File, error) {
+	if len(trackIDs) == 0 {
+		return map[uint]*File{}, nil
 	}
+	var rows []struct {
+		ForTrack uint
+		File
+	}
+	err := f.DB.WithContext(ctx).Raw(`
+		SELECT DISTINCT ON (tracks.id) tracks.id AS for_track, telegram_files.*
+		FROM tracks JOIN telegram_files
+		ON telegram_files.track_id = tracks.id
+		OR telegram_files.track_id IN (`+strings.ReplaceAll(copiesOf, "@track", "tracks.id")+`)
+		WHERE tracks.id IN @tracks
+		ORDER BY tracks.id, telegram_files.track_id = tracks.id DESC, telegram_files.kind = @audio DESC, telegram_files.track_id`,
+		sql.Named("tracks", trackIDs), sql.Named("audio", FileAudio),
+	).Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
-	return &file, nil
+	files := make(map[uint]*File, len(rows))
+	for n := range rows {
+		files[rows[n].ForTrack] = &rows[n].File
+	}
+	return files, nil
 }
 
 // Remember keeps a file sendable as audio over a document.
@@ -72,6 +96,24 @@ func (f *Files) Remember(ctx context.Context, file File) error {
 		WHERE telegram_files.kind <> ? AND EXCLUDED.kind = ?`,
 		file.TrackID, file.ID, file.UniqueID, file.Kind, FileAudio, FileAudio,
 	).Error
+}
+
+// Claim tells whether the caller may upload the Track: nobody else is at it,
+// or their claim is abandoned.
+func (f *Files) Claim(ctx context.Context, trackID uint) (bool, error) {
+	result := f.DB.WithContext(ctx).Exec(`
+		INSERT INTO telegram_uploads (track_id, started_at) VALUES (?, now())
+		ON CONFLICT (track_id) DO UPDATE SET started_at = now()
+		WHERE telegram_uploads.started_at < now() - interval '`+uploadTTL+`'`,
+		trackID,
+	)
+	return result.RowsAffected == 1, result.Error
+}
+
+// Release comes after Remember: a waiter that finds the claim gone finds
+// the file.
+func (f *Files) Release(ctx context.Context, trackID uint) error {
+	return f.DB.WithContext(ctx).Exec("DELETE FROM telegram_uploads WHERE track_id = ?", trackID).Error
 }
 
 // Recognize lists the Tracks whose file has the unique id, with their copies.

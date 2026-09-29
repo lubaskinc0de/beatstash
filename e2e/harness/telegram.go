@@ -146,6 +146,26 @@ func (s *Scenario) InlineQuery(from User, query string) *models.Update {
 	}
 }
 
+func (s *Scenario) Choose(from User, result telegram.InlineResult) *models.Update {
+	update := s.ChosenResult(from, result)
+	s.Send(update)
+	return update
+}
+
+// ChosenResult is how Telegram reports the choice: with the id of the
+// message it sent.
+func (s *Scenario) ChosenResult(from User, result telegram.InlineResult) *models.Update {
+	id := s.nextUpdateID()
+	return &models.Update{
+		ID: id,
+		ChosenInlineResult: &models.ChosenInlineResult{
+			ResultID:        result.ID,
+			From:            models.User{ID: from.ID, Username: from.Username},
+			InlineMessageID: fmt.Sprintf("chosen-message-%d", id),
+		},
+	}
+}
+
 // Press taps the button on the latest message that has it.
 func (s *Scenario) Press(from User, b telegram.Button) *models.Update {
 	return s.PressOn(from, b, s.Telegram.MessageWith(b))
@@ -182,14 +202,14 @@ func (s *Scenario) CallbackQuery(from User, data string) *models.Update {
 	}
 }
 
-func (s *Scenario) NowPlayingButtons(user User) []telegram.Button {
+func (s *Scenario) NowPlaying(user User) telegram.InlineResult {
 	s.t.Helper()
 
 	query := s.InlineQuery(user, "np")
 	s.Send(query)
 	results := s.Telegram.InlineAnswerTo(s.t, query).Results
 	require.Len(s.t, results, 1)
-	return results[0].Buttons()
+	return results[0]
 }
 
 // Uploaded sends the audio as the user and waits until it is ingested.

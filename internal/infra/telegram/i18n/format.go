@@ -43,6 +43,10 @@ func TrackCaption(artist, title string) string {
 	return "🎧 " + trackLine(artist, title)
 }
 
+func PendingCaption(artist, title string) string {
+	return "⏳ " + trackLine(artist, title)
+}
+
 func formatSeconds(seconds int) string {
 	return fmt.Sprintf("%02d:%02d", seconds/60, seconds%60)
 }

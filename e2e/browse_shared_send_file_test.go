@@ -158,6 +158,6 @@ func sharedZvukSong(t *testing.T, s *harness.Scenario, user harness.User, title 
 	song := s.Navidrome.IndexedTrack(t, account, s.PersonalPath(user, ""), title)
 	s.Navidrome.StartPlaying(t, account, song.ID)
 
-	s.PressInline(user, telegram.ButtonNamed(t, s.NowPlayingButtons(user), "🔗 Поделиться"))
+	s.PressInline(user, telegram.ButtonNamed(t, s.NowPlaying(user).Buttons(), "🔗 Поделиться"))
 	require.Len(t, s.SharedFiles(), 1)
 }

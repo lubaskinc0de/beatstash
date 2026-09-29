@@ -209,7 +209,6 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		Batches:         &ingest_track.GetIngestBatches{Queue: ingestQueue, Batches: batchRepo},
 		InvalidAccounts: &sync_collection.GetInvalidatedProviderAccounts{Accounts: providerAccountRepo},
 		AccountNotices:  &store.AccountNotices{DB: db},
-		StorageChatID:   cfg.StorageChatID,
 		MusicDir:        cfg.MusicDir,
 		Interval:        cfg.TelegramPollInterval,
 	}
@@ -240,6 +239,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Libraries: libs,
 			Attached:  attached,
 		},
+		GetTrackFile: &show_playing.GetTrackFile{IDs: ids, Repo: tracks, Libraries: libs, Attached: attached},
 		LinkNavidromeAccount: &connect_navidrome.LinkNavidromeAccount{
 			IDs:       ids,
 			Navidrome: navidromeClient,
@@ -316,6 +316,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		Files:             telegramFiles,
 		Sender:            audioSender,
 		Texts:             texts,
+		StorageChatID:     cfg.StorageChatID,
 	}
 	handler.Register(b)
 	poller.Handler = handler

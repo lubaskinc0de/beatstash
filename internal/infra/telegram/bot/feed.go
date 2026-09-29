@@ -91,18 +91,11 @@ func (h *Handler) sendFile(ctx context.Context, chatID int64, sharedTrackID uint
 	if err != nil {
 		return err
 	}
-	file, err := h.Files.For(ctx, track.ID)
-	if err != nil {
+	file, uploaded, err := h.fileFor(ctx, chatID, track, path)
+	if err != nil || uploaded {
 		return err
 	}
-	if file != nil {
-		return h.Sender.Send(ctx, chatID, file)
-	}
-	posted, err := h.Sender.Post(ctx, chatID, path, track)
-	if err != nil {
-		return err
-	}
-	return h.Files.Remember(ctx, *posted)
+	return h.Sender.Send(ctx, chatID, file)
 }
 
 func (h *Handler) handleInlineFeed(ctx context.Context, b *bot.Bot, queryID string) {
@@ -120,11 +113,16 @@ func (h *Handler) handleInlineFeed(ctx context.Context, b *bot.Bot, queryID stri
 
 	results := make([]models.InlineQueryResult, 0, len(entries)+1)
 	results = append(results, article("shared-list", c.FeedList(entries)))
+	tracks := make([]*library.Track, 0, len(entries))
+	for i := range entries {
+		tracks = append(tracks, &entries[i].Track)
+	}
+	files := h.filesOf(ctx, tracks...)
 	for i := range entries {
 		entry := &entries[i]
 		id := "shared-" + strconv.FormatUint(uint64(entry.Track.ID), 10)
 		caption := c.FeedCaption(entry)
-		if file := h.fileOf(ctx, &entry.Track); file != nil {
+		if file := files.of(&entry.Track); file != nil {
 			results = append(results, cachedFileResult(id, file, caption))
 			continue
 		}

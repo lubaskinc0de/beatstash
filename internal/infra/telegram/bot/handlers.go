@@ -23,6 +23,7 @@ type Handler struct {
 	EnqueueIngest             *add_track.EnqueueIngest
 	GetNowPlaying             *show_playing.GetNowPlaying
 	GetRecentlyPlayed         *show_playing.GetRecentlyPlayed
+	GetTrackFile              *show_playing.GetTrackFile
 	LinkNavidromeAccount      *connect_navidrome.LinkNavidromeAccount
 	GetNavidromeAccount       *connect_navidrome.GetNavidromeAccount
 	CreateInvite              *invite_friend.CreateInvite
@@ -54,6 +55,10 @@ type Handler struct {
 	Files       *store.Files
 	Sender      *AudioSender
 	Texts       *i18n.Bundle
+
+	// StorageChatID gets the Tracks without a Telegram file, so inline mode
+	// sends them as audio; zero turns it off.
+	StorageChatID int64
 
 	names botNames
 	chats chatLocks
