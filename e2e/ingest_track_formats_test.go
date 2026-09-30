@@ -2,6 +2,8 @@ package e2e
 
 import (
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/go-telegram/bot/models"
@@ -44,7 +46,8 @@ func TestFormats(t *testing.T) {
 				s.WaitIngest()
 
 				assert.Equal(t, []string{"👀", "👍"}, s.Telegram.Reactions(t))
-				assert.Len(t, s.PersonalFiles(alice), 1)
+				expected := strings.TrimSuffix(audiofile.FixtureTrackPath, ".mp3") + filepath.Ext(name)
+				assert.Equal(t, []string{expected}, s.PersonalFiles(alice))
 			})
 		}
 	})

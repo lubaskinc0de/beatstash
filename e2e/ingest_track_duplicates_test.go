@@ -16,8 +16,7 @@ func TestDuplicates(t *testing.T) {
 	t.Run("same MP3 sent twice is stored once", func(t *testing.T) {
 		s := harness.New(t)
 		mp3 := audiofile.Generate(t, "song.mp3", audiofile.Spec{Tags: audiofile.SongTags})
-		s.Send(s.AudioMessage(alice, s.UploadAudioFile(mp3)))
-		s.WaitIngest()
+		s.Uploaded(alice, s.UploadAudioFile(mp3))
 		second := s.AudioMessage(alice, s.UploadAudioFile(mp3))
 
 		s.Send(second)
@@ -28,30 +27,18 @@ func TestDuplicates(t *testing.T) {
 		harness.AssertAlreadyExists(t, s, second.Message.ID)
 	})
 
-	t.Run("forwarded audio is stored once", func(t *testing.T) {
-		s := harness.New(t)
-		audio := s.UploadAudio("track.mp3")
-		s.Send(s.AudioMessage(alice, audio))
-		s.WaitIngest()
-		forward := s.AudioMessage(alice, audio)
-
-		s.Send(forward)
-		s.WaitIngest()
-
-		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.PersonalFiles(alice))
-		harness.AssertAlreadyExists(t, s, forward.Message.ID)
-	})
-
-	t.Run("forwarded audio already stored still gets its reaction", func(t *testing.T) {
+	t.Run("the same Telegram audio sent again is stored once and gets its reaction", func(t *testing.T) {
 		s := harness.New(t)
 		audio := s.UploadAudio("track.mp3")
 		s.Uploaded(alice, audio)
-		forward := s.AudioMessage(alice, audio)
+		resent := s.AudioMessage(alice, audio)
 
-		s.Send(forward)
+		s.Send(resent)
 		s.WaitIngest()
 
-		assert.Equal(t, []string{"👀", "👍"}, s.Telegram.ReactionsOn(t, forward.Message.ID))
+		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.PersonalFiles(alice))
+		assert.Equal(t, []string{"👀", "👍"}, s.Telegram.ReactionsOn(t, resent.Message.ID))
+		harness.AssertAlreadyExists(t, s, resent.Message.ID)
 	})
 
 	t.Run("FLAC replaces MP3 and inline still sends the track", func(t *testing.T) {

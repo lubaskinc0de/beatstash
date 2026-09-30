@@ -80,7 +80,7 @@ func TestWindowFollowsChat(t *testing.T) {
 		assert.Contains(t, s.WindowText(), "Звук подключён")
 	})
 
-	t.Run("language list moves below", func(t *testing.T) {
+	t.Run("language list moves below and still switches language", func(t *testing.T) {
 		s := harness.New(t, harness.WithTranslations(translations(t, map[string]string{
 			"de.yaml": "language:\n  name: Deutsch\n",
 		})))
@@ -90,19 +90,10 @@ func TestWindowFollowsChat(t *testing.T) {
 
 		s.Go(alice, "🌐 Язык")
 
+		moved := s.Telegram.Window().MessageID
 		assert.Equal(t, "sendMessage", s.Telegram.Window().Method)
 		assert.Contains(t, s.Telegram.StrippedMessages(), old)
 		assert.Contains(t, s.WindowText(), "Выберите язык")
-	})
-
-	t.Run("language switch works in the moved list", func(t *testing.T) {
-		s := harness.New(t, harness.WithTranslations(translations(t, map[string]string{
-			"de.yaml": "language:\n  name: Deutsch\n",
-		})))
-		s.Open(alice)
-		s.Uploaded(alice, s.UploadAudio("track.mp3"))
-		s.Go(alice, "🌐 Язык")
-		moved := s.Telegram.Window().MessageID
 
 		s.Go(alice, "🌐 English")
 

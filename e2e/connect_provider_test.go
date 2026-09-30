@@ -25,21 +25,15 @@ func TestZvukAccount(t *testing.T) {
 		assert.Contains(t, s.WindowText(), "Статус: подключён")
 	})
 
-	t.Run("invalid token is rejected", func(t *testing.T) {
+	t.Run("invalid token is rejected and leaves Zvuk unconnected", func(t *testing.T) {
 		s := harness.New(t)
 
 		msg := s.SendZvukToken(alice, "wrong-token")
-
-		assert.Contains(t, s.Telegram.DeletedMessages(), strconv.Itoa(msg.Message.ID))
-		assert.Contains(t, s.WindowText(), "Звук не принял токен")
-	})
-
-	t.Run("rejected token leaves Zvuk unconnected", func(t *testing.T) {
-		s := harness.New(t)
-		s.SendZvukToken(alice, "wrong-token")
-
+		rejected := s.WindowText()
 		s.OpenZvuk(alice)
 
+		assert.Contains(t, s.Telegram.DeletedMessages(), strconv.Itoa(msg.Message.ID))
+		assert.Contains(t, rejected, "Звук не принял токен")
 		assert.Contains(t, s.WindowText(), "Статус: не подключён")
 	})
 

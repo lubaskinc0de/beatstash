@@ -60,28 +60,18 @@ func TestZvukTracks(t *testing.T) {
 		assert.InDelta(t, 320, audiofile.BitrateKbps(t, s.PersonalPath(alice, files[0])), 16)
 	})
 
-	t.Run("FLAC from Zvuk replaces the MP3 sent to Telegram", func(t *testing.T) {
-		s := harness.New(t)
-		s.ConnectZvuk(alice, harness.ZvukToken)
-		s.AddZvukSong("103", "Better Song", true)
-		s.LikeOnZvuk("103")
-		s.Uploaded(alice, s.UploadAudioFile(betterSongMP3(t)))
-
-		s.ImportZvuk(alice)
-		s.WaitIngest()
-
-		assert.Equal(t, []string{"Zvuk Band/Zvuk Album/01 - Better Song.flac"}, s.PersonalFiles(alice))
-	})
-
-	t.Run("replaced track is still sent by its Telegram file", func(t *testing.T) {
+	t.Run("FLAC from Zvuk replaces the MP3 while the shared track keeps its Telegram file", func(t *testing.T) {
 		s := harness.New(t)
 		s.ConnectZvuk(alice, harness.ZvukToken)
 		s.AddZvukSong("103", "Better Song", true)
 		s.LikeOnZvuk("103")
 		audio := s.UploadAudioFile(betterSongMP3(t))
 		upload := s.Uploaded(alice, audio)
+
 		s.ImportZvuk(alice)
 		s.WaitIngest()
+
+		assert.Equal(t, []string{"Zvuk Band/Zvuk Album/01 - Better Song.flac"}, s.PersonalFiles(alice))
 		s.Share(alice, upload, "🔗 Трек")
 		query := s.InlineQuery(bob, "shared")
 
@@ -110,8 +100,15 @@ func TestZvukTracks(t *testing.T) {
 		s.ImportZvuk(alice)
 		s.WaitIngest()
 
-		assert.Len(t, s.PersonalFiles(alice), 149)
-		assert.Contains(t, s.SentMessagesContaining(alice, "Импорт из Звука")[0], "149 из 149 в библиотеке")
+		files := s.PersonalFiles(alice)
+		assert.Len(t, files, 149)
+		assert.Contains(t, files, "Various/Mix (2019)/01 - Track 1.mp3")
+		assert.NotContains(t, files, "Various/Mix (2019)/11 - Track 11.mp3")
+		assert.Contains(t, files, "Various/Mix (2019)/100 - Track 100.mp3")
+		assert.Contains(t, files, "Various/Mix (2019)/150 - Track 150.mp3")
+		summaries := s.SentMessagesContaining(alice, "Импорт из Звука")
+		require.Len(t, summaries, 1)
+		assert.Contains(t, summaries[0], "149 из 149 в библиотеке")
 	})
 
 	t.Run("unavailable Zvuk does not stop Telegram uploads", func(t *testing.T) {

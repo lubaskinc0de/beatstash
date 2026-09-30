@@ -75,8 +75,7 @@ func TestLayout(t *testing.T) {
 			s := harness.New(t)
 			audio := s.UploadAudioFile(audiofile.Generate(t, "in.mp3", audiofile.Spec{Tags: tc.tags}))
 
-			s.Send(s.AudioMessage(alice, audio))
-			s.WaitIngest()
+			s.Uploaded(alice, audio)
 
 			assert.Equal(t, []string{tc.path}, s.PersonalFiles(alice))
 		})
@@ -87,11 +86,9 @@ func TestLayout(t *testing.T) {
 		tags := map[string]string{"artist": "Artist", "album": "Album", "track": "1", "title": "Song"}
 		short := s.UploadAudioFile(audiofile.Generate(t, "short.mp3", audiofile.Spec{Seconds: 1.5, Tags: tags}))
 		long := s.UploadAudioFile(audiofile.Generate(t, "long.mp3", audiofile.Spec{Seconds: 8, Tags: tags}))
-		s.Send(s.AudioMessage(alice, short))
-		s.WaitIngest()
+		s.Uploaded(alice, short)
 
-		s.Send(s.AudioMessage(alice, long))
-		s.WaitIngest()
+		s.Uploaded(alice, long)
 
 		assert.Equal(t, []string{"Artist/Album/01 - Song (2).mp3", "Artist/Album/01 - Song.mp3"}, s.PersonalFiles(alice))
 	})
@@ -124,8 +121,7 @@ func TestMetadata(t *testing.T) {
 		audio.Performer = "Telegram Artist"
 		audio.Title = "Telegram Song"
 
-		s.Send(s.AudioMessage(alice, audio))
-		s.WaitIngest()
+		s.Uploaded(alice, audio)
 
 		assert.Equal(t, []string{"👀", "👍"}, s.Telegram.Reactions(t))
 		assert.Equal(t, []string{"Telegram Artist/Singles/Telegram Song.mp3"}, s.PersonalFiles(alice))
@@ -138,8 +134,7 @@ func TestMetadata(t *testing.T) {
 		s := harness.New(t)
 		audio := s.UploadAudioFile(audiofile.Generate(t, "Name Artist - Name Song.mp3", audiofile.Spec{}))
 
-		s.Send(s.AudioMessage(alice, audio))
-		s.WaitIngest()
+		s.Uploaded(alice, audio)
 
 		assert.Equal(t, []string{"Name Artist/Singles/Name Song.mp3"}, s.PersonalFiles(alice))
 		tags := audiofile.Tags(t, s.PersonalPath(alice, "Name Artist/Singles/Name Song.mp3"))
@@ -168,8 +163,7 @@ func TestMetadata(t *testing.T) {
 		audio.Performer = "Telegram Artist"
 		audio.Title = "Telegram Song"
 
-		s.Send(s.AudioMessage(alice, audio))
-		s.WaitIngest()
+		s.Uploaded(alice, audio)
 
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.PersonalFiles(alice))
 	})
@@ -182,8 +176,7 @@ func TestMetadata(t *testing.T) {
 		audio.Performer = "Telegram Artist"
 		audio.Title = "Telegram Song"
 
-		s.Send(s.AudioMessage(alice, audio))
-		s.WaitIngest()
+		s.Uploaded(alice, audio)
 
 		assert.Equal(t, []string{"Telegram Artist/Tagged Album/Tagged Title.mp3"}, s.PersonalFiles(alice))
 	})
