@@ -111,7 +111,7 @@ func (h *Home) languageButton(c i18n.Catalog) models.InlineKeyboardButton {
 }
 
 func languageChoice(c i18n.Catalog) models.InlineKeyboardButton {
-	return models.InlineKeyboardButton{Text: "🌐 " + c.LanguageName(), CallbackData: actionLanguage + ":" + string(c.Language())}
+	return models.InlineKeyboardButton{Text: c.LanguageButton(), CallbackData: actionLanguage + ":" + string(c.Language())}
 }
 
 // languagesView uses only language callbacks, so strangers can use it:

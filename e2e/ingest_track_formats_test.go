@@ -12,6 +12,7 @@ import (
 
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
 )
 
 func TestFormats(t *testing.T) {
@@ -64,7 +65,7 @@ func TestFormats(t *testing.T) {
 		replies := s.Telegram.Replies(t)
 		require.Len(t, replies, 1)
 		assert.Equal(t, msg.Message.ID, replies[0].ReplyTo)
-		assert.Contains(t, replies[0].Text, "формат не поддерживается")
+		assert.Contains(t, replies[0].Text, s.Catalog(alice).UploadFailed(ingest.ReasonUnsupportedFormat))
 		assert.Empty(t, s.LibraryFiles())
 	})
 

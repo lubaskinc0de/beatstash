@@ -17,65 +17,71 @@ func TestZvukAccount(t *testing.T) {
 	t.Run("valid token connects Zvuk", func(t *testing.T) {
 		s := harness.New(t)
 		s.Zvuk.AddAccount(harness.ZvukToken, true)
+		c := s.Catalog(alice)
 
 		msg := s.SendZvukToken(alice, harness.ZvukToken)
 
 		assert.Contains(t, s.Telegram.DeletedMessages(), strconv.Itoa(msg.Message.ID))
-		assert.Contains(t, s.WindowText(), "Звук подключён")
-		assert.Contains(t, s.WindowText(), "Статус: подключён")
+		assert.Contains(t, s.WindowText(), c.Connected("zvuk"))
+		assert.Contains(t, s.WindowText(), c.Provider("zvuk", "connected"))
 	})
 
 	t.Run("invalid token is rejected and leaves Zvuk unconnected", func(t *testing.T) {
 		s := harness.New(t)
+		c := s.Catalog(alice)
 
 		msg := s.SendZvukToken(alice, "wrong-token")
 		rejected := s.WindowText()
 		s.OpenZvuk(alice)
 
 		assert.Contains(t, s.Telegram.DeletedMessages(), strconv.Itoa(msg.Message.ID))
-		assert.Contains(t, rejected, "Звук не принял токен")
-		assert.Contains(t, s.WindowText(), "Статус: не подключён")
+		assert.Contains(t, rejected, c.TokenInvalid("zvuk"))
+		assert.Contains(t, s.WindowText(), c.Provider("zvuk", "not_connected"))
 	})
 
 	t.Run("account without subscription is rejected and stays unconnected", func(t *testing.T) {
 		s := harness.New(t)
+		c := s.Catalog(alice)
 		s.Zvuk.AddAccount(harness.ZvukToken, false)
 
 		s.SendZvukToken(alice, harness.ZvukToken)
 		rejected := s.WindowText()
 		s.OpenZvuk(alice)
 
-		assert.Contains(t, rejected, "нет подписки")
-		assert.Contains(t, s.WindowText(), "Статус: не подключён")
+		assert.Contains(t, rejected, c.NoSubscription("zvuk"))
+		assert.Contains(t, s.WindowText(), c.Provider("zvuk", "not_connected"))
 	})
 
 	t.Run("user disconnects Zvuk", func(t *testing.T) {
 		s := harness.New(t)
+		c := s.Catalog(alice)
 		s.ConnectZvuk(alice, harness.ZvukToken)
 
-		s.OpenZvuk(alice, "🚫 Отключить")
+		s.OpenZvuk(alice, s.Catalog(alice).Disconnect())
 
-		assert.Contains(t, s.WindowText(), "Звук отключён")
-		assert.Contains(t, s.WindowText(), "Статус: не подключён")
-		assert.Equal(t, []string{"🔌 Подключить", "← Назад"}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
+		assert.Contains(t, s.WindowText(), c.Disconnected("zvuk"))
+		assert.Contains(t, s.WindowText(), c.Provider("zvuk", "not_connected"))
+		assert.Equal(t, []string{c.Connect(), c.Back()}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
 	})
 
 	t.Run("unavailable Zvuk leaves the account unconnected", func(t *testing.T) {
 		s := harness.New(t)
+		c := s.Catalog(alice)
 		s.Zvuk.AddAccount(harness.ZvukToken, true)
 		s.Zvuk.SetDown(true)
 
 		s.SendZvukToken(alice, harness.ZvukToken)
 
-		assert.Contains(t, s.WindowText(), "Звук недоступен")
+		assert.Contains(t, s.WindowText(), c.ProviderDown("zvuk"))
 	})
 
 	t.Run("services to import from are those with a collection", func(t *testing.T) {
 		s := harness.New(t)
+		c := s.Catalog(alice)
 
-		s.Open(alice, "📥 Импорт из музыкального сервиса")
+		s.Open(alice, s.Catalog(alice).ImportButton())
 
-		assert.Equal(t, []string{"🟣 Звук", "📊 Импорты", "← Назад"}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
+		assert.Equal(t, []string{c.ProviderButton("zvuk"), c.ImportsButton(), c.Back()}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
 	})
 
 	t.Run("zvuk commands are gone", func(t *testing.T) {
@@ -103,7 +109,7 @@ func TestZvukReconnect(t *testing.T) {
 		s.Navidrome.UntilPlaylist(t, account, "My Playlist", []string{"Listed/Song 1", "Liked/Song 1"})
 		added := s.AddZvukAlbum("685", "Again", 1)
 
-		s.OpenZvuk(alice, "🚫 Отключить")
+		s.OpenZvuk(alice, s.Catalog(alice).Disconnect())
 		s.SendZvukToken(alice, harness.ZvukToken)
 		s.Zvuk.UpdatePlaylist("810", func(p *zvuk.Playlist) { p.Tracks = append(p.Tracks, added...) })
 

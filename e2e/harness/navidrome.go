@@ -18,7 +18,7 @@ func (s *Scenario) LinkNewAccount(user User) navidrome.Account {
 
 	account := s.Navidrome.CreateAccount(s.t, user.Username)
 	s.Link(user, account)
-	require.Contains(s.t, s.WindowText(), "привязан")
+	require.Contains(s.t, s.WindowText(), s.Catalog(user).Linked(account.Login, 0))
 	return account
 }
 
@@ -46,10 +46,10 @@ func (s *Scenario) IssuedAccount() navidrome.Account {
 func (s *Scenario) Link(from User, account navidrome.Account) *models.Update {
 	s.t.Helper()
 
-	s.Open(from, "👤 Аккаунты")
-	link := "🔗 Привязать"
+	s.Open(from, s.Catalog(from).AccountsButton())
+	link := s.Catalog(from).Link()
 	if !slices.Contains(telegram.ButtonTexts(s.Telegram.Buttons(s.t)), link) {
-		link = "🔗 Привязать другой"
+		link = s.Catalog(from).LinkAnother()
 	}
 	s.Go(from, link)
 	return s.SendText(from, account.Login+" "+account.Password)

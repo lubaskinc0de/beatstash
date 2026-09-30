@@ -38,27 +38,29 @@ func TestNowPlaying(t *testing.T) {
 	t.Run("np explains that nothing is playing for a linked account", func(t *testing.T) {
 		s := harness.New(t)
 		s.LinkNewAccount(alice)
+		article := s.Catalog(alice).NothingPlaying()
 		query := s.InlineQuery(alice, "np")
 
 		s.Send(query)
 
 		results := s.Telegram.InlineAnswerTo(t, query).Results
 		require.Len(t, results, 1)
-		assert.Contains(t, results[0].Title, "Ничего не играет")
-		assert.Contains(t, results[0].Content.Text, "Сейчас ничего не играет")
+		assert.Contains(t, results[0].Title, article.Title)
+		assert.Contains(t, results[0].Content.Text, article.Message)
 	})
 
 	t.Run("recent explains that the linked account has no history", func(t *testing.T) {
 		s := harness.New(t)
 		s.LinkNewAccount(alice)
+		article := s.Catalog(alice).HistoryEmpty()
 		query := s.InlineQuery(alice, "recent")
 
 		s.Send(query)
 
 		results := s.Telegram.InlineAnswerTo(t, query).Results
 		require.Len(t, results, 1)
-		assert.Contains(t, results[0].Title, "История пуста")
-		assert.Contains(t, results[0].Content.Text, "История прослушиваний пуста")
+		assert.Contains(t, results[0].Title, article.Title)
+		assert.Contains(t, results[0].Content.Text, article.Message)
 	})
 }
 
@@ -93,11 +95,13 @@ func TestInlineHints(t *testing.T) {
 
 	t.Run("hints follow the user's language", func(t *testing.T) {
 		s := harness.New(t)
-		s.Open(alice, "🌐 English")
+		s.Open(alice, s.Catalog(harness.User{LanguageCode: "en"}).LanguageButton())
 		query := s.InlineQuery(alice, "")
 
 		s.Send(query)
 
-		assert.Equal(t, "Now playing", s.Telegram.InlineAnswerTo(t, query).Results[0].Description)
+		english := alice
+		english.LanguageCode = "en"
+		assert.Equal(t, s.Catalog(english).Hints(telegram.BotUsername)[0].Description, s.Telegram.InlineAnswerTo(t, query).Results[0].Description)
 	})
 }

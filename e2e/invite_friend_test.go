@@ -49,8 +49,8 @@ func TestInvite(t *testing.T) {
 		upload := s.AudioMessage(dave, s.UploadAudio("track.mp3"))
 		s.Send(upload)
 
-		assert.Contains(t, s.WindowText(), "Приглашение недействительно")
-		assert.Contains(t, s.WindowText(), "только по приглашению")
+		assert.Contains(t, s.WindowText(), s.Catalog(dave).InviteInvalid())
+		assert.Contains(t, s.WindowText(), s.Catalog(dave).StrangerHome(4, 0, ""))
 		assert.Empty(t, s.Telegram.ReactionsOn(t, upload.Message.ID))
 	})
 
@@ -64,31 +64,32 @@ func TestInvite(t *testing.T) {
 		upload := s.AudioMessage(carol, s.UploadAudio("track.mp3"))
 		s.Send(upload)
 
-		assert.Contains(t, s.WindowText(), "Приглашение недействительно")
+		assert.Contains(t, s.WindowText(), s.Catalog(carol).InviteInvalid())
 		assert.Empty(t, s.Telegram.ReactionsOn(t, upload.Message.ID))
 	})
 
 	t.Run("admin gets another working invite", func(t *testing.T) {
 		s := harness.New(t)
-		s.Open(admin, "🎟 Пригласить")
+		s.Open(admin, s.Catalog(admin).InviteButton())
 		first := s.InviteCode()
 
-		s.Go(admin, "🎟 Ещё одно")
+		s.Go(admin, s.Catalog(admin).AnotherInvite())
 		second := s.InviteCode()
 		s.Register(harness.Newcomer("carol"))
 		dave := harness.Newcomer("dave")
 		s.Send(s.TextMessage(dave, "/start "+second))
 
 		assert.NotEqual(t, first, second)
-		assert.Contains(t, s.WindowText(), "Придумайте логин")
+		assert.Contains(t, s.WindowText(), s.Catalog(dave).ChooseLogin())
 	})
 
 	t.Run("invite says how long it lasts", func(t *testing.T) {
 		s := harness.New(t)
 
-		s.Open(admin, "🎟 Пригласить")
+		s.Open(admin, s.Catalog(admin).InviteButton())
 
-		assert.Contains(t, s.WindowText(), "действует 7 дней")
+		link := "https://t.me/" + telegram.BotUsername + "?start=" + s.InviteCode()
+		assert.Contains(t, s.WindowText(), s.Catalog(admin).Invite(link, 7*24*time.Hour))
 	})
 
 	t.Run("admin dropped from config can no longer invite", func(t *testing.T) {
@@ -97,9 +98,9 @@ func TestInvite(t *testing.T) {
 		s.Restart(harness.WithAdmins(alice))
 		s.Open(admin)
 		adminButtons := telegram.ButtonTexts(s.Telegram.Buttons(t))
-		s.Open(alice, "🎟 Пригласить")
+		s.Open(alice, s.Catalog(alice).InviteButton())
 
-		assert.NotContains(t, adminButtons, "🎟 Пригласить")
+		assert.NotContains(t, adminButtons, s.Catalog(admin).InviteButton())
 		assert.Contains(t, s.WindowText(), "?start=")
 	})
 

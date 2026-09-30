@@ -12,6 +12,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
 )
 
 func TestQueue(t *testing.T) {
@@ -44,7 +45,7 @@ func TestQueue(t *testing.T) {
 		replies := s.Telegram.Replies(t)
 		require.Len(t, replies, 1)
 		assert.Equal(t, msg.Message.ID, replies[0].ReplyTo)
-		assert.Contains(t, replies[0].Text, "Telegram не отдал файл")
+		assert.Contains(t, replies[0].Text, s.Catalog(alice).UploadFailed(ingest.ReasonFetchFailed))
 		assert.Empty(t, s.LibraryFiles())
 	})
 
@@ -60,7 +61,7 @@ func TestQueue(t *testing.T) {
 		assert.Equal(t, []string{"👀", "👎"}, s.Telegram.Reactions(t))
 		replies := s.Telegram.Replies(t)
 		require.Len(t, replies, 1)
-		assert.Contains(t, replies[0].Text, "файл повреждён")
+		assert.Contains(t, replies[0].Text, s.Catalog(alice).UploadFailed(ingest.ReasonCorruptFile))
 		assert.Empty(t, s.LibraryFiles())
 	})
 

@@ -10,13 +10,7 @@ import (
 
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
-)
-
-const (
-	mostShared = "Больше всех поделился"
-	mostTaken  = "Чаще всего берут"
-	allTime    = "за всё время"
-	thisMonth  = "за этот месяц"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
 )
 
 func TestTop(t *testing.T) {
@@ -24,81 +18,83 @@ func TestTop(t *testing.T) {
 
 	t.Run("album counts as its tracks", func(t *testing.T) {
 		s := harness.New(t)
-		s.Share(alice, s.UploadAlbum(alice, "Album", 3)[0], "💿 Альбом целиком")
-		s.Share(bob, s.Uploaded(bob, s.UploadAudio("track.mp3")), "🔗 Трек")
+		s.Share(alice, s.UploadAlbum(alice, "Album", 3)[0], s.Catalog(alice).ShareAlbum())
+		s.Share(bob, s.Uploaded(bob, s.UploadAudio("track.mp3")), s.Catalog(bob).ShareTrack())
 
 		top := top(s, alice)
 
-		assert.Equal(t, []string{"1. @alice — 3", "2. @bob — 1"}, topLines(t, top, mostShared, allTime))
-		assert.Equal(t, []string{"1. @alice — 3", "2. @bob — 1"}, topLines(t, top, mostShared, thisMonth))
+		assert.Equal(t, []string{"1. @alice — 3", "2. @bob — 1"}, topLines(t, top, s.Catalog(alice).TopSharedLabel(), s.Catalog(alice).TopAllTimeLabel()))
+		assert.Equal(t, []string{"1. @alice — 3", "2. @bob — 1"}, topLines(t, top, s.Catalog(alice).TopSharedLabel(), s.Catalog(alice).TopThisMonthLabel()))
 	})
 
 	t.Run("author taken by two users ranks first", func(t *testing.T) {
 		s := harness.New(t)
-		s.Share(bob, s.Uploaded(bob, s.UploadAudioFile(audiofile.Generate(t, "song.mp3", audiofile.Spec{Tags: audiofile.SongTags}))), "🔗 Трек")
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), "🔗 Трек")
+		s.Share(bob, s.Uploaded(bob, s.UploadAudioFile(audiofile.Generate(t, "song.mp3", audiofile.Spec{Tags: audiofile.SongTags}))), s.Catalog(bob).ShareTrack())
+		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
 		s.Take(bob, 1)
 		s.Take(admin, 1)
 
 		top := top(s, alice)
 
-		assert.Equal(t, []string{"1. @alice — 2"}, topLines(t, top, mostTaken, allTime))
+		assert.Equal(t, []string{"1. @alice — 2"}, topLines(t, top, s.Catalog(alice).TopTakenLabel(), s.Catalog(alice).TopAllTimeLabel()))
 	})
 
 	t.Run("last month's Share counts only for all time", func(t *testing.T) {
 		s := harness.New(t)
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), "🔗 Трек")
+		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
 		s.Clock.Advance(32 * 24 * time.Hour)
-		s.Share(bob, s.Uploaded(bob, s.UploadAudioFile(audiofile.Generate(t, "song.mp3", audiofile.Spec{Tags: audiofile.SongTags}))), "🔗 Трек")
+		s.Share(bob, s.Uploaded(bob, s.UploadAudioFile(audiofile.Generate(t, "song.mp3", audiofile.Spec{Tags: audiofile.SongTags}))), s.Catalog(bob).ShareTrack())
 
 		top := top(s, alice)
 
-		assert.Equal(t, []string{"1. @alice — 1", "2. @bob — 1"}, topLines(t, top, mostShared, allTime))
-		assert.Equal(t, []string{"1. @bob — 1"}, topLines(t, top, mostShared, thisMonth))
+		assert.Equal(t, []string{"1. @alice — 1", "2. @bob — 1"}, topLines(t, top, s.Catalog(alice).TopSharedLabel(), s.Catalog(alice).TopAllTimeLabel()))
+		assert.Equal(t, []string{"1. @bob — 1"}, topLines(t, top, s.Catalog(alice).TopSharedLabel(), s.Catalog(alice).TopThisMonthLabel()))
 	})
 
 	t.Run("taking one's own Share does not count", func(t *testing.T) {
 		s := harness.New(t)
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), "🔗 Трек")
+		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
 
-		s.Open(alice, "🎵 Лента", "1. ✅ Уже у вас")
+		s.Open(alice, s.Catalog(alice).FeedButton(), s.Catalog(alice).InLibraryButton(1))
 
-		assert.Equal(t, []string{"Пока никого"}, topLines(t, top(s, alice), mostTaken, allTime))
+		assert.Equal(t, []string{s.Catalog(alice).TopNobody()}, topLines(t, top(s, alice), s.Catalog(alice).TopTakenLabel(), s.Catalog(alice).TopAllTimeLabel()))
 	})
 
 	t.Run("upload of a shared file does not count as Take", func(t *testing.T) {
 		s := harness.New(t)
 		audio := s.UploadAudio("track.mp3")
-		s.Share(alice, s.Uploaded(alice, audio), "🔗 Трек")
+		s.Share(alice, s.Uploaded(alice, audio), s.Catalog(alice).ShareTrack())
 
 		s.Uploaded(bob, audio)
 
-		assert.Equal(t, []string{"Пока никого"}, topLines(t, top(s, alice), mostTaken, allTime))
+		assert.Equal(t, []string{s.Catalog(alice).TopNobody()}, topLines(t, top(s, alice), s.Catalog(alice).TopTakenLabel(), s.Catalog(alice).TopAllTimeLabel()))
 	})
 
 	t.Run("inline top is ready to send", func(t *testing.T) {
 		s := harness.New(t)
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), "🔗 Трек")
+		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
 		query := s.InlineQuery(bob, "top")
 
 		s.Send(query)
 
 		results := s.Telegram.InlineAnswerTo(t, query).Results
 		require.Len(t, results, 1)
-		assert.Contains(t, results[0].Title, "Топ")
+		assert.Contains(t, results[0].Title, s.Catalog(bob).TopArticle(&view_top.Top{}).Title)
 	})
 }
 
 func top(s *harness.Scenario, user harness.User) string {
-	s.Open(user, "🏆 Топ")
+	s.Open(user, s.Catalog(user).TopButton())
 	return s.WindowText()
 }
 
-// topLines returns the rows of one rating, the block titled with its name and period.
+// topLines returns the rows of the rating identified by its localized heading.
 func topLines(t *testing.T, top, rating, period string) []string {
 	t.Helper()
 
-	for _, block := range strings.Split(top, "\n\n") {
+	blocks := strings.Split(top, "\n\n")
+	require.Len(t, blocks, 5)
+	for _, block := range blocks[1:] {
 		lines := strings.Split(strings.TrimSpace(block), "\n")
 		if strings.Contains(lines[0], rating) && strings.Contains(lines[0], period) {
 			return lines[1:]

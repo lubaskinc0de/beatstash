@@ -20,6 +20,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/zvuk"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 	tgbot "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/bot"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
 	app "github.com/lubaskinc0de/navidrome-tg/internal/main"
 )
 
@@ -56,6 +57,7 @@ type Scenario struct {
 	Zvuk      *zvuk.API
 	Navidrome *navidrome.Server
 	Library   string
+	texts     *catalogStore
 
 	t      *testing.T
 	config app.Config
@@ -77,6 +79,12 @@ type Scenario struct {
 type instances struct {
 	mu   sync.Mutex
 	apps []*app.App
+}
+
+type catalogStore struct {
+	once   sync.Once
+	bundle *i18n.Bundle
+	err    error
 }
 
 func (i *instances) add(a *app.App) {
@@ -158,8 +166,24 @@ func prepare(t *testing.T, opts ...Option) *Scenario {
 	return &Scenario{
 		t: t, Clock: clk, config: cfg, Telegram: api, Zvuk: zvukAPI,
 		Navidrome: env.navidrome, Library: library, navidromeRoot: env.libraryRoot,
-		running: &instances{}, updates: &atomic.Int64{}, uploads: &atomic.Int64{},
+		running: &instances{}, updates: &atomic.Int64{}, uploads: &atomic.Int64{}, texts: &catalogStore{},
 	}
+}
+
+// Catalog uses the language code in the test user and the bot's translation
+// options. After a language switch, pass a User with the selected code.
+func (s *Scenario) Catalog(user User) i18n.Catalog {
+	s.t.Helper()
+
+	s.texts.once.Do(func() {
+		s.texts.bundle, s.texts.err = i18n.Load(i18n.Options{
+			Dir:     s.config.TranslationsDir,
+			Default: i18n.Language(s.config.DefaultLanguage),
+			Brand:   i18n.Brand{Service: s.config.ServiceName, NavidromeURL: s.config.NavidromePublicURL},
+		})
+	})
+	require.NoError(s.t, s.texts.err)
+	return s.texts.bundle.For(s.texts.bundle.Match(user.LanguageCode))
 }
 
 func (s *Scenario) start() {
@@ -213,6 +237,7 @@ func (s *Scenario) Restart(opts ...Option) {
 	for _, opt := range opts {
 		opt(&s.config)
 	}
+	s.texts = &catalogStore{}
 	s.start()
 }
 

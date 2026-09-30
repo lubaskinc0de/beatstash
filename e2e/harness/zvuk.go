@@ -18,21 +18,21 @@ func (s *Scenario) ConnectZvuk(user User, token string) *zvuk.Account {
 
 	account := s.Zvuk.AddAccount(token, true)
 	s.SendZvukToken(user, token)
-	assert.Contains(s.t, s.WindowText(), "Звук подключён")
+	assert.Contains(s.t, s.WindowText(), s.Catalog(user).Connected("zvuk"))
 	return account
 }
 
 func (s *Scenario) SendZvukToken(user User, token string) *models.Update {
 	s.t.Helper()
 
-	s.OpenZvuk(user, "🔌 Подключить")
+	s.OpenZvuk(user, s.Catalog(user).Connect())
 	return s.SendText(user, token)
 }
 
 func (s *Scenario) OpenZvuk(user User, buttons ...string) {
 	s.t.Helper()
 
-	s.Open(user, "📥 Импорт из музыкального сервиса", "🟣 Звук")
+	s.Open(user, s.Catalog(user).ImportButton(), s.Catalog(user).ProviderButton("zvuk"))
 	s.Go(user, buttons...)
 }
 
@@ -68,7 +68,7 @@ func (s *Scenario) AddZvukCollection(token string) ZvukCollection {
 func (s *Scenario) ImportZvuk(user User) {
 	s.t.Helper()
 
-	s.OpenZvuk(user, "📥 Импортировать", "▶️ Начать")
+	s.OpenZvuk(user, s.Catalog(user).ImportCollection(), s.Catalog(user).StartImport())
 }
 
 func (s *Scenario) LikeOnZvuk(ids ...string) {

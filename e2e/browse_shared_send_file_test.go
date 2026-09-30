@@ -19,8 +19,8 @@ func TestTelegramFileOfZvukTrack(t *testing.T) {
 	t.Run("send file button uploads the file once", func(t *testing.T) {
 		s := harness.New(t)
 		sharedZvukSong(t, s, alice, "Uploaded Song")
-		s.Open(bob, "🎵 Лента")
-		send := s.Button("1. ▶️ Прислать файл")
+		s.Open(bob, s.Catalog(bob).FeedButton())
+		send := s.Button(s.Catalog(bob).SendFileButton(1))
 
 		s.Press(bob, send)
 		s.Press(bob, send)
@@ -36,19 +36,19 @@ func TestTelegramFileOfZvukTrack(t *testing.T) {
 	t.Run("file over the upload limit is not sent", func(t *testing.T) {
 		s := harness.New(t, harness.WithMaxUpload(1024))
 		sharedZvukSong(t, s, alice, "Huge Song")
-		s.Open(bob, "🎵 Лента")
+		s.Open(bob, s.Catalog(bob).FeedButton())
 
-		s.Press(bob, s.Button("1. ▶️ Прислать файл"))
+		s.Press(bob, s.Button(s.Catalog(bob).SendFileButton(1)))
 
 		assert.Empty(t, s.Telegram.CallsTo("sendAudio"))
-		assert.Contains(t, s.Telegram.CallbackAnswers(), "Файл слишком большой: Telegram не даёт боту его отправить")
+		assert.Contains(t, s.Telegram.CallbackAnswers(), s.Catalog(bob).FileTooLarge())
 	})
 
 	t.Run("inline shared sends the uploaded file", func(t *testing.T) {
 		s := harness.New(t)
 		sharedZvukSong(t, s, alice, "Inline Song")
-		s.Open(bob, "🎵 Лента")
-		s.Press(bob, s.Button("1. ▶️ Прислать файл"))
+		s.Open(bob, s.Catalog(bob).FeedButton())
+		s.Press(bob, s.Button(s.Catalog(bob).SendFileButton(1)))
 		query := s.InlineQuery(bob, "shared")
 
 		s.Send(query)
@@ -61,8 +61,8 @@ func TestTelegramFileOfZvukTrack(t *testing.T) {
 		sharedZvukSong(t, s, alice, "Taken Song")
 		bobAccount := s.LinkNewAccount(bob)
 		s.Take(bob, 1)
-		s.Open(bob, "🎵 Лента")
-		s.Press(bob, s.Button("1. ▶️ Прислать файл"))
+		s.Open(bob, s.Catalog(bob).FeedButton())
+		s.Press(bob, s.Button(s.Catalog(bob).SendFileButton(1)))
 		song := s.Navidrome.IndexedTrack(t, bobAccount, s.PersonalPath(bob, ""), "Taken Song")
 		s.Navidrome.StartPlaying(t, bobAccount, song.ID)
 		query := s.InlineQuery(bob, "np")
@@ -90,8 +90,8 @@ func TestTelegramFileOfZvukTrack(t *testing.T) {
 	t.Run("audio the bot sent from the feed is stored without download", func(t *testing.T) {
 		s := harness.New(t)
 		sharedZvukSong(t, s, alice, "Forwarded Song")
-		s.Open(bob, "🎵 Лента")
-		s.Press(bob, s.Button("1. ▶️ Прислать файл"))
+		s.Open(bob, s.Catalog(bob).FeedButton())
+		s.Press(bob, s.Button(s.Catalog(bob).SendFileButton(1)))
 		s.Telegram.Forget()
 		forward := s.AudioMessage(bob, uploadedAudio(s, 0))
 
@@ -118,7 +118,7 @@ func TestTelegramFileOfZvukTrack(t *testing.T) {
 
 		assert.Empty(t, s.Telegram.CallsTo("getFile"))
 		assert.Equal(t, []string{"Zvuk Band/Zvuk Album (2021)/01 - Stored Song.mp3"}, s.PersonalFiles(alice))
-		harness.AssertAlreadyExists(t, s, forward.Message.ID)
+		harness.AssertAlreadyExists(t, s, alice, forward.Message.ID)
 	})
 
 	t.Run("np sends a track kept in the storage chat as audio", func(t *testing.T) {
@@ -214,6 +214,6 @@ func sharedZvukSong(t *testing.T, s *harness.Scenario, user harness.User, title 
 	song := s.Navidrome.IndexedTrack(t, account, s.PersonalPath(user, ""), title)
 	s.Navidrome.StartPlaying(t, account, song.ID)
 
-	s.PressInline(user, telegram.ButtonNamed(t, s.NowPlaying(user).Buttons(), "🔗 Поделиться"))
+	s.PressInline(user, telegram.ButtonNamed(t, s.NowPlaying(user).Buttons(), s.Catalog(user).ShareButton()))
 	require.Len(t, s.SharedFiles(), 1)
 }

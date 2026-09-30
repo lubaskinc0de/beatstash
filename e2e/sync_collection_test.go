@@ -122,7 +122,7 @@ func TestZvukSync(t *testing.T) {
 		s.ImportZvuk(alice)
 		s.WaitIngest()
 
-		s.OpenZvuk(alice, "🚫 Отключить")
+		s.OpenZvuk(alice, s.Catalog(alice).Disconnect())
 
 		requests := s.Zvuk.RequestsOf("userCollection")
 		require.Never(t, func() bool {
@@ -207,13 +207,14 @@ func TestZvukSync(t *testing.T) {
 		s.Zvuk.Revoke(harness.ZvukToken)
 		untilTokenRejected(t, s)
 
-		notice := s.Telegram.MessageWith(s.Button("🔌 Подключить заново"))
+		notice := s.Telegram.MessageWith(s.Button(s.Catalog(alice).Reconnect()))
 
-		s.Go(alice, "🔌 Подключить заново")
+		s.Go(alice, s.Catalog(alice).Reconnect())
 
 		assert.NotContains(t, s.Telegram.EditedMessages(), strconv.Itoa(notice))
-		assert.Contains(t, s.WindowText(), "больше не принимает токен")
-		assert.Equal(t, []string{"🔌 Подключить", "← Назад"}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
+		c := s.Catalog(alice)
+		assert.Contains(t, s.WindowText(), c.Provider("zvuk", "token_rejected"))
+		assert.Equal(t, []string{c.Connect(), c.Back()}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
 	})
 
 	t.Run("reconnected Zvuk resumes Sync", func(t *testing.T) {

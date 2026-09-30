@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
+	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
 )
 
 func TestWindowFollowsChat(t *testing.T) {
@@ -17,12 +18,13 @@ func TestWindowFollowsChat(t *testing.T) {
 		s.Open(alice)
 		old := s.Telegram.Window().MessageID
 
-		s.Go(alice, "🎵 Лента")
+		s.Go(alice, s.Catalog(alice).FeedButton())
 
+		c := s.Catalog(alice)
 		window := s.Telegram.Window()
 		assert.Equal(t, "editMessageText", window.Method)
 		assert.Equal(t, old, window.MessageID)
-		assert.Contains(t, s.WindowText(), "Пока никто ничем не поделился")
+		assert.Contains(t, s.WindowText(), c.FeedEmpty())
 	})
 
 	t.Run("press after an upload sends the next screen below", func(t *testing.T) {
@@ -31,12 +33,12 @@ func TestWindowFollowsChat(t *testing.T) {
 		old := s.Telegram.Window().MessageID
 		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 
-		s.Go(alice, "🎵 Лента")
+		s.Go(alice, s.Catalog(alice).FeedButton())
 
 		window := s.Telegram.Window()
 		assert.Equal(t, "sendMessage", window.Method)
 		assert.Greater(t, window.MessageID, old)
-		assert.Contains(t, s.WindowText(), "Пока никто ничем не поделился")
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).FeedEmpty())
 		assert.Contains(t, s.Telegram.StrippedMessages(), old)
 		assert.NotContains(t, s.Telegram.EditedMessages(), strconv.Itoa(old))
 	})
@@ -45,7 +47,7 @@ func TestWindowFollowsChat(t *testing.T) {
 		s := harness.New(t)
 		s.Open(alice)
 		old := s.Telegram.Window().MessageID
-		feed := s.Button("🎵 Лента")
+		feed := s.Button(s.Catalog(alice).FeedButton())
 		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 		s.Restart()
 
@@ -61,11 +63,11 @@ func TestWindowFollowsChat(t *testing.T) {
 		s.OpenZvuk(alice)
 		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 
-		s.Go(alice, "🚫 Отключить")
+		s.Go(alice, s.Catalog(alice).Disconnect())
 
 		assert.Equal(t, "sendMessage", s.Telegram.Window().Method)
-		assert.Contains(t, s.WindowText(), "Звук отключён")
-		assert.Contains(t, s.WindowText(), "Статус: не подключён")
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).Disconnected("zvuk"))
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).Provider("zvuk", "not_connected"))
 	})
 
 	t.Run("moved window keeps the screen's argument", func(t *testing.T) {
@@ -73,11 +75,11 @@ func TestWindowFollowsChat(t *testing.T) {
 		s.Zvuk.AddAccount(harness.ZvukToken, true)
 		s.OpenZvuk(alice)
 		s.Uploaded(alice, s.UploadAudio("track.mp3"))
-		s.Go(alice, "🔌 Подключить")
+		s.Go(alice, s.Catalog(alice).Connect())
 
 		s.SendText(alice, harness.ZvukToken)
 
-		assert.Contains(t, s.WindowText(), "Звук подключён")
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).Connected("zvuk"))
 	})
 
 	t.Run("language list moves below and still switches language", func(t *testing.T) {
@@ -88,17 +90,19 @@ func TestWindowFollowsChat(t *testing.T) {
 		old := s.Telegram.Window().MessageID
 		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 
-		s.Go(alice, "🌐 Язык")
+		s.Go(alice, s.Catalog(alice).LanguagesButton())
 
 		moved := s.Telegram.Window().MessageID
 		assert.Equal(t, "sendMessage", s.Telegram.Window().Method)
 		assert.Contains(t, s.Telegram.StrippedMessages(), old)
-		assert.Contains(t, s.WindowText(), "Выберите язык")
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).ChooseLanguage())
 
-		s.Go(alice, "🌐 English")
+		s.Go(alice, s.Catalog(harness.User{LanguageCode: "en"}).LanguageButton())
 
 		assert.Equal(t, moved, s.Telegram.Window().MessageID)
-		assert.Contains(t, s.WindowText(), "Hi")
+		english := alice
+		english.LanguageCode = "en"
+		assert.Contains(t, s.WindowText(), s.Catalog(english).Home(alice.Username, telegram.BotUsername))
 	})
 
 	t.Run("press on an old window opens a new one below", func(t *testing.T) {
@@ -106,7 +110,7 @@ func TestWindowFollowsChat(t *testing.T) {
 		s.ConnectZvuk(alice, harness.ZvukToken)
 		s.OpenZvuk(alice)
 		old := s.Telegram.Window().MessageID
-		disconnect := s.Button("🚫 Отключить")
+		disconnect := s.Button(s.Catalog(alice).Disconnect())
 		s.Open(alice)
 		s.Restart()
 		s.Telegram.Forget()
@@ -114,7 +118,7 @@ func TestWindowFollowsChat(t *testing.T) {
 		s.PressOn(alice, disconnect, old)
 
 		assert.Equal(t, "sendMessage", s.Telegram.Window().Method)
-		assert.Contains(t, s.WindowText(), "Звук отключён")
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).Disconnected("zvuk"))
 		assert.Empty(t, s.Telegram.EditedMessages())
 	})
 
@@ -135,7 +139,7 @@ func TestWindowFollowsChat(t *testing.T) {
 	t.Run("deleted secret leaves the window in place", func(t *testing.T) {
 		s := harness.New(t)
 		s.Zvuk.AddAccount(harness.ZvukToken, true)
-		s.OpenZvuk(alice, "🔌 Подключить")
+		s.OpenZvuk(alice, s.Catalog(alice).Connect())
 		old := s.Telegram.Window().MessageID
 
 		s.SendText(alice, harness.ZvukToken)
@@ -143,7 +147,7 @@ func TestWindowFollowsChat(t *testing.T) {
 		window := s.Telegram.Window()
 		assert.Equal(t, "editMessageText", window.Method)
 		assert.Equal(t, old, window.MessageID)
-		assert.Contains(t, s.WindowText(), "Звук подключён")
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).Connected("zvuk"))
 	})
 
 	t.Run("uploads alone move no window", func(t *testing.T) {
@@ -173,6 +177,6 @@ func TestWindowFollowsChat(t *testing.T) {
 		window := s.Telegram.Window()
 		assert.Equal(t, "editMessageText", window.Method)
 		assert.Equal(t, imports, window.MessageID)
-		assert.Contains(t, s.WindowText(), "Сейчас ничего не импортируется")
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).Imports(nil))
 	})
 }

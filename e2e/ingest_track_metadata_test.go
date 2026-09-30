@@ -154,7 +154,7 @@ func TestMetadata(t *testing.T) {
 		replies := s.Telegram.Replies(t)
 		require.Len(t, replies, 1)
 		assert.Equal(t, msg.Message.ID, replies[0].ReplyTo)
-		assert.Contains(t, replies[0].Text, "«Входящие»")
+		assert.Contains(t, replies[0].Text, s.Catalog(alice).StoredInInbox())
 	})
 
 	t.Run("file tags beat Telegram data", func(t *testing.T) {

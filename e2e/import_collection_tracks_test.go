@@ -72,7 +72,7 @@ func TestZvukTracks(t *testing.T) {
 		s.WaitIngest()
 
 		assert.Equal(t, []string{"Zvuk Band/Zvuk Album/01 - Better Song.flac"}, s.PersonalFiles(alice))
-		s.Share(alice, upload, "🔗 Трек")
+		s.Share(alice, upload, s.Catalog(alice).ShareTrack())
 		query := s.InlineQuery(bob, "shared")
 
 		s.Send(query)
@@ -106,9 +106,9 @@ func TestZvukTracks(t *testing.T) {
 		assert.NotContains(t, files, "Various/Mix (2019)/11 - Track 11.mp3")
 		assert.Contains(t, files, "Various/Mix (2019)/100 - Track 100.mp3")
 		assert.Contains(t, files, "Various/Mix (2019)/150 - Track 150.mp3")
-		summaries := s.SentMessagesContaining(alice, "Импорт из Звука")
+		summaries := s.SentMessagesContaining(alice, importSummary(s, alice, 149, 149))
 		require.Len(t, summaries, 1)
-		assert.Contains(t, summaries[0], "149 из 149 в библиотеке")
+		assert.Contains(t, summaries[0], importSummary(s, alice, 149, 149))
 	})
 
 	t.Run("unavailable Zvuk does not stop Telegram uploads", func(t *testing.T) {

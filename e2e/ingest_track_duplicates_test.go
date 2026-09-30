@@ -24,7 +24,7 @@ func TestDuplicates(t *testing.T) {
 
 		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3"}, s.PersonalFiles(alice))
 		assert.Equal(t, []string{"👀", "👍"}, s.Telegram.ReactionsOn(t, second.Message.ID))
-		harness.AssertAlreadyExists(t, s, second.Message.ID)
+		harness.AssertAlreadyExists(t, s, alice, second.Message.ID)
 	})
 
 	t.Run("the same Telegram audio sent again is stored once and gets its reaction", func(t *testing.T) {
@@ -38,7 +38,7 @@ func TestDuplicates(t *testing.T) {
 
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.PersonalFiles(alice))
 		assert.Equal(t, []string{"👀", "👍"}, s.Telegram.ReactionsOn(t, resent.Message.ID))
-		harness.AssertAlreadyExists(t, s, resent.Message.ID)
+		harness.AssertAlreadyExists(t, s, alice, resent.Message.ID)
 	})
 
 	t.Run("FLAC replaces MP3 and inline still sends the track", func(t *testing.T) {
@@ -91,7 +91,7 @@ func TestDuplicates(t *testing.T) {
 		s.WaitIngest()
 
 		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.flac"}, s.PersonalFiles(alice))
-		harness.AssertAlreadyExists(t, s, mp3.Message.ID)
+		harness.AssertAlreadyExists(t, s, alice, mp3.Message.ID)
 	})
 
 	t.Run("same song from another album is kept", func(t *testing.T) {
@@ -129,7 +129,7 @@ func TestDuplicates(t *testing.T) {
 		s.WaitIngest()
 
 		assert.Len(t, s.PersonalFiles(alice), 1)
-		harness.AssertAlreadyExists(t, s, second.Message.ID)
+		harness.AssertAlreadyExists(t, s, alice, second.Message.ID)
 	})
 
 	t.Run("case and spacing do not make another track", func(t *testing.T) {
@@ -143,6 +143,6 @@ func TestDuplicates(t *testing.T) {
 		s.WaitIngest()
 
 		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3"}, s.PersonalFiles(alice))
-		harness.AssertAlreadyExists(t, s, second.Message.ID)
+		harness.AssertAlreadyExists(t, s, alice, second.Message.ID)
 	})
 }

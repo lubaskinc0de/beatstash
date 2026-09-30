@@ -14,6 +14,8 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
 )
 
 func TestHome(t *testing.T) {
@@ -25,7 +27,7 @@ func TestHome(t *testing.T) {
 		s.Open(alice)
 
 		text := s.WindowText()
-		assert.Contains(t, text, "Привет")
+		assert.Contains(t, text, s.Catalog(alice).Home(alice.Username, telegram.BotUsername))
 		for _, hint := range []string{"np", "recent", "shared", "top"} {
 			assert.Contains(t, text, "@"+telegram.BotUsername+" "+hint)
 		}
@@ -41,21 +43,24 @@ func TestHome(t *testing.T) {
 
 		s.Open(carol)
 
-		assert.Contains(t, s.WindowText(), "Hi")
-		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), "🌐 Русский")
+		assert.Contains(t, s.WindowText(), s.Catalog(carol).Home(carol.Username, telegram.BotUsername))
+		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), s.Catalog(alice).LanguageButton())
 	})
 
 	t.Run("language switch redraws the window and survives start", func(t *testing.T) {
 		s := harness.New(t)
 		s.Open(alice)
 
-		s.Go(alice, "🌐 English")
+		s.Go(alice, s.Catalog(harness.User{LanguageCode: "en"}).LanguageButton())
 		switched := s.Telegram.Window()
 		s.Open(alice)
+		english := alice
+		english.LanguageCode = "en"
+		home := s.Catalog(english).Home(alice.Username, telegram.BotUsername)
 
 		assert.Equal(t, "editMessageText", switched.Method)
-		assert.Contains(t, switched.Params["text"], "Hi")
-		assert.Contains(t, s.WindowText(), "Hi")
+		assert.Contains(t, switched.Params["text"], home)
+		assert.Contains(t, s.WindowText(), home)
 	})
 
 	t.Run("second start removes the old window's buttons", func(t *testing.T) {
@@ -77,8 +82,8 @@ func TestHome(t *testing.T) {
 		adminButtons := telegram.ButtonTexts(s.Telegram.Buttons(t))
 		s.Open(alice)
 
-		assert.Contains(t, adminButtons, "🎟 Пригласить")
-		assert.NotContains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), "🎟 Пригласить")
+		assert.Contains(t, adminButtons, s.Catalog(admin).InviteButton())
+		assert.NotContains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), s.Catalog(alice).InviteButton())
 	})
 }
 
@@ -113,7 +118,7 @@ func TestWindowOnInstances(t *testing.T) {
 
 		s.Open(alice)
 
-		assert.Contains(t, s.WindowText(), "Привет")
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).Home(alice.Username, telegram.BotUsername))
 		assert.Len(t, s.Telegram.MessagesWithButtons(), 1)
 	})
 
@@ -124,7 +129,7 @@ func TestWindowOnInstances(t *testing.T) {
 		s.AddZvukCollection(harness.ZvukToken)
 		s.Zvuk.HoldStreams(0)
 		s.ImportZvuk(alice)
-		back := s.Button("← Назад")
+		back := s.Button(s.Catalog(alice).Back())
 		refresh := s.Telegram.Hold("editMessageText")
 		edits := len(s.Telegram.CallsTo("editMessageText"))
 		s.Zvuk.ReleaseStreams()
@@ -137,7 +142,7 @@ func TestWindowOnInstances(t *testing.T) {
 		press.Wait()
 		s.WaitIngest()
 
-		assert.Contains(t, s.WindowText(), "Подключите сервис")
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).ImportSources())
 	})
 }
 
@@ -146,16 +151,15 @@ func TestStrangerHome(t *testing.T) {
 
 	t.Run("stranger learns what the service is", func(t *testing.T) {
 		s := harness.New(t, harness.WithAdminContact("@boss_support"))
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), "🔗 Трек")
+		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
 
 		s.Open(stranger)
 
 		text := s.WindowText()
 		assert.Contains(t, text, "Navidrome")
-		assert.Contains(t, text, "Пользователей: 3")
-		assert.Contains(t, text, "Треков в общей библиотеке: 1")
+		assert.Contains(t, text, s.Catalog(stranger).StrangerHome(3, 1, "@boss_support"))
 		assert.Contains(t, text, "@boss_support")
-		assert.Equal(t, []string{"🌐 English"}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
+		assert.Equal(t, []string{s.Catalog(harness.User{LanguageCode: "en"}).LanguageButton()}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
 	})
 
 	t.Run("stranger sees no contact unless it is set", func(t *testing.T) {
@@ -163,7 +167,7 @@ func TestStrangerHome(t *testing.T) {
 
 		s.Open(stranger)
 
-		assert.NotContains(t, s.WindowText(), "Попросить доступ")
+		assert.Equal(t, s.Catalog(stranger).StrangerHome(3, 0, ""), s.WindowText())
 	})
 
 	t.Run("stranger without language code sees English", func(t *testing.T) {
@@ -172,17 +176,19 @@ func TestStrangerHome(t *testing.T) {
 
 		s.Open(foreigner)
 
-		assert.Contains(t, s.WindowText(), "invite-only")
+		assert.Contains(t, s.WindowText(), s.Catalog(foreigner).StrangerHome(3, 0, ""))
 	})
 
 	t.Run("stranger switches the language", func(t *testing.T) {
 		s := harness.New(t)
 		s.Open(stranger)
 
-		s.Go(stranger, "🌐 English")
+		s.Go(stranger, s.Catalog(harness.User{LanguageCode: "en"}).LanguageButton())
 
-		assert.Contains(t, s.WindowText(), "invite-only")
-		assert.Equal(t, []string{"🌐 Русский"}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
+		english := stranger
+		english.LanguageCode = "en"
+		assert.Contains(t, s.WindowText(), s.Catalog(english).StrangerHome(3, 0, ""))
+		assert.Equal(t, []string{s.Catalog(stranger).LanguageButton()}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
 	})
 }
 
@@ -192,11 +198,12 @@ func TestHowToUpload(t *testing.T) {
 	t.Run("how to upload explains formats, reactions and share", func(t *testing.T) {
 		s := harness.New(t)
 
-		s.Open(alice, "❓ Как загружать")
+		s.Open(alice, s.Catalog(alice).HowToButton())
 
 		text := s.WindowText()
-		for _, hint := range []string{"mp3, flac", "👀", "👍", "👎", "/share", "владелец сервера"} {
-			assert.Contains(t, text, hint)
+		assert.Contains(t, text, s.Catalog(alice).HowTo())
+		for _, marker := range []string{"mp3", "flac", "👀", "👍", "👎", "/share"} {
+			assert.Contains(t, text, marker)
 		}
 	})
 }
@@ -206,34 +213,41 @@ func TestLanguage(t *testing.T) {
 
 	t.Run("upload of an unsupported format is refused in the user's language", func(t *testing.T) {
 		s := harness.New(t)
-		s.Open(alice, "🌐 English")
+		s.Open(alice, s.Catalog(harness.User{LanguageCode: "en"}).LanguageButton())
 		upload := s.DocumentMessage(alice, s.UploadDocument(audiofile.Fixture("track.mp3"), "text/plain"))
 		upload.Message.Document.FileName = "notes.txt"
 
 		s.Send(upload)
 
-		assert.Contains(t, s.LastReply().Text, "the format is not supported")
+		english := alice
+		english.LanguageCode = "en"
+		assert.Contains(t, s.LastReply().Text, s.Catalog(english).UploadFailed(ingest.ReasonUnsupportedFormat))
 	})
 
 	t.Run("share answers in the user's language", func(t *testing.T) {
 		s := harness.New(t)
 		upload := s.Uploaded(alice, s.UploadAudio("track.mp3"))
-		s.Open(alice, "🌐 English")
+		s.Open(alice, s.Catalog(harness.User{LanguageCode: "en"}).LanguageButton())
 
 		s.Send(s.ReplyCommand(alice, "/share", upload))
 
-		assert.Equal(t, "What to Share?", s.LastReply().Text)
-		assert.Equal(t, []string{"🔗 Track", "💿 Whole album"}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
+		english := alice
+		english.LanguageCode = "en"
+		c := s.Catalog(english)
+		assert.Equal(t, c.ShareWhat(), s.LastReply().Text)
+		assert.Equal(t, []string{c.ShareTrack(), c.ShareAlbum()}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
 	})
 
 	t.Run("inline answers follow the language switch", func(t *testing.T) {
 		s := harness.New(t)
-		s.Open(alice, "🌐 English")
+		s.Open(alice, s.Catalog(harness.User{LanguageCode: "en"}).LanguageButton())
 		query := s.InlineQuery(alice, "top")
 
 		s.Send(query)
 
-		assert.Equal(t, "🏆 Top", s.Telegram.InlineAnswerTo(t, query).Results[0].Title)
+		english := alice
+		english.LanguageCode = "en"
+		assert.Equal(t, s.Catalog(english).TopArticle(&view_top.Top{}).Title, s.Telegram.InlineAnswerTo(t, query).Results[0].Title)
 	})
 }
 
@@ -249,8 +263,8 @@ func TestBotDescription(t *testing.T) {
 		for _, call := range s.Telegram.CallsTo("setMyDescription") {
 			descriptions[call.Params["language_code"]] = call.Params["description"]
 		}
-		assert.Contains(t, descriptions[""], "your music library")
-		assert.Contains(t, descriptions["ru"], "вашу музыкальную библиотеку")
+		assert.Contains(t, descriptions[""], s.Catalog(harness.User{LanguageCode: "en"}).BotDescription())
+		assert.Contains(t, descriptions["ru"], s.Catalog(alice).BotDescription())
 		assert.Len(t, s.Telegram.CallsTo("setMyShortDescription"), 2)
 	})
 
@@ -278,11 +292,12 @@ func TestListen(t *testing.T) {
 	t.Run("how to listen gives the Navidrome address and players", func(t *testing.T) {
 		s := harness.New(t)
 
-		s.Open(alice, "📱 Как слушать")
+		s.Open(alice, s.Catalog(alice).ListenButton())
 
 		text := s.WindowText()
-		for _, hint := range []string{harness.NavidromePublicURL, "Symfonium", "Amperfy", "Subsonic"} {
-			assert.Contains(t, text, hint)
+		assert.Contains(t, text, s.Catalog(alice).Listen())
+		for _, marker := range []string{harness.NavidromePublicURL, "Symfonium", "Amperfy", "Subsonic"} {
+			assert.Contains(t, text, marker)
 		}
 	})
 
@@ -303,21 +318,30 @@ func TestTranslations(t *testing.T) {
 
 		s.Open(alice)
 
-		assert.Contains(t, s.WindowText(), "Музыкалка переносит")
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).Home(alice.Username, telegram.BotUsername))
+		assert.Contains(t, s.WindowText(), "Музыкалка")
 	})
 
 	t.Run("added language is offered in the language list", func(t *testing.T) {
 		s := harness.New(t, harness.WithTranslations(translations(t, map[string]string{
 			"de.yaml": "language:\n  name: Deutsch\nhome:\n  greeting_named: 👋 Hallo, {{.Name}}!\n",
 		})))
-		s.Open(alice, "🌐 Язык")
+		s.Open(alice, s.Catalog(alice).LanguagesButton())
 		languages := telegram.ButtonTexts(s.Telegram.Buttons(t))
 
-		s.Go(alice, "🌐 Deutsch")
+		s.Go(alice, s.Catalog(harness.User{LanguageCode: "de"}).LanguageButton())
 
-		assert.Equal(t, []string{"🌐 Deutsch", "🌐 English", "🌐 Русский", "← Назад"}, languages)
-		assert.Contains(t, s.WindowText(), "👋 Hallo, alice!")
-		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), "🎵 Feed")
+		c := s.Catalog(alice)
+		assert.Equal(t, []string{
+			s.Catalog(harness.User{LanguageCode: "de"}).LanguageButton(),
+			s.Catalog(harness.User{LanguageCode: "en"}).LanguageButton(),
+			c.LanguageButton(), c.Back(),
+		}, languages)
+		german := alice
+		german.LanguageCode = "de"
+		assert.Contains(t, s.WindowText(), s.Catalog(german).Home(alice.Username, telegram.BotUsername))
+		assert.Contains(t, s.WindowText(), "Hallo, alice!")
+		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), s.Catalog(german).FeedButton())
 	})
 
 	t.Run("client language picks the added language", func(t *testing.T) {
@@ -328,6 +352,7 @@ func TestTranslations(t *testing.T) {
 
 		s.Open(german)
 
+		assert.Contains(t, s.WindowText(), s.Catalog(german).StrangerHome(3, 0, "@boss"))
 		assert.Contains(t, s.WindowText(), "Zugang: @boss")
 	})
 
@@ -336,9 +361,11 @@ func TestTranslations(t *testing.T) {
 			"ru.yaml": "button:\n  feed: 🎶 Музыка друзей\n",
 		})))
 
-		s.Open(alice, "🎶 Музыка друзей")
+		s.Open(alice)
+		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), "🎶 Музыка друзей")
+		s.Go(alice, s.Catalog(alice).FeedButton())
 
-		assert.Contains(t, s.WindowText(), "Пока никто ничем не поделился")
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).FeedEmpty())
 	})
 
 	t.Run("source link and author stay whatever the translation says", func(t *testing.T) {
@@ -348,6 +375,7 @@ func TestTranslations(t *testing.T) {
 
 		s.Open(alice)
 
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).Home(alice.Username, telegram.BotUsername))
 		assert.Contains(t, s.WindowText(), "https://github.com/lubaskinc0de/navidrome-tg")
 		assert.Contains(t, s.WindowText(), "@lubaskinc0de")
 	})

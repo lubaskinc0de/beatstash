@@ -1,10 +1,6 @@
 package harness
 
-import (
-	"strconv"
-
-	"github.com/go-telegram/bot/models"
-)
+import "github.com/go-telegram/bot/models"
 
 // Share answers the upload with /Share and presses the named button.
 func (s *Scenario) Share(from User, upload *models.Update, name string) {
@@ -18,5 +14,5 @@ func (s *Scenario) Share(from User, upload *models.Update, name string) {
 func (s *Scenario) Take(user User, n int) {
 	s.t.Helper()
 
-	s.Open(user, "🎵 Лента", strconv.Itoa(n)+". ➕ Взять себе")
+	s.Open(user, s.Catalog(user).FeedButton(), s.Catalog(user).TakeButton(n))
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/zvuk"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/share_tracks"
 )
 
 func TestAttachedLibraryAccess(t *testing.T) {
@@ -25,7 +26,7 @@ func TestAttachedLibraryAccess(t *testing.T) {
 
 		s.Link(alice, account)
 
-		assert.Contains(t, s.WindowText(), "Бот видит 2 песни из ваших библиотек Navidrome")
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).Linked(account.Login, 2))
 	})
 
 	t.Run("library open to two accounts is seen by both", func(t *testing.T) {
@@ -43,8 +44,8 @@ func TestAttachedLibraryAccess(t *testing.T) {
 		aliceSees := s.WindowText()
 		s.Link(bob, bobAccount)
 
-		assert.Contains(t, aliceSees, "Бот видит 1 песню")
-		assert.Contains(t, s.WindowText(), "Бот видит 1 песню")
+		assert.Contains(t, aliceSees, s.Catalog(alice).Linked(aliceAccount.Login, 1))
+		assert.Contains(t, s.WindowText(), s.Catalog(bob).Linked(bobAccount.Login, 1))
 	})
 
 	t.Run("Navidrome admin sees every attached library", func(t *testing.T) {
@@ -57,8 +58,7 @@ func TestAttachedLibraryAccess(t *testing.T) {
 
 		s.Link(alice, account)
 
-		assert.Contains(t, s.WindowText(), "Это администратор Navidrome")
-		assert.Contains(t, s.WindowText(), "Бот видит 1 песню")
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).LinkedAdmin(account.Login, 1))
 	})
 
 	t.Run("library closed to the account is not seen", func(t *testing.T) {
@@ -71,8 +71,8 @@ func TestAttachedLibraryAccess(t *testing.T) {
 
 		s.Link(alice, account)
 
-		assert.Contains(t, s.WindowText(), "привязан")
-		assert.NotContains(t, s.WindowText(), "Бот видит")
+		c := s.Catalog(alice)
+		assert.Equal(t, c.Linked(account.Login, 0)+"\n\n"+c.NavidromeLinked(account.Login), s.WindowText())
 	})
 
 	t.Run("library inside music_dir but apart from the bot's folders is attached", func(t *testing.T) {
@@ -86,7 +86,7 @@ func TestAttachedLibraryAccess(t *testing.T) {
 
 		s.Link(alice, account)
 
-		assert.Contains(t, s.WindowText(), "Бот видит 1 песню")
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).Linked(account.Login, 1))
 	})
 
 	t.Run("attached library keeps the admin's default for new accounts", func(t *testing.T) {
@@ -125,8 +125,8 @@ func TestAttachedLibraryAccess(t *testing.T) {
 
 		s.Link(alice, account)
 
-		assert.Contains(t, s.WindowText(), "привязан")
-		assert.NotContains(t, s.WindowText(), "Бот видит")
+		c := s.Catalog(alice)
+		assert.Equal(t, c.Linked(account.Login, 0)+"\n\n"+c.NavidromeLinked(account.Login), s.WindowText())
 	})
 }
 
@@ -185,12 +185,12 @@ func TestAttachedLibraryDuplicates(t *testing.T) {
 	t.Run("Take of a track the attached library has says it is there", func(t *testing.T) {
 		s, account, _ := newWithOwnLibrary(t, []string{audiofile.Fixture("track.mp3")})
 		s.Link(alice, account)
-		s.Share(bob, s.Uploaded(bob, s.UploadAudio("track.mp3")), "🔗 Трек")
-		s.Open(alice, "🎵 Лента")
+		s.Share(bob, s.Uploaded(bob, s.UploadAudio("track.mp3")), s.Catalog(bob).ShareTrack())
+		s.Open(alice, s.Catalog(alice).FeedButton())
 
-		s.Press(alice, s.Button("1. ✅ Уже у вас"))
+		s.Press(alice, s.Button(s.Catalog(alice).InLibraryButton(1)))
 
-		assert.Equal(t, "Этот трек уже есть у вас", s.LastCallbackAnswer())
+		assert.Equal(t, s.Catalog(alice).AlreadyInLibrary(), s.LastCallbackAnswer())
 		assert.Empty(t, s.PersonalFiles(alice))
 	})
 
@@ -203,9 +203,9 @@ func TestAttachedLibraryDuplicates(t *testing.T) {
 		s.ImportZvuk(alice)
 		s.WaitIngest()
 
-		s.OpenZvuk(alice, "📥 Импортировать")
+		s.OpenZvuk(alice, s.Catalog(alice).ImportCollection())
 
-		assert.Contains(t, s.WindowText(), "уже в вашей библиотеке")
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).AllImported("zvuk", 1))
 	})
 }
 
@@ -217,14 +217,14 @@ func TestShareFromAttachedLibrary(t *testing.T) {
 		s.Link(alice, account)
 		before := harness.FilesWithContent(t, own.Dir)
 		s.Navidrome.StartPlaying(t, account, s.Navidrome.IndexedTrack(t, account, own.Dir, audiofile.FixtureTitle).ID)
-		share := telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), "🔗 Поделиться")
+		share := telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), s.Catalog(alice).ShareButton())
 
 		s.PressInline(alice, share)
 
-		assert.Contains(t, s.LastCallbackAnswer(), "В общей библиотеке")
+		assert.Contains(t, s.LastCallbackAnswer(), s.Catalog(alice).ShareResult(&share_tracks.ShareResult{Created: 1}))
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.SharedFiles())
 		assert.Equal(t, before, harness.FilesWithContent(t, own.Dir))
-		s.Open(bob, "🎵 Лента")
+		s.Open(bob, s.Catalog(bob).FeedButton())
 		assert.Contains(t, s.WindowText(), audiofile.FixtureTitle)
 	})
 }
@@ -238,7 +238,7 @@ func TestAttachedLibraryRefresh(t *testing.T) {
 		s.AddToNavidromeLibrary(own, audiofile.Fixture("track.flac"), "track.flac")
 		s.Navidrome.UntilSongs(t, own.ID, 2)
 
-		untilLinkSays(t, s, account, "Бот видит 2 песни")
+		untilLinkSays(t, s, account, s.Catalog(alice).Linked(account.Login, 2))
 	})
 
 	t.Run("gone song leaves the bot and its Share stays in the feed", func(t *testing.T) {
@@ -248,14 +248,14 @@ func TestAttachedLibraryRefresh(t *testing.T) {
 		)
 		s.Link(alice, account)
 		s.Navidrome.StartPlaying(t, account, s.Navidrome.SongAt(t, account, audiofile.FixtureTitle, filepath.Join(own.Dir, "track.mp3")).ID)
-		s.PressInline(alice, telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), "🔗 Поделиться"))
+		s.PressInline(alice, telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), s.Catalog(alice).ShareButton()))
 
 		require.NoError(t, os.Remove(filepath.Join(own.Dir, "track.mp3")))
 		s.Navidrome.UntilSongs(t, own.ID, 1)
 
-		untilLinkSays(t, s, account, "Бот видит 1 песню")
+		untilLinkSays(t, s, account, s.Catalog(alice).Linked(account.Login, 1))
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.SharedFiles())
-		s.Open(bob, "🎵 Лента")
+		s.Open(bob, s.Catalog(bob).FeedButton())
 		assert.Contains(t, s.WindowText(), audiofile.FixtureTitle)
 	})
 }
@@ -281,10 +281,10 @@ func TestAttachedLibraryChanges(t *testing.T) {
 		track := s.Navidrome.IndexedTrack(t, account, moved.Path, audiofile.FixtureTitle)
 		s.Navidrome.StartPlaying(t, account, track.ID)
 
-		share := telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), "🔗 Поделиться")
+		share := telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), s.Catalog(alice).ShareButton())
 		s.PressInline(alice, share)
 
-		assert.Contains(t, s.LastCallbackAnswer(), "В общей библиотеке")
+		assert.Contains(t, s.LastCallbackAnswer(), s.Catalog(alice).ShareResult(&share_tracks.ShareResult{Created: 1}))
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.SharedFiles())
 	})
 
@@ -306,12 +306,12 @@ func TestAttachedLibraryChanges(t *testing.T) {
 		s.Restart()
 		s.Link(alice, account)
 
-		assert.Contains(t, s.WindowText(), "Бот видит 1 песню")
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).Linked(account.Login, 1))
 		track := s.Navidrome.IndexedTrack(t, account, own.Path, audiofile.FixtureTitle)
 		s.Navidrome.StartPlaying(t, account, track.ID)
-		share := telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), "🔗 Поделиться")
+		share := telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), s.Catalog(alice).ShareButton())
 		s.PressInline(alice, share)
-		assert.Contains(t, s.LastCallbackAnswer(), "В общей библиотеке")
+		assert.Contains(t, s.LastCallbackAnswer(), s.Catalog(alice).ShareResult(&share_tracks.ShareResult{Created: 1}))
 	})
 }
 

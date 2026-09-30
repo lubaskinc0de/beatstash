@@ -21,13 +21,13 @@ func fileIDFor(name string, n int) string {
 	return fmt.Sprintf("%s-%d", strings.ReplaceAll(filepath.Base(name), ".", "-"), n)
 }
 
-func AssertAlreadyExists(t *testing.T, s *Scenario, messageID int) {
+func AssertAlreadyExists(t *testing.T, s *Scenario, user User, messageID int) {
 	t.Helper()
 
 	replies := s.Telegram.Replies(t)
 	require.Len(t, replies, 1)
 	assert.Equal(t, messageID, replies[0].ReplyTo)
-	assert.Contains(t, replies[0].Text, "уже есть")
+	assert.Contains(t, replies[0].Text, s.Catalog(user).AlreadyExists())
 }
 
 var inviteLink = regexp.MustCompile(`https://t\.me/` + telegram.BotUsername + `\?start=([A-Za-z0-9_-]+)`)
@@ -35,7 +35,7 @@ var inviteLink = regexp.MustCompile(`https://t\.me/` + telegram.BotUsername + `\
 func (s *Scenario) Invite() string {
 	s.t.Helper()
 
-	s.Open(Admin, "🎟 Пригласить")
+	s.Open(Admin, s.Catalog(Admin).InviteButton())
 	return s.InviteCode()
 }
 

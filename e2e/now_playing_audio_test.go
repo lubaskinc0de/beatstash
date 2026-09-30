@@ -33,7 +33,7 @@ func TestNowPlayingAudio(t *testing.T) {
 		assert.Equal(t, s.Telegram.UploadedFileID(0), edits[0].Media.Media)
 		assert.Contains(t, edits[0].Media.Caption, "Pending Song")
 		assert.NotContains(t, edits[0].Media.Caption, "⏳")
-		assert.Equal(t, []string{"🔗 Поделиться"}, telegram.ButtonTexts(edits[0].Buttons))
+		assert.Equal(t, []string{s.Catalog(alice).ShareButton()}, telegram.ButtonTexts(edits[0].Buttons))
 		assert.Equal(t, "audio", next.Type)
 		assert.Equal(t, s.Telegram.UploadedFileID(0), next.AudioFileID)
 	})
@@ -48,7 +48,7 @@ func TestNowPlayingAudio(t *testing.T) {
 		require.Len(t, edits, 1)
 		assert.Equal(t, "editMessageText", edits[0].Method)
 		assert.Contains(t, edits[0].Text, "Huge Song")
-		assert.Contains(t, edits[0].Text, "Файл слишком большой")
+		assert.Contains(t, edits[0].Text, s.Catalog(alice).NotSentNote(true))
 		assert.NotContains(t, edits[0].Text, "⏳")
 	})
 

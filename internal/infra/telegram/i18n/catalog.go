@@ -51,6 +51,8 @@ func (c Catalog) LanguageName() string {
 	return string(c.lang)
 }
 
+func (c Catalog) LanguageButton() string { return "🌐 " + c.LanguageName() }
+
 func (c Catalog) BotDescription() string      { return c.t("bot.about", nil) }
 func (c Catalog) BotShortDescription() string { return c.t("bot.short_description", nil) }
 func (c Catalog) StartCommand() string        { return c.t("bot.start_command", nil) }
@@ -180,10 +182,16 @@ func (c Catalog) authorName(user *access.User) string {
 
 func (c Catalog) Top(t *view_top.Top) string {
 	return top(t, topLabels{
-		title: c.t("top.title", nil), shared: c.t("top.shared", nil), taken: c.t("top.taken", nil),
-		allTime: c.t("top.all_time", nil), thisMonth: c.t("top.this_month", nil), nobody: c.t("top.nobody", nil),
+		title: c.t("top.title", nil), shared: c.TopSharedLabel(), taken: c.TopTakenLabel(),
+		allTime: c.TopAllTimeLabel(), thisMonth: c.TopThisMonthLabel(), nobody: c.TopNobody(),
 	}, c.authorName)
 }
+
+func (c Catalog) TopSharedLabel() string    { return c.t("top.shared", nil) }
+func (c Catalog) TopTakenLabel() string     { return c.t("top.taken", nil) }
+func (c Catalog) TopAllTimeLabel() string   { return c.t("top.all_time", nil) }
+func (c Catalog) TopThisMonthLabel() string { return c.t("top.this_month", nil) }
+func (c Catalog) TopNobody() string         { return c.t("top.nobody", nil) }
 
 func (c Catalog) TopFailed() string { return c.t("top.failed", nil) }
 
