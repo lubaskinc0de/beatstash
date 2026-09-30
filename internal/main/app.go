@@ -12,10 +12,12 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/add_track"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/attach_libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/browse_shared"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/accounts"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	appnd "github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/quotas"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/connect_navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/connect_provider"
@@ -24,10 +26,13 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/ingest_track"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/invite_friend"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/join_by_invite"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/manage_quotas"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/oversee_service"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/share_tracks"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/show_playing"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/start_app"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/sync_collection"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_home"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
@@ -96,6 +101,8 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	navidromeAdmin := appnd.Credentials{Login: cfg.NavidromeUser, Password: cfg.NavidromePassword}
 	navidromeAccounts := &accounts.Navidrome{Repo: accountRepo, Box: box}
 	fileDisk := &disk.Disk{MusicDir: cfg.MusicDir}
+	quotaSettings := &database.QuotaSettingsRepository{DB: db}
+	libraryQuotas := &quotas.Quotas{Repo: quotaSettings, Libraries: libraryRepo, Tracks: tracks, Disk: fileDisk, Config: cfg.Quotas}
 
 	libs := &libraries.Libraries{Repo: libraryRepo, Disk: fileDisk, MusicDir: cfg.MusicDir}
 	navidromeLibraries := &libraries.Navidrome{
@@ -133,7 +140,8 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		Admin:     navidromeAdmin,
 	}
 
-	ids := &tgbot.IDProvider{Users: users, Clock: cfg.Clock}
+	telegramIDs := &tgbot.IDProvider{Users: users, Clock: cfg.Clock}
+	ids := &common.Visitors{Channel: telegramIDs, Users: users, Clock: cfg.Clock}
 	telegramUsers := &tgbot.Users{DB: db}
 	texts, err := i18n.Load(i18n.Options{
 		Dir:     cfg.TranslationsDir,
@@ -188,6 +196,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Libraries: libraryRepo,
 			Attached:  attached,
 			Lock:      libraryLock,
+			Quotas:    libraryQuotas,
 			Disk:      fileDisk,
 			Tags:      audio.Tags{},
 			Remuxer:   audio.FFmpeg{},
@@ -213,18 +222,18 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 
 	shareDeps := share_tracks.ShareDeps{
 		IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks,
-		Libraries: libs, Attached: attached, Navidrome: navidromeClient, Admin: navidromeAdmin,
+		Libraries: libs, Attached: attached, Quotas: libraryQuotas, Navidrome: navidromeClient, Admin: navidromeAdmin,
 		Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,
 	}
-	tg := &tgbot.Telegram{Bot: b, BotName: me.Username, Windows: windows, Texts: texts}
+	tg := &tgbot.Telegram{Bot: b, BotName: me.Username, Windows: windows, Texts: texts, AdminContact: cfg.AdminContact}
 	viewFeed := &browse_shared.ViewFeed{IDs: ids, Shared: sharedTracks, Tracks: tracks, Libraries: libs, Attached: attached}
 	getTop := &view_top.GetTop{IDs: ids, Shared: sharedTracks, Takes: takes, Clock: cfg.Clock}
 	home := &tgbot.Home{
-		Telegram:       tg,
-		IDs:            ids,
-		Users:          telegramUsers,
-		CheckCanInvite: &invite_friend.CheckCanInvite{IDs: ids},
-		CreateInvite:   createInvite,
+		Telegram:     tg,
+		IDs:          ids,
+		Users:        telegramUsers,
+		GetHome:      &view_home.GetHome{IDs: ids, Quotas: libraryQuotas},
+		CreateInvite: createInvite,
 		AcceptInvite: &join_by_invite.AcceptInvite{
 			IDs:                ids,
 			Tx:                 txManager,
@@ -235,7 +244,6 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Clock:              cfg.Clock,
 		},
 		GetServiceStats: &greet_stranger.GetServiceStats{Users: users, Tracks: tracks, Libraries: libraryRepo},
-		AdminContact:    cfg.AdminContact,
 	}
 	feed := &tgbot.Feed{
 		Telegram: tg,
@@ -243,7 +251,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		GetTop:   getTop,
 		TakeTrack: &browse_shared.TakeTrack{
 			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks, Takes: takes,
-			Libraries: libs, Attached: attached, Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,
+			Libraries: libs, Attached: attached, Quotas: libraryQuotas, Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,
 		},
 		GetTrackAudio: &browse_shared.GetTrackAudio{IDs: ids, Shared: sharedTracks, Libraries: libs},
 		Files:         telegramFiles,
@@ -256,7 +264,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		},
 		DisconnectProviderAccount: &connect_provider.DisconnectProviderAccount{IDs: ids, Tx: txManager, Accounts: providerAccountRepo},
 		PlanImport: &import_collection.PlanImport{
-			IDs: ids, Providers: providers, Libraries: libraryRepo, Attached: attached, Tracks: tracks,
+			IDs: ids, Providers: providers, Libraries: libraryRepo, Attached: attached, Tracks: tracks, Quotas: libraryQuotas,
 		},
 		StartImport: &import_collection.StartImport{
 			IDs:       ids,
@@ -268,6 +276,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Accounts:  providerAccountRepo,
 			Queue:     ingestQueue,
 			BatchRepo: batchRepo,
+			Quotas:    libraryQuotas,
 			Waker:     waker,
 		},
 		GetRunningImports: &import_collection.GetRunningImports{IDs: ids, Queue: ingestQueue, Batches: batchRepo},
@@ -336,16 +345,35 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		EnqueueIngest: enqueueIngest,
 		JobMessages:   &poller.JobMessages{DB: db},
 	}
+	getUserCard := &oversee_service.GetUserCard{IDs: ids, Users: users, Libraries: libraryRepo, Tracks: tracks, Quotas: libraryQuotas}
+	quotaScreens := &tgbot.Quotas{
+		Telegram:        tg,
+		GetServerQuotas: &manage_quotas.GetServerQuotas{IDs: ids, Libraries: libraryRepo, Quotas: libraryQuotas},
+		SetDefaultQuota: &manage_quotas.SetDefaultQuota{IDs: ids, Settings: quotaSettings},
+		SetSharedQuota:  &manage_quotas.SetSharedQuota{IDs: ids, Settings: quotaSettings},
+		SetUserQuota:    &manage_quotas.SetUserQuota{IDs: ids, Libraries: libraryRepo},
+		GetUserCard:     getUserCard,
+	}
+	adminScreens := &tgbot.Admin{
+		Telegram: tg,
+		GetOverview: &oversee_service.GetOverview{
+			IDs: ids, Users: users, Strangers: telegramUsers, Libraries: libraryRepo, Tracks: tracks,
+			Takes: takes, Jobs: ingestQueue, Quotas: libraryQuotas, Clock: cfg.Clock,
+		},
+		ListUsers:   &oversee_service.ListUsers{IDs: ids, Users: users},
+		GetUserCard: getUserCard,
+		Clock:       cfg.Clock,
+	}
 	handler := &tgbot.Handler{
 		Telegram: tg, Home: home, Feed: feed, Imports: imports, Navidrome: navidromeScreens,
-		Sharing: sharing, Inline: inline, Uploads: telegramUploads,
+		Sharing: sharing, Inline: inline, Uploads: telegramUploads, Admin: adminScreens, Quotas: quotaScreens,
 	}
 	handler.Register()
 	telegramPoller := poller.New(poller.Config{
 		DB:              db,
-		Chats:           &tgbot.Chats{Telegram: tg, Imports: imports, Users: telegramUsers, IDs: ids},
+		Chats:           &tgbot.Chats{Telegram: tg, Imports: imports, Users: telegramUsers, IDs: telegramIDs},
 		Files:           telegramFiles,
-		IngestResults:   &add_track.GetIngestResults{IDs: ids, Queue: ingestQueue},
+		IngestResults:   &add_track.GetIngestResults{IDs: ids, Queue: ingestQueue, Quotas: libraryQuotas},
 		ImportResults:   &import_collection.GetImportResults{IDs: ids, Queue: ingestQueue, Batches: batchRepo},
 		RejectedTokens:  &connect_provider.ListRejectedTokens{Accounts: providerAccountRepo},
 		StorageChatID:   cfg.StorageChatID,
@@ -373,6 +401,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Libraries:         libraryRepo,
 			Attached:          attached,
 			Tracks:            tracks,
+			Quotas:            libraryQuotas,
 			Navidrome:         navidromeClient,
 			NavidromeAccounts: navidromeAccounts,
 		},

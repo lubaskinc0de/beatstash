@@ -4,6 +4,8 @@
 //   - Library. It does not hold its Tracks.
 //   - Track. Its TrackSources are part of it, one per Track Ref.
 //   - Upload: a record that a User sent a Track.
+//   - QuotaSettings: the Default Quota and the Shared Library's Quota the
+//     Admin set.
 //
 // Two rules apply to a whole Library: no two Duplicates, and one Track per
 // Track Ref. Library cannot check them without loading all its Tracks, so
@@ -14,10 +16,16 @@
 // did not create. Tracks of an Attached Library follow its songs, and the
 // bot never writes to its files.
 //
+// A Library weighs the sum of its Tracks' sizes and may take no more than
+// the Quota in force for it. A Track in several Libraries counts in each.
+// The Library does not keep its weight: like the Duplicate rule, the
+// application checks the Quota with the Library locked and its Tracks
+// summed. CapacityOf, a domain service, sums the Quotas of all Libraries.
+//
 // Value objects: Metadata, Quality, Format, Incoming, Probe, Outcome, Song,
-// Placement, NavidromeAccess. Grant decides which libraries a Navidrome
-// Account gets; KeptLibraries, where a user keeps music.
-// LayoutPath chooses the file path.
+// Placement, NavidromeAccess, Quota, Usage, Capacity, ServerQuotas. Grant
+// decides which libraries a Navidrome Account gets; KeptLibraries, where a
+// user keeps music. LayoutPath chooses the file path.
 //
 // Fields are exported only because gorm needs them. Change an aggregate
 // only through its methods.

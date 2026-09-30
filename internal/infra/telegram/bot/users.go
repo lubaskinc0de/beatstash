@@ -42,3 +42,15 @@ func (u *Users) Meet(ctx context.Context, id int64, language string) error {
 func (u *Users) SetLanguage(ctx context.Context, id int64, language string) error {
 	return u.DB.WithContext(ctx).Clauses(clause.OnConflict{UpdateAll: true}).Create(&User{ID: id, Language: language}).Error
 }
+
+// CountStrangers counts who wrote to the bot and is no User.
+func (u *Users) CountStrangers(ctx context.Context) (int64, error) {
+	var count int64
+	err := u.DB.WithContext(ctx).Raw(`
+		SELECT COUNT(*) FROM telegram_users
+		WHERE NOT EXISTS (
+			SELECT 1 FROM identities
+			WHERE identities.channel = ? AND identities.external_id = telegram_users.id::text
+		)`, Channel).Scan(&count).Error
+	return count, err
+}

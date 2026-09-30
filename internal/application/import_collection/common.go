@@ -17,8 +17,18 @@ type Plan struct {
 	Total        int
 	Missing      int
 	MissingBytes int64
+	// Usage is the Personal Library's. The Import starts even if the
+	// missing tracks seem not to fit: their sizes are guesses.
+	Usage library.Usage
 	// BatchID is the batch that downloads the missing tracks; zero if none.
 	BatchID uint
+}
+
+type surveyed struct {
+	collection *providers.Collection
+	// missing are the tracks the user lacks.
+	missing  []providers.ListedTrack
+	personal *library.Library
 }
 
 // survey lists the collection and the tracks of it the user lacks: neither
@@ -31,22 +41,22 @@ func survey(
 	tracks repositories.Tracks,
 	userID uint,
 	providerName provider.ProviderName,
-) (*providers.Collection, []providers.ListedTrack, error) {
+) (*surveyed, error) {
 	lister, err := registry.CollectionLister(providerName)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	collection, err := lister.Collection(ctx, userID)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	personal, err := libs.Personal(ctx, userID)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	visible, err := attached.VisibleTo(ctx, userID)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	all := collection.Tracks()
 	refs := make([]provider.TrackRef, 0, len(all))
@@ -56,7 +66,7 @@ func survey(
 	kept := library.KeptLibraries(personal, visible)
 	have, err := tracks.KnownSources(ctx, libraries.IDs(kept), refs)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	var missing []providers.ListedTrack
 	for _, track := range all {
@@ -64,12 +74,12 @@ func survey(
 			missing = append(missing, track)
 		}
 	}
-	return collection, missing, nil
+	return &surveyed{collection: collection, missing: missing, personal: personal}, nil
 }
 
-func planOf(all, missing []providers.ListedTrack) *Plan {
-	plan := &Plan{Total: len(all), Missing: len(missing)}
-	for _, track := range missing {
+func (s *surveyed) plan() *Plan {
+	plan := &Plan{Total: len(s.collection.Tracks()), Missing: len(s.missing)}
+	for _, track := range s.missing {
 		plan.MissingBytes += track.Bytes
 	}
 	return plan

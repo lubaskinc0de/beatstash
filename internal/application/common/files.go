@@ -13,6 +13,9 @@ type Disk interface {
 	Remove(path string)
 	Move(from, to string)
 	MakeDir(dir string) error
+	Size(path string) (int64, error)
+	// FreeSpace is how many bytes the libraries file system has left.
+	FreeSpace() (int64, error)
 	// Stage copies audio to a scratch file on the libraries' file system.
 	Stage(audio io.Reader, ext string) (string, error)
 	ClearScratch() error

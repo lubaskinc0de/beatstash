@@ -48,14 +48,17 @@ func (r recipients) As(ctx context.Context, chatID int64) context.Context {
 	return withTexts(asRecipient(ctx, chatID), r.texts.For(i18n.Language(r.languages[chatID])))
 }
 
-func (ch *Chats) AnswerIngest(ctx context.Context, m poller.JobMessage, job *ingest.IngestJob) error {
-	return worthRetry(ch.answerIngest(ctx, m, job))
+func (ch *Chats) AnswerIngest(ctx context.Context, m poller.JobMessage, job *ingest.IngestJob, usage library.Usage) error {
+	return worthRetry(ch.answerIngest(ctx, m, job, usage))
 }
 
-func (ch *Chats) answerIngest(ctx context.Context, m poller.JobMessage, job *ingest.IngestJob) error {
+func (ch *Chats) answerIngest(ctx context.Context, m poller.JobMessage, job *ingest.IngestJob, usage library.Usage) error {
 	c := texts(ctx)
 	msg := messageRef{chatID: m.ChatID, messageID: m.MessageID}
-	if job.Failed() {
+	switch {
+	case job.FailureReason == ingest.ReasonQuotaExceeded:
+		return ch.Telegram.reject(ctx, msg, c.NoRoom(usage, ch.Telegram.AdminContact))
+	case job.Failed():
 		return ch.Telegram.reject(ctx, msg, c.UploadFailed(job.FailureReason))
 	}
 
@@ -74,7 +77,7 @@ func (ch *Chats) answerIngest(ctx context.Context, m poller.JobMessage, job *ing
 }
 
 func (ch *Chats) SummarizeImport(ctx context.Context, chatID int64, result *import_collection.ImportResult) error {
-	return worthRetry(ch.Telegram.sendText(ctx, chatID, texts(ctx).ImportSummary(result)))
+	return worthRetry(ch.Telegram.sendText(ctx, chatID, texts(ctx).ImportSummary(result, ch.Telegram.AdminContact)))
 }
 
 func (ch *Chats) NoticeRejectedToken(ctx context.Context, chatID int64, providerName provider.ProviderName) {

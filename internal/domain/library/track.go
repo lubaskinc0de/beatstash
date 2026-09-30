@@ -20,6 +20,8 @@ type Track struct {
 
 	DurationMs int
 	Format     Format
+	// Size is the file's, in bytes.
+	Size int64 `gorm:"not null;default:0"`
 
 	// SongID is the Navidrome song a Track of an Attached Library follows;
 	// empty for other Tracks.
@@ -89,8 +91,10 @@ func (t *Track) Follow(song Song) (changed bool) {
 	t.DurationMs = song.DurationMs
 	t.Format = song.Format
 	t.Quality = song.Quality
+	t.Size = song.Size
 	return before.SongID != t.SongID || before.Path != t.Path || before.Metadata != t.Metadata ||
-		before.DurationMs != t.DurationMs || before.Format != t.Format || before.Quality != t.Quality
+		before.DurationMs != t.DurationMs || before.Format != t.Format || before.Quality != t.Quality ||
+		before.Size != t.Size
 }
 
 // Attached reports whether the Track is in an Attached Library: the bot
@@ -122,6 +126,16 @@ func (t *Track) MoveTo(path string) {
 		return
 	}
 	t.Path = path
+}
+
+// GrowthTo is how much the Library grows once the Track's file has the
+// size: a new Track by all of it, a replaced one by the difference.
+func (t *Track) GrowthTo(size int64) int64 {
+	return size - t.Size
+}
+
+func (t *Track) Resize(size int64) {
+	t.Size = size
 }
 
 func (t *Track) AddSource(ref provider.TrackRef) *TrackSource {
@@ -184,6 +198,7 @@ func (t *Track) CopyTo(library *Library, path string) *Track {
 		Quality:    t.Quality,
 		DurationMs: t.DurationMs,
 		Format:     t.Format,
+		Size:       t.Size,
 	}
 }
 

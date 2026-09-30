@@ -557,6 +557,7 @@ type songJSON struct {
 	Suffix      string  `json:"suffix"`
 	BitRate     int     `json:"bitRate"`
 	Codec       string  `json:"codec"`
+	Size        int64   `json:"size"`
 }
 
 func (c *Client) LibrarySongs(ctx context.Context, admin appnd.Credentials, libraryID int) ([]appnd.Song, error) {
@@ -587,6 +588,7 @@ func (c *Client) LibrarySongs(ctx context.Context, admin appnd.Credentials, libr
 				Suffix:      strings.ToLower(s.Suffix),
 				Codec:       s.Codec,
 				BitrateKbps: s.BitRate,
+				Size:        s.Size,
 			})
 		}
 		if len(page) < songsPage {

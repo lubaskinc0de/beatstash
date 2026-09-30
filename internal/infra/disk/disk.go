@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
@@ -62,6 +63,22 @@ func (d *Disk) Move(from, to string) {
 
 func (d *Disk) MakeDir(dir string) error {
 	return os.MkdirAll(dir, 0o755) //nolint:gosec // G301: Navidrome reads the library
+}
+
+func (d *Disk) Size(path string) (int64, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+	return info.Size(), nil
+}
+
+func (d *Disk) FreeSpace() (int64, error) {
+	var fs syscall.Statfs_t
+	if err := syscall.Statfs(d.MusicDir, &fs); err != nil {
+		return 0, err
+	}
+	return int64(fs.Bavail) * fs.Bsize, nil //nolint:gosec // G115: no disk holds 2^63 bytes
 }
 
 func (d *Disk) Stage(audio io.Reader, ext string) (string, error) {

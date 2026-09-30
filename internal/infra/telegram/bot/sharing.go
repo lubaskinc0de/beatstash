@@ -123,7 +123,11 @@ func (s *Sharing) shared(ctx context.Context, query *models.CallbackQuery, resul
 
 func (s *Sharing) answerShare(ctx context.Context, query *models.CallbackQuery, text string, state *share_tracks.ShareState, err error) {
 	c := texts(ctx)
+	var full *library.QuotaExceededError
 	switch {
+	case errors.As(err, &full):
+		s.Telegram.answerCallback(ctx, query.ID, c.SharedLibraryFull(s.Telegram.AdminContact))
+		return
 	case errors.Is(err, library.ErrNotKeptTrack):
 		s.Telegram.answerCallback(ctx, query.ID, c.NotOwnTrack())
 		return

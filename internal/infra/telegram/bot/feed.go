@@ -61,7 +61,10 @@ func (f *Feed) feedView(ctx context.Context) window.View {
 func (f *Feed) handleTake(ctx context.Context, query *models.CallbackQuery, sharedTrackID uint) {
 	c := texts(ctx)
 	err := f.TakeTrack.Execute(ctx, sharedTrackID)
+	var full *library.QuotaExceededError
 	switch {
+	case errors.As(err, &full):
+		f.Telegram.answerCallback(ctx, query.ID, c.NoRoom(full.Usage, f.Telegram.AdminContact))
 	case err == nil:
 		f.Telegram.answerCallback(ctx, query.ID, c.Taken())
 	case errors.Is(err, library.ErrAlreadyInLibrary):

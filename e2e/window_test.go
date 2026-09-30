@@ -16,6 +16,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
 func TestHome(t *testing.T) {
@@ -27,7 +28,7 @@ func TestHome(t *testing.T) {
 		s.Open(alice)
 
 		text := s.WindowText()
-		assert.Contains(t, text, s.Catalog(alice).Home(alice.Username, telegram.BotUsername))
+		assert.Contains(t, text, s.Catalog(alice).Home(alice.Username, telegram.BotUsername, library.Usage{}))
 		for _, hint := range []string{"np", "recent", "shared", "top"} {
 			assert.Contains(t, text, "@"+telegram.BotUsername+" "+hint)
 		}
@@ -43,7 +44,7 @@ func TestHome(t *testing.T) {
 
 		s.Open(carol)
 
-		assert.Contains(t, s.WindowText(), s.Catalog(carol).Home(carol.Username, telegram.BotUsername))
+		assert.Contains(t, s.WindowText(), s.Catalog(carol).Home(carol.Username, telegram.BotUsername, library.Usage{}))
 		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), s.Catalog(alice).LanguageButton())
 	})
 
@@ -56,7 +57,7 @@ func TestHome(t *testing.T) {
 		s.Open(alice)
 		english := alice
 		english.LanguageCode = "en"
-		home := s.Catalog(english).Home(alice.Username, telegram.BotUsername)
+		home := s.Catalog(english).Home(alice.Username, telegram.BotUsername, library.Usage{})
 
 		assert.Equal(t, "editMessageText", switched.Method)
 		assert.Contains(t, switched.Params["text"], home)
@@ -118,7 +119,7 @@ func TestWindowOnInstances(t *testing.T) {
 
 		s.Open(alice)
 
-		assert.Contains(t, s.WindowText(), s.Catalog(alice).Home(alice.Username, telegram.BotUsername))
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).Home(alice.Username, telegram.BotUsername, library.Usage{}))
 		assert.Len(t, s.Telegram.MessagesWithButtons(), 1)
 	})
 
@@ -318,7 +319,7 @@ func TestTranslations(t *testing.T) {
 
 		s.Open(alice)
 
-		assert.Contains(t, s.WindowText(), s.Catalog(alice).Home(alice.Username, telegram.BotUsername))
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).Home(alice.Username, telegram.BotUsername, library.Usage{}))
 		assert.Contains(t, s.WindowText(), "Музыкалка")
 	})
 
@@ -339,7 +340,7 @@ func TestTranslations(t *testing.T) {
 		}, languages)
 		german := alice
 		german.LanguageCode = "de"
-		assert.Contains(t, s.WindowText(), s.Catalog(german).Home(alice.Username, telegram.BotUsername))
+		assert.Contains(t, s.WindowText(), s.Catalog(german).Home(alice.Username, telegram.BotUsername, library.Usage{}))
 		assert.Contains(t, s.WindowText(), "Hallo, alice!")
 		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), s.Catalog(german).FeedButton())
 	})
@@ -375,7 +376,7 @@ func TestTranslations(t *testing.T) {
 
 		s.Open(alice)
 
-		assert.Contains(t, s.WindowText(), s.Catalog(alice).Home(alice.Username, telegram.BotUsername))
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).Home(alice.Username, telegram.BotUsername, library.Usage{}))
 		assert.Contains(t, s.WindowText(), "https://github.com/lubaskinc0de/navidrome-tg")
 		assert.Contains(t, s.WindowText(), "@lubaskinc0de")
 	})

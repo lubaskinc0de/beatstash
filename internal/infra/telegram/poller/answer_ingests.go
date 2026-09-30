@@ -13,6 +13,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/add_track"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/trackfile"
 )
 
@@ -67,6 +68,7 @@ func (s *answerIngests) Run(ctx context.Context) error {
 	}
 
 	jobs := map[uint]*ingest.IngestJob{}
+	usages := map[int64]library.Usage{}
 	var finished, lost []uint
 	for chatID, ids := range byChat {
 		results, err := s.results.Execute(recipients.As(ctx, chatID), ids)
@@ -78,10 +80,11 @@ func (s *answerIngests) Run(ctx context.Context) error {
 		case err != nil:
 			return err
 		}
-		for n := range results {
-			if results[n].Finished() {
-				jobs[results[n].ID] = &results[n]
-				finished = append(finished, results[n].ID)
+		usages[chatID] = results.Usage
+		for n := range results.Jobs {
+			if job := &results.Jobs[n]; job.Finished() {
+				jobs[job.ID] = job
+				finished = append(finished, job.ID)
 			}
 		}
 	}
@@ -97,7 +100,7 @@ func (s *answerIngests) Run(ctx context.Context) error {
 	ids := make([]uint, 0, len(claimed))
 	for _, m := range claimed {
 		job := jobs[m.JobID]
-		if err := s.chats.AnswerIngest(recipients.As(ctx, m.ChatID), m, job); err != nil {
+		if err := s.chats.AnswerIngest(recipients.As(ctx, m.ChatID), m, job, usages[m.ChatID]); err != nil {
 			slog.Error("answer_ingest", "job_id", m.JobID, "error", err)
 			continue
 		}

@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -42,13 +43,47 @@ func (r *UserRepository) Count(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+func (r *UserRepository) CountActive(ctx context.Context, since time.Time) (total, active int64, err error) {
+	var row struct {
+		Total  int64
+		Active int64
+	}
+	err = dbForContext(ctx, r.DB).
+		Model(&access.User{}).
+		Select("COUNT(*) AS total, COUNT(*) FILTER (WHERE last_seen_at >= ?) AS active", since).
+		Scan(&row).Error
+	return row.Total, row.Active, err
+}
+
+// ByLastSeen reads one row past the page: it tells whether more follow.
+func (r *UserRepository) ByLastSeen(ctx context.Context, page, perPage int) ([]access.User, bool, error) {
+	var users []access.User
+	err := dbForContext(ctx, r.DB).
+		Order("last_seen_at DESC NULLS LAST, id").
+		Offset(page * perPage).Limit(perPage + 1).
+		Find(&users).Error
+	if err != nil || len(users) <= perPage {
+		return users, false, err
+	}
+	return users[:perPage], true, nil
+}
+
+func (r *UserRepository) Get(ctx context.Context, id uint) (*access.User, error) {
+	return first[access.User](dbForContext(ctx, r.DB).Preload("Identities").Where("id = ?", id), repositories.ErrUserNotFound)
+}
+
 func (r *UserRepository) Save(ctx context.Context, user *access.User) error {
 	return dbForContext(ctx, r.DB).Save(user).Error
 }
 
-func (r *UserRepository) SetUsername(ctx context.Context, userID uint, username string) error {
+func (r *UserRepository) SaveSeen(ctx context.Context, user *access.User) error {
 	return dbForContext(ctx, r.DB).
 		Model(&access.User{}).
-		Where("id = ?", userID).
-		Update("username", username).Error
+		Where("id = ?", user.ID).
+		Updates(map[string]any{
+			"username":     user.Username,
+			"first_name":   user.FirstName,
+			"last_name":    user.LastName,
+			"last_seen_at": user.LastSeenAt,
+		}).Error
 }

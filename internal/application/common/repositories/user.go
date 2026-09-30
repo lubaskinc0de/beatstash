@@ -13,7 +13,8 @@ type Users interface {
 	Identities(ctx context.Context, channel access.Channel, userIDs []uint) ([]access.Identity, error)
 	All(ctx context.Context) ([]access.User, error)
 	Save(ctx context.Context, user *access.User) error
-	SetUsername(ctx context.Context, userID uint, username string) error
+	// SaveSeen saves the User's profile and Last Seen only.
+	SaveSeen(ctx context.Context, user *access.User) error
 }
 
 var ErrUserNotFound = errors.New("user not found")

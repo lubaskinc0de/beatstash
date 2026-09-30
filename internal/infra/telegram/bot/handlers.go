@@ -15,6 +15,8 @@ type Telegram struct {
 	BotName string
 	Windows *window.Windows
 	Texts   *i18n.Bundle
+	// AdminContact is who users ask for access and space; empty hides it.
+	AdminContact string
 
 	// screens draws any screen: a feature's action may lead to another's.
 	screens *Handler
@@ -30,6 +32,8 @@ type Handler struct {
 	Sharing   *Sharing
 	Inline    *Inline
 	Uploads   *Uploads
+	Admin     *Admin
+	Quotas    *Quotas
 }
 
 // Register adds the routes; they never match the same update.
@@ -75,6 +79,18 @@ func (h *Handler) view(ctx context.Context, s screen, arg string) window.View {
 		return h.Home.listenView(ctx)
 	case screenLanguages:
 		return h.Home.languagesView(ctx)
+	case screenAdmin:
+		return h.Admin.adminView(ctx)
+	case screenUsers:
+		return h.Admin.usersView(ctx, arg)
+	case screenUser:
+		return h.Admin.userView(ctx, arg)
+	case screenQuotas:
+		return h.Quotas.quotasView(ctx)
+	case screenQuota:
+		return h.Quotas.quotaView(ctx, arg)
+	case screenUserQuota:
+		return h.Quotas.userQuotaView(ctx, arg)
 	default:
 		return h.Home.homeView(ctx)
 	}
@@ -89,6 +105,8 @@ func (h *Handler) onText(s screen) func(context.Context, windowInput) {
 		return h.Navidrome.linkNavidrome
 	case screenRegister:
 		return h.Navidrome.registerNavidrome
+	case screenQuota, screenUserQuota:
+		return h.Quotas.typeQuota(s)
 	default:
 		return nil
 	}

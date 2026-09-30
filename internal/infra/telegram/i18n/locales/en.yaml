@@ -25,6 +25,7 @@ bot:
   start_command: Open the bot
 
 button:
+  admin: 🛠 Admin
   feed: 🎵 Feed
   top: 🏆 Top
   import: 📥 Import from a streaming service
@@ -41,6 +42,7 @@ try_later: ⚠️ Something went wrong, try again later
 home:
   greeting: 👋 Hi!
   greeting_named: 👋 Hi, {{.Name}}!
+  usage: 📦 {{.Used}} of {{.Quota}}
   text: |-
     {{.Service}} moves your music library from cloud services to your own storage on <a href="https://www.navidrome.org">Navidrome</a> and lets you add to it right from Telegram: just send an audio file.
 
@@ -171,6 +173,7 @@ songs:
   other: "{{.Count}} songs"
 
 size:
+  kb: "{{.N}} KB"
   mb: "{{.N}} MB"
   gb: "{{.N}} GB"
   decimal_separator: "."
@@ -204,6 +207,7 @@ sources:
   reconnect: 🔌 Connect again
 
 plan:
+  usage: "📦 {{.Free}} free of {{.Quota}}"
   size: "{{.Tracks}}, about {{.Size}}"
   size_partly: "{{.Total}}, of which your library lacks {{.Missing}}, about {{.Size}}"
   text: "🎧 Your {{.Name}} collection has {{.Size}}. Likes, saved albums and playlists will go to your Personal Library: likes become stars, and playlists become Navidrome playlists. Tracks download with pauses, so it takes a while"
@@ -214,6 +218,7 @@ plan:
   all_in_library: The whole collection is in your library already
 
 imports:
+  over_quota: "📦 Over the quota: {{.Tracks}}"
   title: 📊 <b>Imports</b>
   nothing: Nothing is being imported now
   errors: errors
@@ -293,3 +298,53 @@ hint:
   top:
     about: Top sharers
     message: top sharers
+
+quota:
+  title: 📦 <b>Quotas</b>
+  default: "Default: {{.Quota}}"
+  shared: "Shared Library: {{.Quota}}"
+  from_config: (from the config)
+  edit_default: ✏️ Default
+  edit_shared: ✏️ Shared Library
+  edit_user: 📦 Quota
+  prompt: Pick a quota or send a size as a message, e.g. <code>25 GB</code> or <code>500 MB</code>
+  unlimited_button: ♾ Unlimited
+  from_config_button: ↺ From the config
+  default_button: ↺ Default
+  unreadable: ✏️ That is no size. Send, e.g., <code>25 GB</code> or <code>500 MB</code>
+  promised: "promised {{.Promised}}"
+  used: "used {{.Used}}"
+  free: "free on disk {{.Free}}"
+  overcommitted: ⚠️ The quotas promise more than the disk holds
+  shared_full: The Shared Library is full, nothing can be shared
+  no_room: "Out of space: {{.Used}} of {{.Quota}} used"
+  contact: "✉️ For more space, write to {{.Contact}}"
+  unlimited: unlimited
+
+admin:
+  user_id: "User #{{.ID}}"
+  only: ⛔ This is for the admin only
+  title: 🛠 <b>Admin</b>
+  users: "👥 Users: {{.Users}}, active in 7 days: {{.Active}}"
+  strangers: "🚪 Came without an invite: {{.Strangers}}"
+  tracks: "🎵 Tracks: {{.Tracks}} · shared: {{.Shared}} · taken: {{.Takes}}"
+  jobs: "📥 Uploads in progress: {{.Pending}}, failed: {{.Failed}}"
+  users_button: 👥 Users
+  quotas_button: 📦 Quotas
+  users_title: "👥 <b>Users</b>\n\nThe most recently seen first"
+  prev: ◀️
+  next: ▶️
+  never_seen: not seen yet
+  profile: profile
+  card_dates: "📅 Since {{.Since}} · 👀 {{.Seen}}"
+  card_usage: "🎵 Tracks: {{.Tracks}} · 📦 {{.Used}} of {{.Quota}} ({{.Source}})"
+  own_quota: own quota
+  default_quota: default quota
+
+# Unit names a user may type in a size, e.g. when the Admin sets a quota;
+# several names go apart by commas.
+units:
+  kb: KB
+  mb: MB
+  gb: GB
+  tb: TB

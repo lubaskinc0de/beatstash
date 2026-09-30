@@ -82,7 +82,7 @@ func (i *StartApp) appointAdmins(ctx context.Context) error {
 	for _, identity := range i.Admins {
 		user, err := i.Users.GetByIdentity(ctx, identity)
 		if errors.Is(err, repositories.ErrUserNotFound) {
-			user = access.NewUser("", identity, i.Clock())
+			user = access.NewUser(access.Profile{}, identity, i.Clock())
 			err = i.Users.Save(ctx, user)
 		}
 		if err != nil {

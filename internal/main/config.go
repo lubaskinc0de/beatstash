@@ -4,12 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
 const defaultConfigFile = "config.toml"
@@ -51,6 +53,8 @@ type Config struct {
 	// AttachInterval is how often the bot looks for songs of Attached
 	// Libraries; zero takes no Attached Libraries at all.
 	AttachInterval time.Duration
+	// Quotas hold until the Admin sets others in the bot.
+	Quotas library.ServerQuotas
 
 	InviteTTL time.Duration
 	Clock     func() time.Time
@@ -106,6 +110,11 @@ type fileConfig struct {
 	Invites struct {
 		TTL time.Duration `toml:"ttl"`
 	} `toml:"invites"`
+
+	Quota struct {
+		Default string `toml:"default"`
+		Shared  string `toml:"shared"`
+	} `toml:"quota"`
 
 	Ingest struct {
 		Workers      int             `toml:"workers"`
@@ -198,6 +207,10 @@ func LoadConfig() (Config, error) {
 		NavidromeURL:         file.Navidrome.URL,
 		NavidromePublicURL:   strings.TrimSpace(file.Navidrome.PublicURL),
 		AttachInterval:       file.Navidrome.AttachInterval,
+		Quotas: library.ServerQuotas{
+			Default: parseQuota("quota.default", file.Quota.Default, &problems),
+			Shared:  parseQuota("quota.shared", file.Quota.Shared, &problems),
+		},
 
 		InviteTTL: file.Invites.TTL,
 		Clock:     time.Now,
@@ -290,4 +303,27 @@ func parseIdentities(values []string, problems *[]error) []access.Identity {
 		identities = append(identities, access.Identity{Channel: access.Channel(channel), ExternalID: id})
 	}
 	return identities
+}
+
+var quotaUnits = map[string]int64{"KB": 1 << 10, "MB": 1 << 20, "GB": 1 << 30, "TB": 1 << 40}
+
+// parseQuota reads a size like "10GB" or "1.5 TB", units binary, and an
+// empty value as unlimited.
+func parseQuota(key, value string, problems *[]error) library.Quota {
+	value = strings.ToUpper(strings.TrimSpace(value))
+	if value == "" {
+		return library.Unlimited
+	}
+	for unit, bytes := range quotaUnits {
+		number, ok := strings.CutSuffix(value, unit)
+		if !ok {
+			continue
+		}
+		n, err := strconv.ParseFloat(strings.TrimSpace(number), 64)
+		if err == nil && n*float64(bytes) >= 1 {
+			return library.Quota(n * float64(bytes))
+		}
+	}
+	*problems = append(*problems, fmt.Errorf(`%s: %q is not like "10GB" or "500MB"`, key, value))
+	return library.Unlimited
 }

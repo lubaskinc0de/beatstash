@@ -11,6 +11,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/quotas"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
@@ -26,6 +27,7 @@ type ProcessIngestJob struct {
 	Libraries repositories.Libraries
 	Attached  *libraries.Attached
 	Lock      repositories.LibraryLock
+	Quotas    *quotas.Quotas
 	Disk      common.Disk
 	Tags      AudioTags
 	Remuxer   Remuxer
@@ -581,6 +583,9 @@ func (i *ProcessIngestJob) linkShared(
 	if !errors.Is(err, repositories.ErrTrackNotFound) {
 		return nil, err
 	}
+	if err := i.admit(ctx, libs.Personal, shared.Size); err != nil {
+		return nil, err
+	}
 
 	copied, target, err := libraries.CopyTrack(ctx, i.Tracks, i.Disk, i.MusicDir, shared, libs.Shared, libs.Personal, files)
 	if err != nil {
@@ -666,7 +671,8 @@ func (i *ProcessIngestJob) freePath(st storing, track *library.Track, own string
 }
 
 // saveFile writes the Track's final tags into the staged file, so any
-// Navidrome client shows the same metadata the database holds.
+// Navidrome client shows the same metadata the database holds. The tags
+// change the file's size, so the Quota is checked after them.
 func (i *ProcessIngestJob) saveFile(ctx context.Context, st storing, track *library.Track) error {
 	if err := i.Tags.WriteTags(st.staged, track.Metadata); err != nil {
 		return err
@@ -676,7 +682,26 @@ func (i *ProcessIngestJob) saveFile(ctx context.Context, st storing, track *libr
 			return err
 		}
 	}
+	size, err := i.Disk.Size(st.staged)
+	if err != nil {
+		return err
+	}
+	if err := i.admit(ctx, st.lib, track.GrowthTo(size)); err != nil {
+		return err
+	}
+	track.Resize(size)
 	return i.Tracks.SaveTrack(ctx, track)
+}
+
+// admit expects the Library locked. A Track over the Quota will not fit on
+// retry either.
+func (i *ProcessIngestJob) admit(ctx context.Context, lib *library.Library, growth int64) error {
+	err := i.Quotas.Admit(ctx, lib, growth)
+	var full *library.QuotaExceededError
+	if errors.As(err, &full) {
+		return providers.Permanent(ingest.ReasonQuotaExceeded, err)
+	}
+	return err
 }
 
 // stage copies the Provider's stream into a scratch file, so the following

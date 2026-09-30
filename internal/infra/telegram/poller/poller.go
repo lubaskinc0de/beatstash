@@ -14,6 +14,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/connect_provider"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/import_collection"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/trackfile"
 )
@@ -25,7 +26,8 @@ type Chats interface {
 	// ChatsOf leaves out the Users who never used Telegram.
 	ChatsOf(ctx context.Context, userIDs []uint) (map[uint]int64, error)
 	// AnswerIngest and SummarizeImport fail only if a later try may succeed.
-	AnswerIngest(ctx context.Context, msg JobMessage, job *ingest.IngestJob) error
+	// usage is the user's Personal Library's when the job did not fit it.
+	AnswerIngest(ctx context.Context, msg JobMessage, job *ingest.IngestJob, usage library.Usage) error
 	SummarizeImport(ctx context.Context, chatID int64, result *import_collection.ImportResult) error
 	NoticeRejectedToken(ctx context.Context, chatID int64, providerName provider.ProviderName)
 	// RefreshImports redraws the windows on the Imports.

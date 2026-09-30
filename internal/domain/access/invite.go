@@ -22,8 +22,8 @@ var (
 )
 
 func NewInvite(code string, creator *User, now time.Time, ttl time.Duration) (*Invite, error) {
-	if !creator.Admin {
-		return nil, ErrNotAdmin
+	if err := creator.RequireAdmin(); err != nil {
+		return nil, err
 	}
 	return &Invite{Code: code, CreatedBy: creator.ID, CreatedAt: now, ExpiresAt: now.Add(ttl)}, nil
 }

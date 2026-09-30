@@ -3,6 +3,7 @@ package harness
 import (
 	"time"
 
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	tgbot "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/bot"
 	app "github.com/lubaskinc0de/navidrome-tg/internal/main"
 )
@@ -75,4 +76,12 @@ func WithTranslations(dir string) Option {
 
 func WithAttachInterval(d time.Duration) Option {
 	return func(c *app.Config) { c.AttachInterval = d }
+}
+
+func WithDefaultQuota(q library.Quota) Option {
+	return func(c *app.Config) { c.Quotas.Default = q }
+}
+
+func WithSharedQuota(q library.Quota) Option {
+	return func(c *app.Config) { c.Quotas.Shared = q }
 }

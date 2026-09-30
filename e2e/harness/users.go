@@ -9,6 +9,8 @@ import (
 type User struct {
 	ID           int64
 	Username     string
+	FirstName    string
+	LastName     string
 	LanguageCode string
 }
 
@@ -25,5 +27,5 @@ func Newcomer(name string) User {
 }
 
 func (u User) telegram() *models.User {
-	return &models.User{ID: u.ID, Username: u.Username, LanguageCode: u.LanguageCode}
+	return &models.User{ID: u.ID, Username: u.Username, FirstName: u.FirstName, LastName: u.LastName, LanguageCode: u.LanguageCode}
 }

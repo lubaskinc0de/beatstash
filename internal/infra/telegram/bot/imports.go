@@ -12,6 +12,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/connect_provider"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/import_collection"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/poller"
@@ -144,7 +145,10 @@ func (i *Imports) startImport(ctx context.Context, cb windowCallback, arg string
 	c := texts(ctx)
 	name := provider.ProviderName(arg)
 	plan, err := i.StartImport.Execute(ctx, name)
+	var full *library.QuotaExceededError
 	switch {
+	case errors.As(err, &full):
+		i.Telegram.answerCallback(ctx, cb.query.ID, c.NoRoom(full.Usage, i.Telegram.AdminContact))
 	case err == nil && plan.Missing == 0:
 		i.Telegram.answerCallback(ctx, cb.query.ID, c.AllInLibrary())
 		i.Telegram.show(ctx, cb.chatID, cb.messageID, place{screen: screenPlan, arg: arg}, "")

@@ -227,6 +227,18 @@ func TestShareFromAttachedLibrary(t *testing.T) {
 		s.Open(bob, s.Catalog(bob).FeedButton())
 		assert.Contains(t, s.WindowText(), audiofile.FixtureTitle)
 	})
+
+	t.Run("song over the Shared Library's Quota is not shared", func(t *testing.T) {
+		s, account, own := newWithOwnLibrary(t, []string{audiofile.Fixture("track.mp3")}, harness.WithSharedQuota(20*kb))
+		s.Link(alice, account)
+		s.Navidrome.StartPlaying(t, account, s.Navidrome.IndexedTrack(t, account, own.Dir, audiofile.FixtureTitle).ID)
+		share := telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), s.Catalog(alice).ShareButton())
+
+		s.PressInline(alice, share)
+
+		assert.Equal(t, s.Catalog(alice).SharedLibraryFull(""), s.LastCallbackAnswer())
+		assert.Empty(t, s.SharedFiles())
+	})
 }
 
 func TestAttachedLibraryRefresh(t *testing.T) {

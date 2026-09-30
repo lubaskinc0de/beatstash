@@ -12,13 +12,15 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/quotas"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
 // SyncCollection skips accounts with a running Import and rejected ones. Running is rechecked under the account's
-// lock: an Import may start while the collection is listed.
+// lock: an Import may start while the collection is listed. Besides the new tracks it brings the ones that once
+// did not fit the Quota, so a raised Quota takes effect without a new Import.
 type SyncCollection struct {
 	Tx        repositories.TxManager
 	Accounts  repositories.ProviderAccounts
@@ -31,6 +33,7 @@ type SyncCollection struct {
 	Libraries         repositories.Libraries
 	Attached          *libraries.Attached
 	Tracks            repositories.Tracks
+	Quotas            *quotas.Quotas
 	Navidrome         navidrome.Client
 	NavidromeAccounts *accounts.Navidrome
 }
@@ -109,11 +112,19 @@ func (i *SyncCollection) remember(ctx context.Context, userID uint, providerName
 	}
 	snapshot := collection.Snapshot()
 	added := providers.RefSet(snapshot.Added(account.Collection))
-	var jobs []*ingest.IngestJob
+	var fresh []providers.ListedTrack
 	for _, track := range collection.Tracks() {
 		if added[track.Ref.ID] {
-			jobs = append(jobs, ingest.NewJob(userID, track.Ref, track.DisplayName, time.Now()))
+			fresh = append(fresh, track)
 		}
+	}
+	refitted, err := i.refitted(ctx, userID, providerName, collection, added)
+	if err != nil {
+		return err
+	}
+	var jobs []*ingest.IngestJob
+	for _, track := range append(fresh, refitted...) {
+		jobs = append(jobs, ingest.NewJob(userID, track.Ref, track.DisplayName, time.Now()))
 	}
 	if err := i.Queue.Enqueue(ctx, jobs...); err != nil {
 		return err
@@ -121,6 +132,54 @@ func (i *SyncCollection) remember(ctx context.Context, userID uint, providerName
 
 	account.Remember(snapshot, time.Now())
 	return i.Accounts.Save(ctx, account)
+}
+
+// refitted picks the tracks of the collection that once did not fit the
+// Quota and now fit what the Personal Library has left, by the Provider's
+// guess of their size: a full Library would fetch them only to refuse them.
+func (i *SyncCollection) refitted(
+	ctx context.Context,
+	userID uint,
+	providerName provider.ProviderName,
+	collection *providers.Collection,
+	added map[string]bool,
+) ([]providers.ListedTrack, error) {
+	failures, err := i.Queue.LatestFailures(ctx, userID, providerName)
+	if err != nil || len(failures) == 0 {
+		return nil, err
+	}
+	var candidates []providers.ListedTrack
+	var candidateRefs []provider.TrackRef
+	for _, track := range collection.Tracks() {
+		if failures[track.Ref.ID].AwaitsRoom() && !added[track.Ref.ID] {
+			candidates = append(candidates, track)
+			candidateRefs = append(candidateRefs, track.Ref)
+		}
+	}
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+	personal, err := i.Libraries.Personal(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	stored, err := i.Tracks.KnownSources(ctx, []uint{personal.ID}, candidateRefs)
+	if err != nil {
+		return nil, err
+	}
+	usage, err := i.Quotas.UsageOf(ctx, personal)
+	if err != nil {
+		return nil, err
+	}
+	var missing []providers.ListedTrack
+	var sizes []int64
+	for _, track := range candidates {
+		if !stored[track.Ref] {
+			missing = append(missing, track)
+			sizes = append(sizes, track.Bytes)
+		}
+	}
+	return missing[:usage.Fit(sizes)], nil
 }
 
 func (i *SyncCollection) invalidate(ctx context.Context, account *provider.ProviderAccount) error {

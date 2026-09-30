@@ -9,6 +9,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/quotas"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
@@ -41,6 +42,7 @@ type ShareDeps struct {
 	Shared    repositories.SharedTracks
 	Libraries *libraries.Libraries
 	Attached  *libraries.Attached
+	Quotas    *quotas.Quotas
 	Navidrome navidrome.Client
 	// Admin downloads the files of Attached Libraries.
 	Admin    navidrome.Credentials
@@ -57,6 +59,10 @@ func (d *ShareDeps) within(ctx context.Context, fn func(ctx context.Context, s *
 		return err
 	}
 	return libraries.Within(ctx, d.Tx, d.Lock, d.Disk, libs, func(ctx context.Context, changes *libraries.FileChanges) error {
+		usage, err := d.Quotas.UsageOf(ctx, libs.Shared)
+		if err != nil {
+			return err
+		}
 		return fn(ctx, &sharer{
 			tracks:    d.Tracks,
 			shared:    d.Shared,
@@ -68,6 +74,7 @@ func (d *ShareDeps) within(ctx context.Context, fn func(ctx context.Context, s *
 			user:      user,
 			libs:      libs,
 			kept:      kept,
+			usage:     usage,
 			changes:   changes,
 			now:       d.Clock(),
 		})
@@ -75,7 +82,8 @@ func (d *ShareDeps) within(ctx context.Context, fn func(ctx context.Context, s *
 }
 
 // sharer shares Tracks of one user inside one libraries.Within transaction.
-// Call lockAttached before share.
+// Call lockAttached before share. A Track over the Shared Library's Quota
+// fails the whole transaction: an album is shared whole or not at all.
 type sharer struct {
 	tracks    repositories.Tracks
 	shared    repositories.SharedTracks
@@ -87,8 +95,10 @@ type sharer struct {
 	user      *access.User
 	libs      libraries.ManagedLibraries
 	kept      []*library.Library
-	changes   *libraries.FileChanges
-	now       time.Time
+	// usage is the Shared Library's, with the copies made so far.
+	usage   library.Usage
+	changes *libraries.FileChanges
+	now     time.Time
 }
 
 // lockAttached keeps a refresh of the Attached Library from deleting the
@@ -133,6 +143,10 @@ func (s *sharer) share(ctx context.Context, track *library.Track, result *ShareR
 		return err
 	}
 
+	// An Attached Track's size comes from Navidrome, before its download.
+	if err := s.usage.Take(track.Size); err != nil {
+		return err
+	}
 	var copied *library.Track
 	if track.Attached() {
 		copied, err = s.copyAttached(ctx, track)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strconv"
 	"time"
 
@@ -68,17 +67,18 @@ func (p *IDProvider) CurrentUser(ctx context.Context) (*access.User, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// Admins from the config start without a username, and people rename themselves.
-	if !s.recipient && s.from.Username != user.Username {
-		if err := p.Users.SetUsername(ctx, user.ID, s.from.Username); err != nil {
-			slog.Error("set_username", "error", err)
-		} else {
-			user.Rename(s.from.Username)
-		}
-	}
 	s.user = user
 	return user, nil
+}
+
+// Profile is false for the Poller: acting for the user is no request of
+// theirs.
+func (p *IDProvider) Profile(ctx context.Context) (access.Profile, bool) {
+	s, err := senderFrom(ctx)
+	if err != nil || s.recipient {
+		return access.Profile{}, false
+	}
+	return profileOf(s.from), true
 }
 
 func (p *IDProvider) NewUser(ctx context.Context) (*access.User, error) {
@@ -86,7 +86,11 @@ func (p *IDProvider) NewUser(ctx context.Context) (*access.User, error) {
 	if err != nil {
 		return nil, err
 	}
-	return access.NewUser(s.from.Username, Identity(s.from.ID), p.Clock()), nil
+	return access.NewUser(profileOf(s.from), Identity(s.from.ID), p.Clock()), nil
+}
+
+func profileOf(from *models.User) access.Profile {
+	return access.Profile{Username: from.Username, FirstName: from.FirstName, LastName: from.LastName}
 }
 
 // ChatsOf maps the Users to their private chats with the bot, leaving out

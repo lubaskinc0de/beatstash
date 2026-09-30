@@ -131,6 +131,19 @@ func (q *IngestQueue) CountUnfinished(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+func (q *IngestQueue) CountByStatus(ctx context.Context) (pending, failed int64, err error) {
+	var row struct {
+		Pending int64
+		Failed  int64
+	}
+	err = dbForContext(ctx, q.DB).
+		Model(&ingest.IngestJob{}).
+		Select("COUNT(*) FILTER (WHERE status = ?) AS pending, COUNT(*) FILTER (WHERE status = ?) AS failed",
+			ingest.IngestJobPending, ingest.IngestJobFailed).
+		Scan(&row).Error
+	return row.Pending, row.Failed, err
+}
+
 func (q *IngestQueue) BatchProgress(ctx context.Context, batchIDs []uint) (map[uint]repositories.BatchProgress, error) {
 	var rows []struct {
 		BatchID uint
@@ -163,25 +176,25 @@ func (q *IngestQueue) BatchProgress(ctx context.Context, batchIDs []uint) (map[u
 	return progress, nil
 }
 
-func (q *IngestQueue) FailedNames(ctx context.Context, batchIDs []uint) (map[uint][]string, error) {
+func (q *IngestQueue) Failures(ctx context.Context, batchIDs []uint) (map[uint][]repositories.Failure, error) {
 	var rows []struct {
-		BatchID     uint
-		DisplayName string
+		BatchID uint
+		repositories.Failure
 	}
 	err := dbForContext(ctx, q.DB).
 		Model(&ingest.IngestJob{}).
-		Select("batch_id, display_name").
+		Select("batch_id, display_name, failure_reason AS reason").
 		Where("batch_id IN ? AND status = ?", batchIDs, ingest.IngestJobFailed).
 		Order("id").
 		Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
-	names := make(map[uint][]string, len(batchIDs))
+	failures := make(map[uint][]repositories.Failure, len(batchIDs))
 	for _, row := range rows {
-		names[row.BatchID] = append(names[row.BatchID], row.DisplayName)
+		failures[row.BatchID] = append(failures[row.BatchID], row.Failure)
 	}
-	return names, nil
+	return failures, nil
 }
 
 func (q *IngestQueue) PendingRefs(ctx context.Context, userID uint, providerName provider.ProviderName) ([]string, error) {
@@ -191,4 +204,27 @@ func (q *IngestQueue) PendingRefs(ctx context.Context, userID uint, providerName
 		Where("user_id = ? AND provider = ? AND status = ?", userID, providerName, ingest.IngestJobPending).
 		Pluck("track_ref", &refs).Error
 	return refs, err
+}
+
+func (q *IngestQueue) LatestFailures(
+	ctx context.Context,
+	userID uint,
+	providerName provider.ProviderName,
+) (map[string]ingest.FailureReason, error) {
+	var rows []struct {
+		TrackRef      string
+		FailureReason ingest.FailureReason
+	}
+	err := dbForContext(ctx, q.DB).Raw(`
+		SELECT track_ref, failure_reason FROM (
+			SELECT DISTINCT ON (track_ref) track_ref, status, failure_reason FROM ingest_jobs
+			WHERE user_id = ? AND provider = ?
+			ORDER BY track_ref, id DESC
+		) latest
+		WHERE status = ?`, userID, providerName, ingest.IngestJobFailed).Scan(&rows).Error
+	failures := make(map[string]ingest.FailureReason, len(rows))
+	for _, row := range rows {
+		failures[row.TrackRef] = row.FailureReason
+	}
+	return failures, err
 }

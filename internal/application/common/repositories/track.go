@@ -45,6 +45,8 @@ type Tracks interface {
 	// BySongs maps the Navidrome songs the libraries have Tracks of to them.
 	BySongs(ctx context.Context, libraryIDs []uint, songIDs []string) (map[string]*library.Track, error)
 	CountIn(ctx context.Context, libraryIDs []uint) (int64, error)
+	// Weigh maps each of the libraries to the sum of its Tracks' sizes.
+	Weigh(ctx context.Context, libraryIDs []uint) (map[uint]int64, error)
 	Delete(ctx context.Context, ids []uint) error
 }
 

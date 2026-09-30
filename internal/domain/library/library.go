@@ -31,6 +31,8 @@ type Library struct {
 	Dir string `gorm:"not null;uniqueIndex"`
 	// NavidromeID is zero until the library is created in Navidrome.
 	NavidromeID int `gorm:"not null;default:0"`
+	// Quota is a Personal Library's own; nil follows the Default Quota.
+	Quota *Quota
 
 	CreatedAt time.Time
 }
@@ -63,6 +65,37 @@ func AttachedLibrary(navidromeID int, path string) *Library {
 
 func (l *Library) LinkNavidrome(id int) {
 	l.NavidromeID = id
+}
+
+// Usage tells how much the Library, weighing weight bytes, takes of the
+// Quota in force for it.
+func (l *Library) Usage(weight int64, server ServerQuotas) Usage {
+	return Usage{Used: weight, Quota: l.quotaIn(server)}
+}
+
+// quotaIn returns the Quota in force: a Personal Library's own or else the
+// server's Default Quota, the Shared Library's for it. An Attached Library
+// has none: its files are not the bot's.
+func (l *Library) quotaIn(server ServerQuotas) Quota {
+	switch {
+	case l.Kind == LibraryPersonal && l.Quota != nil:
+		return *l.Quota
+	case l.Kind == LibraryPersonal:
+		return server.Default
+	case l.Kind == LibraryShared:
+		return server.Shared
+	default:
+		return Unlimited
+	}
+}
+
+// SetQuota takes nil to follow the Default Quota again.
+func (l *Library) SetQuota(q *Quota) error {
+	if l.Kind != LibraryPersonal {
+		return ErrNotPersonal
+	}
+	l.Quota = q
+	return nil
 }
 
 func (l *Library) Attached() bool {

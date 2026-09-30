@@ -8,6 +8,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/accounts"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/quotas"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
@@ -23,9 +24,13 @@ type StartImport struct {
 	Accounts  repositories.ProviderAccounts
 	Queue     repositories.IngestQueue
 	BatchRepo repositories.IngestBatches
+	Quotas    *quotas.Quotas
 	Waker     common.Waker
 }
 
+// Execute returns a *library.QuotaExceededError when the Personal Library
+// is full: every track would be downloaded only to be refused. Otherwise
+// the Import starts, as the sizes of the missing tracks are only guesses.
 func (i *StartImport) Execute(ctx context.Context, providerName provider.ProviderName) (*Plan, error) {
 	user, err := i.IDs.CurrentUser(ctx)
 	if err != nil {
@@ -39,7 +44,7 @@ func (i *StartImport) Execute(ctx context.Context, providerName provider.Provide
 		return nil, accounts.ErrBatchRunning
 	}
 
-	collection, missing, err := survey(ctx, i.Providers, i.Libraries, i.Attached, i.Tracks, user.ID, providerName)
+	surveyed, err := survey(ctx, i.Providers, i.Libraries, i.Attached, i.Tracks, user.ID, providerName)
 	if err != nil {
 		return nil, err
 	}
@@ -49,14 +54,23 @@ func (i *StartImport) Execute(ctx context.Context, providerName provider.Provide
 		if err != nil {
 			return err
 		}
-		account.Remember(collection.Snapshot(), time.Now())
+		account.Remember(surveyed.collection.Snapshot(), time.Now())
 		return i.Accounts.Save(ctx, account)
 	}
-	plan := planOf(collection.Tracks(), missing)
-	if len(missing) == 0 {
+	plan := surveyed.plan()
+	if len(surveyed.missing) > 0 {
+		usage, err := i.Quotas.UsageOf(ctx, surveyed.personal)
+		if err != nil {
+			return nil, err
+		}
+		if err := usage.RequireRoom(); err != nil {
+			return nil, err
+		}
+	}
+	if len(surveyed.missing) == 0 {
 		err = i.Tx.WithinTx(ctx, remember)
 	} else {
-		plan.BatchID, err = i.startBatch(ctx, user.ID, providerName, missing, remember)
+		plan.BatchID, err = i.startBatch(ctx, user.ID, providerName, surveyed.missing, remember)
 	}
 	if err != nil {
 		return nil, err

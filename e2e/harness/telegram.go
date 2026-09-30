@@ -2,7 +2,6 @@ package harness
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -99,9 +98,7 @@ func (s *Scenario) Upload(path string) (fileID string, size int64) {
 	fileID = fileIDFor(path, int(s.uploads.Add(1)))
 	stored := s.Telegram.AddFile(s.t, fileID, path)
 
-	info, err := os.Stat(stored)
-	require.NoError(s.t, err)
-	return fileID, info.Size()
+	return fileID, FileSize(s.t, stored)
 }
 
 func (s *Scenario) AudioMessage(from User, audio models.Audio) *models.Update {
@@ -125,7 +122,13 @@ func (s *Scenario) Message(from User, fill func(*models.Message)) *models.Update
 // join leaves the user Home, without a Navidrome Account.
 func (s *Scenario) join(user User) {
 	s.t.Helper()
-	s.Send(s.TextMessage(user, "/start "+s.Invite()))
+	s.Join(user, s.Invite())
+}
+
+// Join lets the user in by the invite code and leaves them Home.
+func (s *Scenario) Join(user User, code string) {
+	s.t.Helper()
+	s.Send(s.TextMessage(user, "/start "+code))
 	s.Open(user)
 }
 
@@ -139,7 +142,7 @@ func (s *Scenario) InlineQuery(from User, query string) *models.Update {
 		ID: id,
 		InlineQuery: &models.InlineQuery{
 			ID:    fmt.Sprintf("inline-%d", id),
-			From:  &models.User{ID: from.ID, Username: from.Username},
+			From:  from.telegram(),
 			Query: query,
 		},
 	}
@@ -159,7 +162,7 @@ func (s *Scenario) ChosenResult(from User, result telegram.InlineResult) *models
 		ID: id,
 		ChosenInlineResult: &models.ChosenInlineResult{
 			ResultID:        result.ID,
-			From:            models.User{ID: from.ID, Username: from.Username},
+			From:            *from.telegram(),
 			InlineMessageID: fmt.Sprintf("chosen-message-%d", id),
 		},
 	}
@@ -195,7 +198,7 @@ func (s *Scenario) CallbackQuery(from User, data string) *models.Update {
 		ID: id,
 		CallbackQuery: &models.CallbackQuery{
 			ID:   fmt.Sprintf("callback-%d", id),
-			From: models.User{ID: from.ID, Username: from.Username},
+			From: *from.telegram(),
 			Data: data,
 		},
 	}

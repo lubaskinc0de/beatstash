@@ -73,6 +73,8 @@ type Song struct {
 	Suffix      string
 	Codec       string
 	BitrateKbps int
+	// Size is the file's, in bytes.
+	Size int64
 }
 
 type Track struct {

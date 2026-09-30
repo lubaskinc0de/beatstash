@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	goi18n "github.com/nicksnyder/go-i18n/v2/i18n"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
@@ -70,10 +72,14 @@ func (c Catalog) Cancel() string          { return c.t("button.cancel", nil) }
 func (c Catalog) TryLater() string        { return c.t("try_later", nil) }
 func (c Catalog) ChooseLanguage() string  { return c.t("languages", nil) }
 
-func (c Catalog) Home(name, bot string) string {
+// Home tells the Usage only under a limited Quota.
+func (c Catalog) Home(name, bot string, usage library.Usage) string {
 	greeting := c.t("home.greeting", nil)
 	if name != "" {
 		greeting = c.t("home.greeting_named", args{"Name": esc(name)})
+	}
+	if usage.Quota.Limited() {
+		greeting += "\n" + c.t("home.usage", c.usageArgs(usage))
 	}
 	var commands strings.Builder
 	for _, command := range inlineCommands {
@@ -274,13 +280,17 @@ func (c Catalog) TokenRejected(name provider.ProviderName) string {
 }
 
 func (c Catalog) Plan(name provider.ProviderName, plan *import_collection.Plan) string {
-	size := c.t("plan.size", args{"Tracks": c.tracks(plan.Missing), "Size": c.bytes(plan.MissingBytes)})
+	size := c.t("plan.size", args{"Tracks": c.tracks(plan.Missing), "Size": c.size(plan.MissingBytes)})
 	if plan.Missing < plan.Total {
 		size = c.t("plan.size_partly", args{
-			"Total": c.tracks(plan.Total), "Missing": c.tracks(plan.Missing), "Size": c.bytes(plan.MissingBytes),
+			"Total": c.tracks(plan.Total), "Missing": c.tracks(plan.Missing), "Size": c.size(plan.MissingBytes),
 		})
 	}
-	return c.t("plan.text", with(c.providerArgs(name), "Size", size))
+	text := c.t("plan.text", with(c.providerArgs(name), "Size", size))
+	if plan.Usage.Quota.Limited() {
+		text += "\n\n" + c.t("plan.usage", args{"Free": c.size(plan.Usage.Free()), "Quota": c.quota(plan.Usage.Quota)})
+	}
+	return text
 }
 
 func (c Catalog) NothingToImport(name provider.ProviderName) string {
@@ -301,10 +311,16 @@ func (c Catalog) Imports(running []import_collection.ImportProgress) string {
 			func(imp import_collection.ImportProgress) string { return c.ProviderName(imp.Provider) })
 }
 
-func (c Catalog) ImportSummary(result *import_collection.ImportResult) string {
+// ImportSummary counts the tracks that did not fit the Quota instead of
+// naming them: there may be thousands.
+func (c Catalog) ImportSummary(result *import_collection.ImportResult, contact string) string {
 	data := c.providerArgs(result.Provider)
 	data["Done"], data["Total"] = result.Progress.Done, result.Total
-	return c.t("imports.summary", data) + failedList(result.FailedNames, c.t("imports.failed", nil), c.t("imports.more", nil))
+	text := c.t("imports.summary", data) + failedList(result.FailedNames, c.t("imports.failed", nil), c.t("imports.more", nil))
+	if n := result.OverQuota; n > 0 {
+		text += "\n\n" + c.withContact(c.t("imports.over_quota", args{"Tracks": c.tracks(n)}), esc(contact))
+	}
+	return text
 }
 
 func (c Catalog) UploadFailed(reason ingest.FailureReason) string {
@@ -318,6 +334,86 @@ func (c Catalog) UploadFailed(reason ingest.FailureReason) string {
 	default:
 		return c.t("upload.internal", nil)
 	}
+}
+
+// NoRoom is plain text: it goes to replies and callback answers.
+func (c Catalog) NoRoom(usage library.Usage, contact string) string {
+	return c.withContact(c.t("quota.no_room", c.usageArgs(usage)), contact)
+}
+
+func (c Catalog) SharedLibraryFull(contact string) string {
+	return c.withContact(c.t("quota.shared_full", nil), contact)
+}
+
+func (c Catalog) withContact(text, contact string) string {
+	if contact == "" {
+		return text
+	}
+	return text + "\n" + c.t("quota.contact", args{"Contact": contact})
+}
+
+func (c Catalog) usageArgs(usage library.Usage) args {
+	return args{"Used": c.size(usage.Used), "Quota": c.quota(usage.Quota)}
+}
+
+func (c Catalog) quota(q library.Quota) string {
+	if !q.Limited() {
+		return c.t("quota.unlimited", nil)
+	}
+	return c.size(int64(q))
+}
+
+// sizeUnits are binary; the language names each in units.<key>, several
+// names apart by commas.
+var sizeUnits = []struct {
+	key   string
+	bytes int64
+}{{"kb", 1 << 10}, {"mb", 1 << 20}, {"gb", 1 << 30}, {"tb", 1 << 40}}
+
+// ParseSize reads a size the user typed, like "25 ГБ" or "1.5GB"; false
+// for anything else, zero and negative sizes too.
+func (c Catalog) ParseSize(text string) (int64, bool) {
+	text = strings.TrimSpace(text)
+	cut := strings.IndexFunc(text, unicode.IsLetter)
+	if cut <= 0 {
+		return 0, false
+	}
+	number, err := strconv.ParseFloat(strings.Replace(strings.TrimSpace(text[:cut]), ",", ".", 1), 64)
+	unit, ok := c.unitBytes(text[cut:])
+	bytes := int64(number * float64(unit))
+	if err != nil || !ok || bytes < 1 {
+		return 0, false
+	}
+	return bytes, true
+}
+
+func (c Catalog) unitBytes(name string) (int64, bool) {
+	for _, unit := range sizeUnits {
+		for _, known := range strings.Split(c.t("units."+unit.key, nil), ",") {
+			if strings.EqualFold(strings.TrimSpace(known), name) {
+				return unit.bytes, true
+			}
+		}
+	}
+	return 0, false
+}
+
+// size rounds to a tenth of its unit.
+func (c Catalog) size(n int64) string {
+	key, unit := "size.kb", int64(1<<10)
+	switch {
+	case n >= 1<<30:
+		key, unit = "size.gb", 1<<30
+	case n >= 1<<20:
+		key, unit = "size.mb", 1<<20
+	}
+	return c.t(key, args{"N": c.decimal(float64(n) / float64(unit))})
+}
+
+// decimal drops a zero tenth.
+func (c Catalog) decimal(x float64) string {
+	text := strconv.FormatFloat(math.Round(x*10)/10, 'f', -1, 64)
+	return strings.Replace(text, ".", c.t("size.decimal_separator", nil), 1)
 }
 
 func (c Catalog) StoredInInbox() string { return c.t("upload.inbox", nil) }
@@ -451,15 +547,6 @@ func (c Catalog) article(prefix string) Article {
 }
 
 func (c Catalog) tracks(n int) string { return c.count("tracks", n) }
-
-func (c Catalog) bytes(n int64) string {
-	const mb = 1 << 20
-	if n < 1<<30 {
-		return c.t("size.mb", args{"N": max(n/mb, 1)})
-	}
-	gb := strconv.FormatFloat(math.Round(float64(n)/(1<<30)*10)/10, 'f', 1, 64)
-	return c.t("size.gb", args{"N": strings.Replace(gb, ".", c.t("size.decimal_separator", nil), 1)})
-}
 
 func (c Catalog) ago(t, now time.Time) string {
 	d := now.Sub(t)

@@ -12,6 +12,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
 func TestNavidromeAccount(t *testing.T) {
@@ -276,7 +277,7 @@ func TestRegistration(t *testing.T) {
 		account := s.IssuedAccount()
 		assert.Equal(t, carol.Username, account.Login)
 		assert.True(t, s.Navidrome.CanLogin(account))
-		assert.Contains(t, s.WindowText(), s.Catalog(carol).Home(carol.Username, telegram.BotUsername))
+		assert.Contains(t, s.WindowText(), s.Catalog(carol).Home(carol.Username, telegram.BotUsername, library.Usage{}))
 	})
 
 	t.Run("password comes in a message of its own", func(t *testing.T) {
@@ -341,7 +342,7 @@ func TestRegistration(t *testing.T) {
 		replies := len(s.Telegram.Replies(t))
 		s.SendText(carol, navidrome.UniqueLogin("carol"))
 
-		assert.Contains(t, s.WindowText(), s.Catalog(carol).Home(carol.Username, telegram.BotUsername))
+		assert.Contains(t, s.WindowText(), s.Catalog(carol).Home(carol.Username, telegram.BotUsername, library.Usage{}))
 		assert.Contains(t, s.WindowText(), s.Catalog(carol).Linked(account.Login, 0))
 		assert.Len(t, s.Telegram.Replies(t), replies)
 	})

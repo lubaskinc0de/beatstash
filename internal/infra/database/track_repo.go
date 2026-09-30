@@ -252,6 +252,24 @@ func (r *TrackRepository) CountIn(ctx context.Context, libraryIDs []uint) (int64
 	return count, err
 }
 
+func (r *TrackRepository) Weigh(ctx context.Context, libraryIDs []uint) (map[uint]int64, error) {
+	var rows []struct {
+		LibraryID uint
+		Size      int64
+	}
+	err := dbForContext(ctx, r.DB).
+		Model(&library.Track{}).
+		Select("library_id, SUM(size) AS size").
+		Where("library_id IN ?", libraryIDs).
+		Group("library_id").
+		Scan(&rows).Error
+	weights := make(map[uint]int64, len(rows))
+	for _, row := range rows {
+		weights[row.LibraryID] = row.Size
+	}
+	return weights, err
+}
+
 func (r *TrackRepository) Delete(ctx context.Context, ids []uint) error {
 	if len(ids) == 0 {
 		return nil

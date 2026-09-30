@@ -29,6 +29,12 @@ const (
 	screenHowTo     screen = "howto"
 	screenListen    screen = "listen"
 	screenLanguages screen = "languages"
+	screenAdmin     screen = "admin"
+	screenUsers     screen = "users"
+	screenUser      screen = "user"
+	screenQuotas    screen = "quotas"
+	screenQuota     screen = "quota"
+	screenUserQuota screen = "user_quota"
 )
 
 type place struct {
@@ -45,6 +51,7 @@ const (
 	actionLanguage    = "lang"
 	actionStartImport = "zi"
 	actionDisconnect  = "off"
+	actionQuota       = "qt"
 )
 
 func goData(to place) string {

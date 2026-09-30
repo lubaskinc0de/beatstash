@@ -4,6 +4,7 @@ import (
 	"github.com/go-gormigrate/gormigrate/v2"
 	"gorm.io/gorm"
 
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	tgbot "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/bot"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/poller"
@@ -120,6 +121,17 @@ var migrations = []*gormigrate.Migration{
 		ID: "0011_telegram_local_files",
 		Migrate: func(tx *gorm.DB) error {
 			return tx.AutoMigrate(&tgprovider.LocalFile{})
+		},
+	},
+	{
+		ID: "0012_quotas",
+		Migrate: func(tx *gorm.DB) error {
+			if err := tx.AutoMigrate(&access.User{}, &library.Library{}, &library.Track{}, &library.QuotaSettings{}); err != nil {
+				return err
+			}
+			// Sync looks up the latest job of each ref of a user.
+			return tx.Exec(`CREATE INDEX IF NOT EXISTS idx_ingest_job_ref
+				ON ingest_jobs (user_id, provider, track_ref, id DESC)`).Error
 		},
 	},
 }

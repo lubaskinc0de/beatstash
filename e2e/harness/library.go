@@ -100,3 +100,11 @@ func FilesWithContent(t *testing.T, root string) map[string]string {
 	}
 	return files
 }
+
+func FileSize(t *testing.T, path string) int64 {
+	t.Helper()
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	return info.Size()
+}

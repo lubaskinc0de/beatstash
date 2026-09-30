@@ -74,6 +74,15 @@ attach_interval = "1h"
 [invites]
 ttl = "168h"
 
+[quota]
+# Default Quota of Personal Libraries: how much all tracks of a user may
+# weigh together, e.g. "10GB" or "500MB"; empty is unlimited. Takes count
+# in full, even though they share the file on disk. The Admin can change it
+# in the bot; that value then wins over this one.
+default = ""
+# Quota of the Shared Library, likewise; empty is unlimited.
+shared = ""
+
 [ingest]
 workers = 2
 # Waits before each retry of a failed Ingest Job.

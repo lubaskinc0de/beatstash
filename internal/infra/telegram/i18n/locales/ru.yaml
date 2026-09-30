@@ -13,6 +13,7 @@ bot:
   start_command: Открыть бота
 
 button:
+  admin: 🛠 Админка
   feed: 🎵 Лента
   top: 🏆 Топ
   import: 📥 Импорт из музыкального сервиса
@@ -29,6 +30,7 @@ try_later: ⚠️ Не получилось, попробуйте позже
 home:
   greeting: 👋 Привет!
   greeting_named: 👋 Привет, {{.Name}}!
+  usage: 📦 {{.Used}} из {{.Quota}}
   text: |-
     {{.Service}} переносит вашу музыкальную библиотеку из облачных сервисов в ваше собственное хранилище на <a href="https://www.navidrome.org">Navidrome</a> и позволяет удобно пополнять её прямо из Telegram: просто пришлите аудиофайл.
 
@@ -165,6 +167,7 @@ songs:
   other: "{{.Count}} песни"
 
 size:
+  kb: "{{.N}} КБ"
   mb: "{{.N}} МБ"
   gb: "{{.N}} ГБ"
   decimal_separator: ","
@@ -197,6 +200,7 @@ sources:
   reconnect: 🔌 Подключить заново
 
 plan:
+  usage: "📦 Свободно {{.Free}} из {{.Quota}}"
   size: "{{.Tracks}}, примерно {{.Size}}"
   size_partly: "{{.Total}}, в библиотеке ещё нет {{.Missing}}, примерно {{.Size}}"
   text: "🎧 В коллекции {{.Of}} {{.Size}}. Лайки, сохранённые альбомы и плейлисты попадут в вашу личную библиотеку, лайки станут звёздами, а плейлисты — плейлистами Navidrome. Треки качаются с паузами, это займёт время"
@@ -207,6 +211,7 @@ plan:
   all_in_library: Вся коллекция уже в библиотеке
 
 imports:
+  over_quota: "📦 Не поместилось в квоту: {{.Tracks}}"
   title: 📊 <b>Импорты</b>
   nothing: Сейчас ничего не импортируется
   errors: ошибок
@@ -286,3 +291,51 @@ hint:
   top:
     about: Кто больше всех делится
     message: кто больше всех делится
+
+quota:
+  title: 📦 <b>Квоты</b>
+  default: "По умолчанию: {{.Quota}}"
+  shared: "Общая библиотека: {{.Quota}}"
+  from_config: (из конфига)
+  edit_default: ✏️ По умолчанию
+  edit_shared: ✏️ Общая библиотека
+  edit_user: 📦 Квота
+  prompt: Выберите квоту или пришлите размер сообщением, например <code>25 ГБ</code> или <code>500 МБ</code>
+  unlimited_button: ♾ Без лимита
+  from_config_button: ↺ Из конфига
+  default_button: ↺ По умолчанию
+  unreadable: ✏️ Не понял размер. Пришлите, например, <code>25 ГБ</code> или <code>500 МБ</code>
+  promised: "обещано {{.Promised}}"
+  used: "занято {{.Used}}"
+  free: "свободно на диске {{.Free}}"
+  overcommitted: ⚠️ Квоты обещают больше, чем помещается на диске
+  shared_full: Общая библиотека заполнена, поделиться не получится
+  no_room: "Не хватает места: занято {{.Used}} из {{.Quota}}"
+  contact: "✉️ Чтобы получить больше места, напишите {{.Contact}}"
+  unlimited: без лимита
+
+admin:
+  user_id: "Пользователь #{{.ID}}"
+  only: ⛔ Это только для администратора
+  title: 🛠 <b>Админка</b>
+  users: "👥 Пользователей: {{.Users}}, активны за 7 дней: {{.Active}}"
+  strangers: "🚪 Заходили без приглашения: {{.Strangers}}"
+  tracks: "🎵 Треков: {{.Tracks}} · в общей: {{.Shared}} · взято себе: {{.Takes}}"
+  jobs: "📥 Загрузок в работе: {{.Pending}}, не удалось: {{.Failed}}"
+  users_button: 👥 Пользователи
+  quotas_button: 📦 Квоты
+  users_title: "👥 <b>Пользователи</b>\n\nСначала те, кто заходил последним"
+  prev: ◀️
+  next: ▶️
+  never_seen: ещё не заходил
+  profile: профиль
+  card_dates: "📅 С {{.Since}} · 👀 {{.Seen}}"
+  card_usage: "🎵 Треков: {{.Tracks}} · 📦 {{.Used}} из {{.Quota}} ({{.Source}})"
+  own_quota: своя квота
+  default_quota: квота по умолчанию
+
+units:
+  kb: КБ, KB
+  mb: МБ, MB
+  gb: ГБ, GB
+  tb: ТБ, TB

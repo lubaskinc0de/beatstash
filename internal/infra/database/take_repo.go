@@ -25,3 +25,9 @@ func (r *TakeRepository) TopTaken(ctx context.Context, since time.Time, limit in
 		Group("author_id")
 	return topEntries(ctx, r.DB, query, "author_id", limit)
 }
+
+func (r *TakeRepository) Count(ctx context.Context) (int64, error) {
+	var count int64
+	err := dbForContext(ctx, r.DB).Model(&sharing.Take{}).Count(&count).Error
+	return count, err
+}

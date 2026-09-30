@@ -8,6 +8,7 @@ import (
 
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
 func TestWindowFollowsChat(t *testing.T) {
@@ -102,7 +103,7 @@ func TestWindowFollowsChat(t *testing.T) {
 		assert.Equal(t, moved, s.Telegram.Window().MessageID)
 		english := alice
 		english.LanguageCode = "en"
-		assert.Contains(t, s.WindowText(), s.Catalog(english).Home(alice.Username, telegram.BotUsername))
+		assert.Contains(t, s.WindowText(), s.Catalog(english).Home(alice.Username, telegram.BotUsername, library.Usage{}))
 	})
 
 	t.Run("press on an old window opens a new one below", func(t *testing.T) {

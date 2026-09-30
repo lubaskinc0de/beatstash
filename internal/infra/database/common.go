@@ -65,6 +65,7 @@ var models = []any{
 	&library.Track{},
 	&library.TrackSource{},
 	&library.Upload{},
+	&library.QuotaSettings{},
 	&sharing.Share{},
 	&sharing.Take{},
 	&ingest.IngestBatch{},

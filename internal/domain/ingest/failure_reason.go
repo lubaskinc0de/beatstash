@@ -9,5 +9,12 @@ const (
 	ReasonFetchFailed       FailureReason = "fetch_failed"
 	ReasonNoProviderAccount FailureReason = "no_provider_account"
 	ReasonTokenRejected     FailureReason = "token_rejected"
+	ReasonQuotaExceeded     FailureReason = "quota_exceeded"
 	ReasonInternal          FailureReason = "internal"
 )
+
+// AwaitsRoom reports that the job failed because the Library had no room
+// for the Track: trying again makes sense once the Library has room.
+func (r FailureReason) AwaitsRoom() bool {
+	return r == ReasonQuotaExceeded
+}

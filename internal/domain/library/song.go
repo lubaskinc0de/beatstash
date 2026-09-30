@@ -12,4 +12,6 @@ type Song struct {
 	DurationMs int
 	Format     Format
 	Quality    Quality
+	// Size is the file's, in bytes.
+	Size int64
 }

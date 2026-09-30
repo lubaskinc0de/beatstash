@@ -12,6 +12,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/greet_stranger"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/invite_friend"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/join_by_invite"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_home"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/window"
@@ -22,11 +23,10 @@ type Home struct {
 	Telegram        *Telegram
 	IDs             common.IDProvider
 	Users           *Users
-	CheckCanInvite  *invite_friend.CheckCanInvite
+	GetHome         *view_home.GetHome
 	CreateInvite    *invite_friend.CreateInvite
 	AcceptInvite    *join_by_invite.AcceptInvite
 	GetServiceStats *greet_stranger.GetServiceStats
-	AdminContact    string
 }
 
 // handleStart with an invite code lets a stranger in and asks for a
@@ -61,16 +61,17 @@ func (h *Home) join(ctx context.Context, chatID int64, code string) {
 
 func (h *Home) homeView(ctx context.Context) window.View {
 	c := texts(ctx)
-	canInvite, err := h.CheckCanInvite.Execute(ctx)
+	home, err := h.GetHome.Execute(ctx)
 	if errors.Is(err, common.ErrNotAuthenticated) {
 		return h.strangerView(ctx)
 	}
 	if err != nil {
-		slog.Error("can_invite", "error", err)
+		slog.Error("get_home", "error", err)
+		home = &view_home.Home{}
 	}
 
 	accounts := []models.InlineKeyboardButton{goButton(c.AccountsButton(), place{screen: screenNavidrome})}
-	if canInvite {
+	if home.Admin {
 		accounts = append(accounts, goButton(c.InviteButton(), place{screen: screenInvite}))
 	}
 	rows := [][]models.InlineKeyboardButton{
@@ -79,9 +80,12 @@ func (h *Home) homeView(ctx context.Context) window.View {
 		{goButton(c.HowToButton(), place{screen: screenHowTo})},
 		{goButton(c.FeedButton(), place{screen: screenFeed}), goButton(c.TopButton(), place{screen: screenTop})},
 		accounts,
-		{h.languageButton(c)},
 	}
-	return window.View{Text: c.Home(senderName(ctx), h.Telegram.BotName), Rows: rows}
+	if home.Admin {
+		rows = append(rows, []models.InlineKeyboardButton{goButton(c.AdminButton(), place{screen: screenAdmin})})
+	}
+	rows = append(rows, []models.InlineKeyboardButton{h.languageButton(c)})
+	return window.View{Text: c.Home(senderName(ctx), h.Telegram.BotName, home.Usage), Rows: rows}
 }
 
 // strangerView tells what the service is without revealing anybody's music.
@@ -93,7 +97,7 @@ func (h *Home) strangerView(ctx context.Context) window.View {
 		slog.Error("get_service_stats", "error", err)
 		return window.View{Text: c.TryLater(), Rows: rows}
 	}
-	return window.View{Text: c.StrangerHome(stats.Users, stats.SharedTracks, h.AdminContact), Rows: rows}
+	return window.View{Text: c.StrangerHome(stats.Users, stats.SharedTracks, h.Telegram.AdminContact), Rows: rows}
 }
 
 // languageButton switches to the other language when there are two, and

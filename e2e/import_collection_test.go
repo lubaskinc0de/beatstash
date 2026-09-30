@@ -41,7 +41,7 @@ func TestZvukImport(t *testing.T) {
 		s.OpenZvuk(alice, s.Catalog(alice).ImportCollection())
 
 		text := s.WindowText()
-		assert.Contains(t, text, s.Catalog(alice).Plan("zvuk", &import_collection.Plan{Total: 9, Missing: 9, MissingBytes: 1}))
+		assert.Contains(t, text, s.Catalog(alice).Plan("zvuk", &import_collection.Plan{Total: 9, Missing: 9, MissingBytes: 9 * zvukTrackGuess}))
 		assert.Empty(t, s.PersonalFiles(alice))
 	})
 
@@ -56,7 +56,7 @@ func TestZvukImport(t *testing.T) {
 
 		s.OpenZvuk(alice, s.Catalog(alice).ImportCollection())
 
-		assert.Contains(t, s.WindowText(), s.Catalog(alice).Plan("zvuk", &import_collection.Plan{Total: 10, Missing: 1, MissingBytes: 1}))
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).Plan("zvuk", &import_collection.Plan{Total: 10, Missing: 1, MissingBytes: zvukTrackGuess}))
 	})
 
 	t.Run("repeated Import of a stored collection offers nothing", func(t *testing.T) {
@@ -289,12 +289,16 @@ func TestImports(t *testing.T) {
 	})
 }
 
+// zvukTrackGuess is how much the bot expects a track of AddZvukAlbum to
+// weigh: 2 seconds of MP3 at 320 kbps.
+const zvukTrackGuess = 80_000
+
 func importSummary(s *harness.Scenario, user harness.User, done, total int, failed ...string) string {
 	result := &import_collection.ImportResult{FailedNames: failed}
 	result.Provider = "zvuk"
 	result.Total = total
 	result.Progress.Done = done
-	return s.Catalog(user).ImportSummary(result)
+	return s.Catalog(user).ImportSummary(result, "")
 }
 
 func TestZvukImportPace(t *testing.T) {

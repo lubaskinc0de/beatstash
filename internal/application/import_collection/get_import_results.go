@@ -14,8 +14,11 @@ type ImportResult struct {
 	ImportProgress
 	ID       uint
 	Finished bool
-	// FailedNames are set once the Import is finished.
+	// FailedNames and OverQuota are set once the Import is finished. A
+	// track that awaits room in the Library is counted, not named: there
+	// may be thousands.
 	FailedNames []string
+	OverQuota   int
 }
 
 // GetImportResults tells the User how their Imports went.
@@ -49,18 +52,24 @@ func (i *GetImportResults) Execute(ctx context.Context, ids []uint) ([]ImportRes
 			finished = append(finished, batch.ID)
 		}
 	}
-	failed := map[uint][]string{}
+	failures := map[uint][]repositories.Failure{}
 	if len(finished) > 0 {
-		if failed, err = i.Queue.FailedNames(ctx, finished); err != nil {
+		if failures, err = i.Queue.Failures(ctx, finished); err != nil {
 			return nil, err
 		}
 	}
 
 	results := make([]ImportResult, 0, len(batches))
 	for n, batch := range batches {
-		results = append(results, ImportResult{
-			ImportProgress: progress[n], ID: batch.ID, Finished: batch.Finished(), FailedNames: failed[batch.ID],
-		})
+		result := ImportResult{ImportProgress: progress[n], ID: batch.ID, Finished: batch.Finished()}
+		for _, failure := range failures[batch.ID] {
+			if failure.Reason.AwaitsRoom() {
+				result.OverQuota++
+			} else {
+				result.FailedNames = append(result.FailedNames, failure.DisplayName)
+			}
+		}
+		results = append(results, result)
 	}
 	return results, nil
 }

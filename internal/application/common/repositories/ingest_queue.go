@@ -16,9 +16,12 @@ type IngestQueue interface {
 	CountUnfinished(ctx context.Context) (int64, error)
 	// BatchProgress maps each batch to its progress.
 	BatchProgress(ctx context.Context, batchIDs []uint) (map[uint]BatchProgress, error)
-	// FailedNames maps each batch to the names of its failed jobs, oldest first.
-	FailedNames(ctx context.Context, batchIDs []uint) (map[uint][]string, error)
+	// Failures maps each batch to its failed jobs, oldest first.
+	Failures(ctx context.Context, batchIDs []uint) (map[uint][]Failure, error)
 	PendingRefs(ctx context.Context, userID uint, providerName provider.ProviderName) ([]string, error)
+	// LatestFailures maps the refs whose latest job of the user failed to
+	// the reason.
+	LatestFailures(ctx context.Context, userID uint, providerName provider.ProviderName) (map[string]ingest.FailureReason, error)
 }
 
 type JobFilter struct {
@@ -32,4 +35,9 @@ type BatchProgress struct {
 	Done    int
 	Failed  int
 	Pending int
+}
+
+type Failure struct {
+	DisplayName string
+	Reason      ingest.FailureReason
 }

@@ -144,6 +144,7 @@ func songOf(s navidrome.Song) library.Song {
 		},
 		DurationMs: s.DurationMs,
 		Format:     format,
+		Size:       s.Size,
 		Quality: library.Quality{
 			Lossless: library.LosslessCodec(s.Codec) || library.LosslessCodec(s.Suffix),
 			Bitrate:  s.BitrateKbps,

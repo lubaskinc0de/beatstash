@@ -67,6 +67,8 @@ func (h *Handler) windowAction(action string) func(context.Context, windowCallba
 		return h.Imports.startImport
 	case actionDisconnect:
 		return h.Imports.disconnect
+	case actionQuota:
+		return h.Quotas.chooseQuota
 	default:
 		return nil
 	}
