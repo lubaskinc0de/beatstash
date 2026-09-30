@@ -96,7 +96,6 @@ func (i *ProcessIngestJob) Execute(ctx context.Context, filter repositories.JobF
 	return true
 }
 
-// attempt is one run of a job; err is why it failed.
 type attempt struct {
 	job    *ingest.IngestJob
 	result *jobResult
@@ -198,7 +197,6 @@ func alreadyExists(trackID uint) *jobResult {
 	return &jobResult{Outcome: library.AlreadyExists, TrackID: trackID}
 }
 
-// storing carries what the store step needs besides the audio's description.
 type storing struct {
 	job    *ingest.IngestJob
 	lib    *library.Library
@@ -480,12 +478,9 @@ func (i *ProcessIngestJob) recognize(ctx context.Context, libs libraries.Managed
 	return r, nil
 }
 
-// lockAndRecheck takes the Personal Library's lock until the transaction
-// ends, and the Shared Library's only when the ref is there: linking its
-// file must not race an unshare, while locking it for every upload would
-// queue all users behind one another. Under the lock the ref may turn out
-// known or recognized in the user's library, or still shared; then no
-// download is needed.
+// Lock the Shared Library only when the ref is shared, preventing an unshare
+// from racing the link without serializing unrelated uploads. Recheck under
+// lock because another job may have added or unshared the track meanwhile.
 func (i *ProcessIngestJob) lockAndRecheck(
 	ctx context.Context,
 	job *ingest.IngestJob,

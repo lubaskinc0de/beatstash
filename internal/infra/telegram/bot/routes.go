@@ -14,7 +14,6 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/window"
 )
 
-// pollTimeout is the library's default.
 const pollTimeout = time.Minute
 
 func Options(ids common.IDProvider, users *Users, windows *window.Windows, bundle *i18n.Bundle) []bot.Option {

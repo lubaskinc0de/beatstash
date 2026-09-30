@@ -23,7 +23,6 @@ func (o outbox) waiting(ctx context.Context, rows any) error {
 	return o.db.WithContext(ctx).Table(o.table).Where(unclaimed).Order(o.key).Find(rows).Error
 }
 
-// forget drops the rows nobody will be told of.
 func (o outbox) forget(ctx context.Context, ids []uint) error {
 	if len(ids) == 0 {
 		return nil

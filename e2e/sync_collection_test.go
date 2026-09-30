@@ -174,7 +174,7 @@ func TestZvukSync(t *testing.T) {
 
 		s.Zvuk.Revoke(harness.ZvukToken)
 		<-notice.Arrived()
-		assert.False(t, s.Telegram.WaitCalls("sendMessage", sent+1, anotherRound), "another instance acted meanwhile")
+		assert.False(t, s.Telegram.WaitCalls("sendMessage", sent+1, replicaResponseWindow), "another instance acted meanwhile")
 		notice.Release()
 
 		untilTokenRejected(t, s)

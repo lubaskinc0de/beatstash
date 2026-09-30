@@ -119,7 +119,6 @@ func (n *Server) startScan(libraryIDs ...int) error {
 	return n.subsonicAs(adminAccount, "startScan", targets, nil)
 }
 
-// scanFor scans the libraries the account sees.
 func (n *Server) scanFor(account Account) error {
 	u, err := n.user(account)
 	if err != nil {
@@ -381,8 +380,8 @@ func UniqueLogin(prefix string) string {
 	return fmt.Sprintf("%s%d", prefix, loginSeq.Add(1))
 }
 
-// CreateAccount gives the account only Navidrome's own library, as an admin
-// may: by default it would get the Shared Libraries of all scenarios.
+// CreateAccount limits the account to Navidrome's root library; otherwise it
+// would see the shared libraries used by other scenarios.
 func (n *Server) CreateAccount(t *testing.T, prefix string) Account {
 	t.Helper()
 

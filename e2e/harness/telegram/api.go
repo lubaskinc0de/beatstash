@@ -198,7 +198,6 @@ func (a *API) handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// botMessage also notes the message id in the call.
 func (a *API) botMessage(call *Call, params map[string]string) map[string]any {
 	a.mu.Lock()
 	defer a.mu.Unlock()

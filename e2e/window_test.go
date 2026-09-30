@@ -94,7 +94,7 @@ func TestWindowOnInstances(t *testing.T) {
 		<-first.Arrived()
 
 		starts.Go(func() { replica.Send(replica.TextMessage(alice, "/start")) })
-		assert.False(t, s.Telegram.WaitCalls("sendMessage", 1, anotherRound), "another instance acted meanwhile")
+		assert.False(t, s.Telegram.WaitCalls("sendMessage", 1, replicaResponseWindow), "another instance acted meanwhile")
 		first.Release()
 		starts.Wait()
 
@@ -132,7 +132,7 @@ func TestWindowOnInstances(t *testing.T) {
 
 		var press sync.WaitGroup
 		press.Go(func() { replica.Press(alice, back) })
-		assert.False(t, s.Telegram.WaitCalls("editMessageText", edits+1, anotherRound), "another instance acted meanwhile")
+		assert.False(t, s.Telegram.WaitCalls("editMessageText", edits+1, replicaResponseWindow), "another instance acted meanwhile")
 		refresh.Release()
 		press.Wait()
 		s.WaitIngest()

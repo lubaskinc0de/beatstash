@@ -1,6 +1,5 @@
-// Package window keeps the one message of each chat the bot redraws. Its
-// redraws take turns on any instance: whoever draws holds a lease in the
-// window's row.
+// Package window manages each chat's redrawable message and coordinates
+// redraws across instances with a database lease.
 package window
 
 import (

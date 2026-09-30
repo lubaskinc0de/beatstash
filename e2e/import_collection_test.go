@@ -220,7 +220,7 @@ func TestImports(t *testing.T) {
 
 		s.Zvuk.ReleaseStreams()
 		<-summary.Arrived()
-		assert.False(t, s.Telegram.WaitCalls("sendMessage", sent+1, anotherRound), "another instance acted meanwhile")
+		assert.False(t, s.Telegram.WaitCalls("sendMessage", sent+1, replicaResponseWindow), "another instance acted meanwhile")
 		summary.Release()
 		s.WaitIngest()
 

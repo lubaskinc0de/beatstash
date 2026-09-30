@@ -1,6 +1,5 @@
-// Package poller tells the chats what became of what they started: the
-// core keeps no address to answer to. What it told already it keeps in
-// tables of its own, so any instance may tell it, and only one does.
+// Package poller delivers asynchronous results to chats. It stores pending
+// messages in the database so any instance can deliver them once.
 package poller
 
 import (

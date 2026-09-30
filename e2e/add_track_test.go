@@ -67,8 +67,7 @@ func TestIngest(t *testing.T) {
 	})
 }
 
-// anotherRound gives the other instance time to act on the rows it sees.
-const anotherRound = 500 * time.Millisecond
+const replicaResponseWindow = 500 * time.Millisecond
 
 func TestIngestAnswer(t *testing.T) {
 	t.Parallel()
@@ -81,7 +80,7 @@ func TestIngestAnswer(t *testing.T) {
 		answer := s.Telegram.Hold("setMessageReaction")
 		<-answer.Arrived()
 
-		assert.False(t, s.Telegram.WaitCalls("setMessageReaction", 2, anotherRound), "another instance acted meanwhile")
+		assert.False(t, s.Telegram.WaitCalls("setMessageReaction", 2, replicaResponseWindow), "another instance acted meanwhile")
 		answer.Release()
 		s.WaitIngest()
 

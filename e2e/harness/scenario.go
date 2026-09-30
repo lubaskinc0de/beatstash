@@ -110,10 +110,8 @@ func New(t *testing.T, opts ...Option) *Scenario {
 	return s
 }
 
-// prepare sets up everything a bot needs but does not start it.
-// Scenarios run in parallel: each has a database, Bot API, Zvuk and Library
-// of its own, and Navidrome logins and libraries are unique. Attached
-// Libraries are off: the bot would attach the libraries of other scenarios.
+// prepare gives each parallel scenario isolated services and disables
+// Attached Libraries, which would otherwise include other scenarios' data.
 func prepare(t *testing.T, opts ...Option) *Scenario {
 	t.Helper()
 	t.Parallel()
@@ -233,10 +231,9 @@ func (s *Scenario) WaitIngest() {
 	}
 }
 
-// NewOwnNavidrome runs the bot on a Navidrome of its own, with Attached
-// Libraries on, for scenarios the shared Navidrome would mix up: Attached
-// Libraries, accounts the bot creates, deleted libraries. setup, if any,
-// fills Navidrome before the bot starts.
+// NewOwnNavidrome gives the scenario a separate Navidrome for tests involving
+// Attached Libraries, account permissions, or library deletion. setup runs
+// before the bot starts.
 func NewOwnNavidrome(t *testing.T, setup func(s *Scenario), opts ...Option) *Scenario {
 	t.Helper()
 
