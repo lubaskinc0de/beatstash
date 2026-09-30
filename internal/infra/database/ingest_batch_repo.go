@@ -19,9 +19,9 @@ func (r *IngestBatchRepository) Save(ctx context.Context, batch *ingest.IngestBa
 	return dbForContext(ctx, r.DB).Omit("User").Save(batch).Error
 }
 
-func (r *IngestBatchRepository) Get(ctx context.Context, ids []uint) ([]ingest.IngestBatch, error) {
+func (r *IngestBatchRepository) GetOf(ctx context.Context, userID uint, ids []uint) ([]ingest.IngestBatch, error) {
 	var batches []ingest.IngestBatch
-	err := dbForContext(ctx, r.DB).Where("id IN ?", ids).Order("id").Find(&batches).Error
+	err := dbForContext(ctx, r.DB).Where("user_id = ? AND id IN ?", userID, ids).Order("id").Find(&batches).Error
 	return batches, err
 }
 

@@ -13,7 +13,7 @@ import (
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/store"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/trackfile"
 )
 
 // A pending result stands for a Track without a Telegram file: once chosen,
@@ -54,8 +54,8 @@ func parsePendingResult(id string) (trackID uint, shareable bool, ok bool) {
 
 // pending tells whether choosing the Track can bring its file: it is on
 // the bot's disk and there is a storage chat to upload it to.
-func (h *Handler) pending(track *library.Track) bool {
-	return track != nil && !track.Attached() && h.StorageChatID != 0
+func (in *Inline) pending(track *library.Track) bool {
+	return track != nil && !track.Attached() && in.StorageChatID != 0
 }
 
 func pendingResult(id string, a i18n.Article, track *library.Track, markup models.ReplyMarkup) *models.InlineQueryResultArticle {
@@ -74,7 +74,7 @@ func isChosenInlineResult(update *models.Update) bool {
 	return update.ChosenInlineResult != nil
 }
 
-func (h *Handler) handleChosenInlineResult(ctx context.Context, b *bot.Bot, update *models.Update) {
+func (in *Inline) handleChosenInlineResult(ctx context.Context, _ *bot.Bot, update *models.Update) {
 	chosen := update.ChosenInlineResult
 	trackID, shareable, ok := parsePendingResult(chosen.ResultID)
 	if !ok || chosen.InlineMessageID == "" {
@@ -86,20 +86,20 @@ func (h *Handler) handleChosenInlineResult(ctx context.Context, b *bot.Bot, upda
 		markup = shareTrackKeyboard(c, trackID)
 	}
 
-	track, path, err := h.GetTrackFile.Execute(ctx, trackID)
+	track, path, err := in.GetTrackFile.Execute(ctx, trackID)
 	if err != nil {
 		slog.Error("get_track_file", "track_id", trackID, "error", err)
-		editInlineText(ctx, b, chosen.InlineMessageID, c.NotSentNote(false), markup)
+		in.editInlineText(ctx, chosen.InlineMessageID, c.NotSentNote(false), markup)
 		return
 	}
-	file, _, err := h.fileFor(ctx, h.StorageChatID, track, path)
+	file, _, err := in.Files.For(ctx, in.StorageChatID, track, path)
 	if err != nil {
 		slog.Error("store_chosen_track", "track_id", trackID, "error", err)
-		editInlineText(ctx, b, chosen.InlineMessageID,
-			c.NotSentCaption(track.Artist, track.Title, errors.Is(err, ErrFileTooLarge)), markup)
+		in.editInlineText(ctx, chosen.InlineMessageID,
+			c.NotSentCaption(track.Artist, track.Title, errors.Is(err, trackfile.ErrFileTooLarge)), markup)
 		return
 	}
-	_, err = b.EditMessageMedia(ctx, &bot.EditMessageMediaParams{
+	_, err = in.Telegram.Bot.EditMessageMedia(ctx, &bot.EditMessageMediaParams{
 		InlineMessageID: chosen.InlineMessageID,
 		Media:           inputMedia(file, i18n.TrackCaption(track.Artist, track.Title)),
 		ReplyMarkup:     markup,
@@ -109,15 +109,15 @@ func (h *Handler) handleChosenInlineResult(ctx context.Context, b *bot.Bot, upda
 	}
 }
 
-func inputMedia(file *store.File, caption string) models.InputMedia {
-	if file.Kind == store.FileDocument {
+func inputMedia(file *trackfile.File, caption string) models.InputMedia {
+	if file.Kind == trackfile.FileDocument {
 		return &models.InputMediaDocument{Media: file.ID, Caption: caption, ParseMode: models.ParseModeHTML}
 	}
 	return &models.InputMediaAudio{Media: file.ID, Caption: caption, ParseMode: models.ParseModeHTML}
 }
 
-func editInlineText(ctx context.Context, b *bot.Bot, inlineMessageID, text string, markup models.ReplyMarkup) {
-	_, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
+func (in *Inline) editInlineText(ctx context.Context, inlineMessageID, text string, markup models.ReplyMarkup) {
+	_, err := in.Telegram.Bot.EditMessageText(ctx, &bot.EditMessageTextParams{
 		InlineMessageID: inlineMessageID,
 		Text:            text,
 		ParseMode:       models.ParseModeHTML,

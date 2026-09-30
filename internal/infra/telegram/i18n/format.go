@@ -9,7 +9,6 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/browse_shared"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/import_collection"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/ingest_track"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/show_playing"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
@@ -166,7 +165,7 @@ type importLabels struct {
 	nothing, errors string
 }
 
-func imports(running []import_collection.RunningImport, labels importLabels, name func(import_collection.RunningImport) string) string {
+func imports(running []import_collection.ImportProgress, labels importLabels, name func(import_collection.ImportProgress) string) string {
 	if len(running) == 0 {
 		return labels.nothing
 	}
@@ -186,8 +185,7 @@ func imports(running []import_collection.RunningImport, labels importLabels, nam
 // maxFailedListed keeps a summary within Telegram's 4096 characters.
 const maxFailedListed = 40
 
-func failedList(state *ingest_track.BatchState, header, more string) string {
-	failed := state.FailedNames
+func failedList(failed []string, header, more string) string {
 	if len(failed) == 0 {
 		return ""
 	}

@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/go-telegram/bot"
@@ -13,24 +14,27 @@ type messageRef struct {
 	messageID int
 }
 
-func reject(ctx context.Context, b *bot.Bot, msg messageRef, text string) {
-	setReaction(ctx, b, msg, "👎")
-	replyTo(ctx, b, msg, text)
+func (t *Telegram) reject(ctx context.Context, msg messageRef, text string) error {
+	if err := t.setReaction(ctx, msg, "👎"); err != nil {
+		return err
+	}
+	return t.replyTo(ctx, msg, text)
 }
 
-func replyTo(ctx context.Context, b *bot.Bot, msg messageRef, text string) {
-	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
+func (t *Telegram) replyTo(ctx context.Context, msg messageRef, text string) error {
+	_, err := t.Bot.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:          msg.chatID,
 		Text:            text,
 		ReplyParameters: &models.ReplyParameters{MessageID: msg.messageID},
 	})
 	if err != nil {
-		slog.Error("send_reply", "error", err)
+		return fmt.Errorf("send reply: %w", err)
 	}
+	return nil
 }
 
-func setReaction(ctx context.Context, b *bot.Bot, msg messageRef, emoji string) {
-	_, err := b.SetMessageReaction(ctx, &bot.SetMessageReactionParams{
+func (t *Telegram) setReaction(ctx context.Context, msg messageRef, emoji string) error {
+	_, err := t.Bot.SetMessageReaction(ctx, &bot.SetMessageReactionParams{
 		ChatID:    msg.chatID,
 		MessageID: msg.messageID,
 		Reaction: []models.ReactionType{
@@ -43,51 +47,56 @@ func setReaction(ctx context.Context, b *bot.Bot, msg messageRef, emoji string) 
 		},
 	})
 	if err != nil {
-		slog.Error("set_reaction", "error", err)
+		return fmt.Errorf("set reaction: %w", err)
+	}
+	return nil
+}
+
+func (t *Telegram) sendText(ctx context.Context, chatID int64, text string) error {
+	return t.sendKeyboard(ctx, chatID, text, nil)
+}
+
+// logUnsent logs what a handler failed to send: nobody tries it again.
+func logUnsent(err error) {
+	if err != nil {
+		slog.Error("send", "error", err)
 	}
 }
 
-func sendText(ctx context.Context, b *bot.Bot, chatID int64, text string) {
-	sendKeyboard(ctx, b, chatID, text, nil)
-}
-
-func deleteMessage(ctx context.Context, b *bot.Bot, chatID int64, messageID int) {
-	_, err := b.DeleteMessage(ctx, &bot.DeleteMessageParams{ChatID: chatID, MessageID: messageID})
+func (t *Telegram) deleteMessage(ctx context.Context, chatID int64, messageID int) {
+	_, err := t.Bot.DeleteMessage(ctx, &bot.DeleteMessageParams{ChatID: chatID, MessageID: messageID})
 	if err != nil {
 		slog.Error("delete_message", "error", err)
 	}
 }
 
-func answerCallback(ctx context.Context, b *bot.Bot, id, text string) {
-	_, err := b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: id, Text: text})
+func (t *Telegram) answerCallback(ctx context.Context, id, text string) {
+	_, err := t.Bot.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: id, Text: text})
 	if err != nil {
 		slog.Error("answer_callback_query", "error", err)
 	}
 }
 
-func editKeyboard(ctx context.Context, b *bot.Bot, query *models.CallbackQuery, markup *models.InlineKeyboardMarkup) {
+func (t *Telegram) editKeyboard(ctx context.Context, query *models.CallbackQuery, markup *models.InlineKeyboardMarkup) {
 	params := &bot.EditMessageReplyMarkupParams{ReplyMarkup: markup, InlineMessageID: query.InlineMessageID}
 	if msg := query.Message.Message; msg != nil {
 		params.ChatID = msg.Chat.ID
 		params.MessageID = msg.ID
 	}
-	if _, err := b.EditMessageReplyMarkup(ctx, params); err != nil {
+	if _, err := t.Bot.EditMessageReplyMarkup(ctx, params); err != nil {
 		slog.Error("edit_reply_markup", "error", err)
 	}
 }
 
-func sendKeyboard(ctx context.Context, b *bot.Bot, chatID int64, text string, markup models.ReplyMarkup) {
-	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
+func (t *Telegram) sendKeyboard(ctx context.Context, chatID int64, text string, markup models.ReplyMarkup) error {
+	_, err := t.Bot.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      chatID,
 		Text:        text,
 		ParseMode:   models.ParseModeHTML,
 		ReplyMarkup: markup,
 	})
 	if err != nil {
-		slog.Error("send_message", "error", err)
+		return fmt.Errorf("send message: %w", err)
 	}
-}
-
-func noKeyboard() *models.InlineKeyboardMarkup {
-	return &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{}}
+	return nil
 }

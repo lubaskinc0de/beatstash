@@ -7,15 +7,23 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/add_track"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/poller"
 	tgprovider "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/provider"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/store"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/trackfile"
 )
 
-func (h *Handler) handleAudio(
-	ctx context.Context,
-	b *bot.Bot,
+// Uploads takes the audio users send.
+type Uploads struct {
+	Telegram      *Telegram
+	EnqueueIngest *add_track.EnqueueIngest
+	JobMessages   *poller.JobMessages
+}
+
+func (u *Uploads) handleAudio(
+	ctx context.Context, _ *bot.Bot,
 	update *models.Update,
 ) {
 	file, mime, ok := audioFile(update.Message)
@@ -27,7 +35,7 @@ func (h *Handler) handleAudio(
 	format, ok := library.FormatOf(file.Name, mime)
 	if !ok {
 		slog.Info("unsupported_format", "file_name", file.Name, "mime_type", mime)
-		reject(ctx, b, msg, texts(ctx).UploadFailed(ingest.ReasonUnsupportedFormat))
+		logUnsent(u.Telegram.reject(ctx, msg, texts(ctx).UploadFailed(ingest.ReasonUnsupportedFormat)))
 		return
 	}
 	file.Format = format
@@ -35,19 +43,19 @@ func (h *Handler) handleAudio(
 	ref, err := tgprovider.Ref(file)
 	if err != nil {
 		slog.Error("track_ref", "error", err)
-		reject(ctx, b, msg, texts(ctx).UploadFailed(ingest.ReasonInternal))
+		logUnsent(u.Telegram.reject(ctx, msg, texts(ctx).UploadFailed(ingest.ReasonInternal)))
 		return
 	}
 
 	// 👀 goes first: the Poller may set 👍 as soon as the job is remembered.
-	setReaction(ctx, b, msg, "👀")
-	jobID, err := h.EnqueueIngest.Execute(ctx, ref)
+	logUnsent(u.Telegram.setReaction(ctx, msg, "👀"))
+	jobID, err := u.EnqueueIngest.Execute(ctx, ref)
 	if err != nil {
 		slog.Error("enqueue_ingest", "error", err)
-		reject(ctx, b, msg, texts(ctx).UploadFailed(ingest.ReasonInternal))
+		logUnsent(u.Telegram.reject(ctx, msg, texts(ctx).UploadFailed(ingest.ReasonInternal)))
 		return
 	}
-	err = h.JobMessages.Remember(ctx, store.JobMessage{
+	err = u.JobMessages.Remember(ctx, poller.JobMessage{
 		JobID: jobID, ChatID: msg.chatID, MessageID: msg.messageID,
 		FileID: file.ID, FileUniqueID: file.UniqueID, FileKind: file.Kind,
 	})
@@ -69,7 +77,7 @@ func audioFile(msg *models.Message) (file tgprovider.File, mimeType string, ok b
 		return tgprovider.File{
 			ID:        msg.Audio.FileID,
 			UniqueID:  msg.Audio.FileUniqueID,
-			Kind:      store.FileAudio,
+			Kind:      trackfile.FileAudio,
 			Name:      msg.Audio.FileName,
 			Performer: msg.Audio.Performer,
 			Title:     msg.Audio.Title,
@@ -78,7 +86,7 @@ func audioFile(msg *models.Message) (file tgprovider.File, mimeType string, ok b
 		return tgprovider.File{
 			ID:       msg.Document.FileID,
 			UniqueID: msg.Document.FileUniqueID,
-			Kind:     store.FileDocument,
+			Kind:     trackfile.FileDocument,
 			Name:     msg.Document.FileName,
 		}, msg.Document.MimeType, true
 	}

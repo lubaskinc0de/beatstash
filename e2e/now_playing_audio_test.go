@@ -17,7 +17,7 @@ func TestNowPlayingAudio(t *testing.T) {
 	t.Parallel()
 
 	t.Run("chosen np turns into audio and the next np is audio", func(t *testing.T) {
-		s := harness.New(t, harness.WithStorageChat(storageChat))
+		s := harness.New(t, harness.WithStorageChat(storageChat), harness.WithoutStorageFill())
 		playingUnpostedZvukSong(t, s, alice, "Pending Song")
 		result := s.NowPlaying(alice)
 
@@ -39,7 +39,7 @@ func TestNowPlayingAudio(t *testing.T) {
 	})
 
 	t.Run("file over the upload limit leaves text with a note", func(t *testing.T) {
-		s := harness.New(t, harness.WithStorageChat(storageChat), harness.WithMaxUpload(1024))
+		s := harness.New(t, harness.WithStorageChat(storageChat), harness.WithoutStorageFill(), harness.WithMaxUpload(1024))
 		playingUnpostedZvukSong(t, s, alice, "Huge Song")
 
 		chosen := s.Choose(alice, s.NowPlaying(alice))
@@ -53,7 +53,7 @@ func TestNowPlayingAudio(t *testing.T) {
 	})
 
 	t.Run("chosen recent track turns into audio", func(t *testing.T) {
-		s := harness.New(t, harness.WithStorageChat(storageChat))
+		s := harness.New(t, harness.WithStorageChat(storageChat), harness.WithoutStorageFill())
 		account, song := unpostedZvukSong(t, s, alice, "Played Song")
 		s.Navidrome.Play(t, account, song.ID)
 		query := s.InlineQuery(alice, "recent")
@@ -74,7 +74,7 @@ func TestNowPlayingAudio(t *testing.T) {
 	})
 
 	t.Run("simultaneous choices upload the file once", func(t *testing.T) {
-		s := harness.New(t, harness.WithStorageChat(storageChat))
+		s := harness.New(t, harness.WithStorageChat(storageChat), harness.WithoutStorageFill())
 		playingUnpostedZvukSong(t, s, alice, "Pending Song")
 		result := s.NowPlaying(alice)
 		choices := []*models.Update{s.ChosenResult(alice, result), s.ChosenResult(alice, result), s.ChosenResult(alice, result)}
@@ -101,12 +101,11 @@ func playingUnpostedZvukSong(t *testing.T, s *harness.Scenario, user harness.Use
 	s.Navidrome.StartPlaying(t, account, song.ID)
 }
 
-// unpostedZvukSong has the user import a Zvuk track the storage chat turned
-// down once, so it has no Telegram file yet.
+// unpostedZvukSong has the user import a Zvuk track; with the storage chat
+// filled only on demand it has no Telegram file yet.
 func unpostedZvukSong(t *testing.T, s *harness.Scenario, user harness.User, title string) (navidrome.Account, navidrome.Track) {
 	t.Helper()
 
-	s.Telegram.RefuseUploads(1)
 	account := s.LinkNewAccount(user)
 	s.ConnectZvuk(user, harness.ZvukToken)
 	s.AddZvukSong("111", title, false)

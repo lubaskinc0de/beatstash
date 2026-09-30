@@ -36,9 +36,15 @@ bot_api_url = ""
 # np and recent upload a track that has no file yet once the user picks it:
 # turn on inline feedback in BotFather (/setinlinefeedback) for that.
 storage_chat_id = 0
+# Upload every such track to the storage chat in the background. false
+# uploads a track there only once somebody picks it in np or recent.
+fill_storage_chat = true
 # How often the bot checks what became of the tracks and Imports it was
 # sent, to react and update progress.
 poll_interval = "2s"
+# How long a chat waits for an instance that died amid redrawing its window,
+# answering a track or uploading a file. It must outlast any Bot API call.
+lease_ttl = "1m"
 
 [library]
 # In compose: "/music".

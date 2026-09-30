@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/go-telegram/bot/models"
 )
@@ -322,6 +323,32 @@ func (a *API) EditedMessages() []string {
 		id := call.Params["message_id"]
 		if !slices.Contains(ids, id) {
 			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+// WaitCalls waits until the method has n calls or the time is up, and
+// tells whether they came.
+func (a *API) WaitCalls(method string, n int, within time.Duration) bool {
+	deadline := time.Now().Add(within)
+	for time.Now().Before(deadline) {
+		if len(a.CallsTo(method)) >= n {
+			return true
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return len(a.CallsTo(method)) >= n
+}
+
+// MessagesWithButtons lists the messages the bot sent with buttons and did
+// not strip since.
+func (a *API) MessagesWithButtons() []int {
+	stripped := a.StrippedMessages()
+	var ids []int
+	for _, call := range a.CallsTo("sendMessage") {
+		if buttons, _ := keyboardOf(call); len(buttons) > 0 && !slices.Contains(stripped, call.MessageID) {
+			ids = append(ids, call.MessageID)
 		}
 	}
 	return ids

@@ -1,7 +1,9 @@
 package e2e
 
 import (
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -62,5 +64,62 @@ func TestIngest(t *testing.T) {
 
 		assert.Empty(t, s.Telegram.AllCalls())
 		assert.Empty(t, s.LibraryFiles())
+	})
+}
+
+// anotherRound gives the other instance time to act on the rows it sees.
+const anotherRound = 500 * time.Millisecond
+
+func TestIngestAnswer(t *testing.T) {
+	t.Parallel()
+
+	t.Run("two instances answer a track once", func(t *testing.T) {
+		s := harness.New(t, harness.WithLeaseTTL(time.Minute))
+		s.StartReplica()
+		msg := s.AudioMessage(alice, s.UploadAudio("track.mp3"))
+		s.Send(msg)
+		answer := s.Telegram.Hold("setMessageReaction")
+		<-answer.Arrived()
+
+		assert.False(t, s.Telegram.WaitCalls("setMessageReaction", 2, anotherRound), "another instance acted meanwhile")
+		answer.Release()
+		s.WaitIngest()
+
+		assert.Equal(t, []string{"👀", "👍"}, s.Telegram.ReactionsOn(t, msg.Message.ID))
+	})
+
+	t.Run("answer Telegram failed to take comes again", func(t *testing.T) {
+		s := harness.New(t)
+		msg := s.AudioMessage(alice, s.UploadAudio("track.mp3"))
+		s.Send(msg)
+		s.Telegram.FailCalls("setMessageReaction", 1, http.StatusInternalServerError)
+
+		s.WaitIngest()
+
+		assert.Equal(t, []string{"👀", "👍"}, s.Telegram.ReactionsOn(t, msg.Message.ID))
+	})
+
+	t.Run("answer to a message Telegram no longer has is dropped", func(t *testing.T) {
+		s := harness.New(t)
+		msg := s.AudioMessage(alice, s.UploadAudio("track.mp3"))
+		s.Send(msg)
+		s.Telegram.FailCalls("setMessageReaction", 1, http.StatusBadRequest)
+
+		s.WaitIngest()
+
+		assert.Equal(t, []string{"👀"}, s.Telegram.ReactionsOn(t, msg.Message.ID))
+	})
+
+	t.Run("answer cut by a crash comes after it", func(t *testing.T) {
+		s := harness.New(t)
+		msg := s.AudioMessage(alice, s.UploadAudio("track.mp3"))
+		s.Send(msg)
+		answer := s.Telegram.Hold("setMessageReaction")
+		<-answer.Arrived()
+
+		s.Restart()
+		s.WaitIngest()
+
+		assert.Equal(t, []string{"👀", "👍"}, s.Telegram.ReactionsOn(t, msg.Message.ID))
 	})
 }

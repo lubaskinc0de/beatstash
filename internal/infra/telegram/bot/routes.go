@@ -11,35 +11,25 @@ import (
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/store"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/window"
 )
 
 // pollTimeout is the library's default.
 const pollTimeout = time.Minute
 
-func Options(ids common.IDProvider, users *store.Users, windows *store.Windows, bundle *i18n.Bundle) []bot.Option {
+func Options(ids common.IDProvider, users *Users, windows *window.Windows, bundle *i18n.Bundle) []bot.Option {
 	return []bot.Option{
-		bot.WithHTTPClient(pollTimeout, watch(windows, &http.Client{Timeout: pollTimeout})),
+		bot.WithHTTPClient(pollTimeout, window.Watch(windows, &http.Client{Timeout: pollTimeout})),
+		// The app calls getMe itself: it needs the username.
+		bot.WithSkipGetMe(),
 		bot.WithAllowedUpdates(bot.AllowedUpdates{
 			"message",
 			"inline_query",
 			"callback_query",
 			"chosen_inline_result",
 		}),
-		bot.WithMiddlewares(arrivalMiddleware(windows), senderMiddleware, languageMiddleware(users, bundle), membersOnly(ids)),
+		bot.WithMiddlewares(window.CountArrivals(windows), senderMiddleware, languageMiddleware(users, bundle), membersOnly(ids)),
 	}
-}
-
-// Register adds the routes in priority order: the bot runs the first match.
-// Everything but /start and /share happens in the window.
-func (h *Handler) Register(b *bot.Bot) {
-	b.RegisterHandlerMatchFunc(hasAudio, h.handleAudio)
-	b.RegisterHandlerMatchFunc(isCommand("start"), h.handleStart)
-	b.RegisterHandlerMatchFunc(isCommand("share"), h.handleShare)
-	b.RegisterHandlerMatchFunc(isText, h.handleText)
-	b.RegisterHandlerMatchFunc(isInlineQuery, h.handleInlineQuery)
-	b.RegisterHandlerMatchFunc(isCallbackQuery, h.handleCallbackQuery)
-	b.RegisterHandlerMatchFunc(isChosenInlineResult, h.handleChosenInlineResult)
 }
 
 func isInlineQuery(update *models.Update) bool {
@@ -50,31 +40,55 @@ func isCallbackQuery(update *models.Update) bool {
 	return update.CallbackQuery != nil
 }
 
-type callbackHandler func(ctx context.Context, b *bot.Bot, query *models.CallbackQuery, id uint)
-
-func (h *Handler) callbackHandler(action string) (callbackHandler, bool) {
-	switch action {
-	case actionShareTrack, actionShareAlbum, actionUnshareTrack, actionUnshareAlbum:
-		return h.shareCallback(action), true
-	case actionTake:
-		return h.handleTake, true
-	case actionSendFile:
-		return h.handleSendFile, true
-	}
-	return nil, false
-}
-
-func (h *Handler) handleCallbackQuery(ctx context.Context, b *bot.Bot, update *models.Update) {
+func (h *Handler) handleCallbackQuery(ctx context.Context, _ *bot.Bot, update *models.Update) {
 	query := update.CallbackQuery
 	action, arg, _ := strings.Cut(query.Data, ":")
-	if handle, ok := h.windowAction(action); ok {
-		h.handleWindowCallback(ctx, b, query, handle, arg)
+	if msg := query.Message.Message; msg != nil {
+		if handle := h.windowAction(action); handle != nil {
+			handle(ctx, windowCallback{messageRef: messageRef{chatID: msg.Chat.ID, messageID: msg.ID}, query: query}, arg)
+			return
+		}
+	}
+	action, trackID, ok := parseCallback(query.Data)
+	if handle := h.trackAction(action); ok && handle != nil {
+		handle(ctx, query, trackID)
 		return
 	}
-	action, id, ok := parseCallback(query.Data)
-	if handle, known := h.callbackHandler(action); ok && known {
-		handle(ctx, b, query, id)
-		return
+	h.Telegram.answerCallback(ctx, query.ID, "")
+}
+
+// windowAction returns nil for a button that is not the window's.
+func (h *Handler) windowAction(action string) func(context.Context, windowCallback, string) {
+	switch action {
+	case actionGo:
+		return h.goTo
+	case actionLanguage:
+		return h.Home.chooseLanguage
+	case actionStartImport:
+		return h.Imports.startImport
+	case actionDisconnect:
+		return h.Imports.disconnect
+	default:
+		return nil
 	}
-	answerCallback(ctx, b, query.ID, "")
+}
+
+// trackAction returns nil for a button that is not about a Track.
+func (h *Handler) trackAction(action string) func(context.Context, *models.CallbackQuery, uint) {
+	switch action {
+	case actionShareTrack:
+		return h.Sharing.shareTrack
+	case actionShareAlbum:
+		return h.Sharing.shareAlbum
+	case actionUnshareTrack:
+		return h.Sharing.unshareTrack
+	case actionUnshareAlbum:
+		return h.Sharing.unshareAlbum
+	case actionTake:
+		return h.Feed.handleTake
+	case actionSendFile:
+		return h.Feed.handleSendFile
+	default:
+		return nil
+	}
 }

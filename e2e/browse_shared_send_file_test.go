@@ -139,6 +139,62 @@ func TestTelegramFileOfZvukTrack(t *testing.T) {
 	})
 }
 
+func TestStorageChat(t *testing.T) {
+	t.Parallel()
+
+	t.Run("track too large for the storage chat is not tried again after restart", func(t *testing.T) {
+		s := harness.New(t, harness.WithStorageChat(storageChat), harness.WithMaxUpload(tooSmall))
+		importZvukSong(s, alice, "Huge Song")
+
+		s.Restart()
+		s.WaitIngest()
+
+		assert.Empty(t, s.Telegram.CallsTo("sendAudio"))
+	})
+
+	t.Run("track too large for the storage chat goes there once the limit is raised", func(t *testing.T) {
+		s := harness.New(t, harness.WithStorageChat(storageChat), harness.WithMaxUpload(tooSmall))
+		importZvukSong(s, alice, "Huge Song")
+
+		s.Restart(harness.WithMaxUpload(50 << 20))
+		s.WaitIngest()
+
+		sent := s.Telegram.CallsTo("sendAudio")
+		require.Len(t, sent, 1)
+		assert.Equal(t, "Huge Song.mp3", sent[0].Params[telegram.UploadedFileParam])
+	})
+
+	t.Run("upload Telegram turned down is tried again", func(t *testing.T) {
+		s := harness.New(t, harness.WithStorageChat(storageChat))
+		s.Telegram.RefuseUploads(1)
+
+		importZvukSong(s, alice, "Stored Song")
+
+		assert.Len(t, s.Telegram.CallsTo("sendAudio"), 2)
+		assert.NotEmpty(t, s.Telegram.UploadedFileID(0))
+	})
+
+	t.Run("two instances upload a track once", func(t *testing.T) {
+		s := harness.New(t, harness.WithStorageChat(storageChat))
+		s.StartReplica()
+
+		importZvukSong(s, alice, "Stored Song")
+
+		assert.Len(t, s.Telegram.CallsTo("sendAudio"), 1)
+	})
+}
+
+// tooSmall is a Bot API upload limit below any song of the scenarios.
+const tooSmall = 1024
+
+func importZvukSong(s *harness.Scenario, user harness.User, title string) {
+	s.ConnectZvuk(user, harness.ZvukToken)
+	s.AddZvukSong("111", title, false)
+	s.LikeOnZvuk("111")
+	s.ImportZvuk(user)
+	s.WaitIngest()
+}
+
 func uploadedAudio(s *harness.Scenario, n int) models.Audio {
 	id := s.Telegram.UploadedFileID(n)
 	return models.Audio{FileID: id, FileUniqueID: id + "-unique", FileName: "song.mp3", Duration: 2}

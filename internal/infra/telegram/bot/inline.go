@@ -4,40 +4,58 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/browse_shared"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/show_playing"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/store"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/trackfile"
 )
+
+// Inline answers inline queries and brings the files of chosen results.
+type Inline struct {
+	Telegram          *Telegram
+	GetNowPlaying     *show_playing.GetNowPlaying
+	GetRecentlyPlayed *show_playing.GetRecentlyPlayed
+	GetTrackFile      *show_playing.GetTrackFile
+	ViewFeed          *browse_shared.ViewFeed
+	GetTop            *view_top.GetTop
+	Files             *trackfile.Files
+	// StorageChatID gets the Tracks without a Telegram file, so inline mode
+	// sends them as audio; zero turns it off.
+	StorageChatID int64
+}
 
 const recentTracksLimit = 10
 
-func (h *Handler) handleInlineQuery(ctx context.Context, b *bot.Bot, update *models.Update) {
+func (in *Inline) handleInlineQuery(ctx context.Context, _ *bot.Bot, update *models.Update) {
 	queryID := update.InlineQuery.ID
 	switch strings.TrimSpace(strings.ToLower(update.InlineQuery.Query)) {
 	case "np":
-		h.handleNowPlaying(ctx, b, queryID)
+		in.handleNowPlaying(ctx, queryID)
 	case "recent", "last":
-		h.handleRecentlyPlayed(ctx, b, queryID)
+		in.handleRecentlyPlayed(ctx, queryID)
 	case "shared":
-		h.handleInlineFeed(ctx, b, queryID)
+		in.handleInlineFeed(ctx, queryID)
 	case "top":
-		h.handleInlineTop(ctx, b, queryID)
+		in.handleInlineTop(ctx, queryID)
 	default:
-		h.answerHints(ctx, b, queryID)
+		in.answerHints(ctx, queryID)
 	}
 }
 
 // answerHints: a chosen hint sends a note whose button types the command in.
-func (h *Handler) answerHints(ctx context.Context, b *bot.Bot, queryID string) {
+func (in *Inline) answerHints(ctx context.Context, queryID string) {
 	c := texts(ctx)
-	hints := c.Hints(h.botName(ctx, b))
+	hints := c.Hints(in.Telegram.BotName)
 	results := make([]models.InlineQueryResult, 0, len(hints))
 	for _, hint := range hints {
 		result := article("hint-"+hint.Command, hint.Article)
@@ -46,22 +64,22 @@ func (h *Handler) answerHints(ctx context.Context, b *bot.Bot, queryID string) {
 		}}}
 		results = append(results, result)
 	}
-	answerInline(ctx, b, queryID, results...)
+	in.answerInline(ctx, queryID, results...)
 }
 
-func (h *Handler) handleNowPlaying(ctx context.Context, b *bot.Bot, queryID string) {
+func (in *Inline) handleNowPlaying(ctx context.Context, queryID string) {
 	c := texts(ctx)
-	track, err := h.GetNowPlaying.Execute(ctx)
+	track, err := in.GetNowPlaying.Execute(ctx)
 	switch {
 	case errors.Is(err, repositories.ErrNavidromeAccountNotFound):
-		answerInline(ctx, b, queryID, article("no-navidrome-account", c.NoNavidromeAccount(h.botName(ctx, b))))
+		in.answerInline(ctx, queryID, article("no-navidrome-account", c.NoNavidromeAccount(in.Telegram.BotName)))
 		return
 	case err != nil:
 		slog.Error("get_now_playing", "error", err)
-		answerInline(ctx, b, queryID, article("error", c.NowPlayingFailed()))
+		in.answerInline(ctx, queryID, article("error", c.NowPlayingFailed()))
 		return
 	case track == nil:
-		answerInline(ctx, b, queryID, article("nothing-playing", c.NothingPlaying()))
+		in.answerInline(ctx, queryID, article("nothing-playing", c.NothingPlaying()))
 		return
 	}
 
@@ -69,17 +87,17 @@ func (h *Handler) handleNowPlaying(ctx context.Context, b *bot.Bot, queryID stri
 	if track.ShareableTrackID != 0 {
 		markup = shareTrackKeyboard(c, track.ShareableTrackID)
 	}
-	if file := h.filesOf(ctx, track.Track).of(track.Track); file != nil {
-		answerInline(ctx, b, queryID, withMarkup(cachedFileResult(track.ID, file, c.NowPlaying(track)), markup))
+	if file := in.filesOf(ctx, track.Track).of(track.Track); file != nil {
+		in.answerInline(ctx, queryID, withMarkup(cachedFileResult(track.ID, file, c.NowPlaying(track)), markup))
 		return
 	}
-	if h.pending(track.Track) {
-		answerInline(ctx, b, queryID, pendingResult(pendingResultID(track.Track.ID, 0, markup != nil), c.NowPlayingArticle(track), track.Track, markup))
+	if in.pending(track.Track) {
+		in.answerInline(ctx, queryID, pendingResult(pendingResultID(track.Track.ID, 0, markup != nil), c.NowPlayingArticle(track), track.Track, markup))
 		return
 	}
 	result := article(track.ID, c.NowPlayingArticle(track))
 	result.ReplyMarkup = markup
-	answerInline(ctx, b, queryID, result)
+	in.answerInline(ctx, queryID, result)
 }
 
 func shareTrackKeyboard(c i18n.Catalog, trackID uint) *models.InlineKeyboardMarkup {
@@ -88,19 +106,19 @@ func shareTrackKeyboard(c i18n.Catalog, trackID uint) *models.InlineKeyboardMark
 	}}}
 }
 
-func (h *Handler) handleRecentlyPlayed(ctx context.Context, b *bot.Bot, queryID string) {
+func (in *Inline) handleRecentlyPlayed(ctx context.Context, queryID string) {
 	c := texts(ctx)
-	tracks, err := h.GetRecentlyPlayed.Execute(ctx, recentTracksLimit)
+	tracks, err := in.GetRecentlyPlayed.Execute(ctx, recentTracksLimit)
 	switch {
 	case errors.Is(err, repositories.ErrNavidromeAccountNotFound):
-		answerInline(ctx, b, queryID, article("no-navidrome-account", c.NoNavidromeAccount(h.botName(ctx, b))))
+		in.answerInline(ctx, queryID, article("no-navidrome-account", c.NoNavidromeAccount(in.Telegram.BotName)))
 		return
 	case err != nil:
 		slog.Error("get_recently_played", "error", err)
-		answerInline(ctx, b, queryID, article("error", c.HistoryFailed()))
+		in.answerInline(ctx, queryID, article("error", c.HistoryFailed()))
 		return
 	case len(tracks) == 0:
-		answerInline(ctx, b, queryID, article("nothing-played", c.HistoryEmpty()))
+		in.answerInline(ctx, queryID, article("nothing-played", c.HistoryEmpty()))
 		return
 	}
 
@@ -111,7 +129,7 @@ func (h *Handler) handleRecentlyPlayed(ctx context.Context, b *bot.Bot, queryID 
 	for i := range tracks {
 		found = append(found, tracks[i].Track)
 	}
-	files := h.filesOf(ctx, found...)
+	files := in.filesOf(ctx, found...)
 	for i := range tracks {
 		track := &tracks[i]
 		caption := i18n.TrackCaption(track.Artist, track.Title)
@@ -124,13 +142,13 @@ func (h *Handler) handleRecentlyPlayed(ctx context.Context, b *bot.Bot, queryID 
 			Description: c.RecentDescription(track, now),
 			Message:     caption,
 		}
-		if h.pending(track.Track) {
+		if in.pending(track.Track) {
 			results = append(results, pendingResult(pendingResultID(track.Track.ID, i, false), a, track.Track, nil))
 			continue
 		}
 		results = append(results, article("recent-"+track.ID, a))
 	}
-	answerInline(ctx, b, queryID, results...)
+	in.answerInline(ctx, queryID, results...)
 }
 
 func article(id string, a i18n.Article) *models.InlineQueryResultArticle {
@@ -145,8 +163,8 @@ func article(id string, a i18n.Article) *models.InlineQueryResultArticle {
 	}
 }
 
-func cachedFileResult(id string, file *store.File, caption string) models.InlineQueryResult {
-	if file.Kind == store.FileDocument {
+func cachedFileResult(id string, file *trackfile.File, caption string) models.InlineQueryResult {
+	if file.Kind == trackfile.FileDocument {
 		return &models.InlineQueryResultCachedDocument{
 			ID:             id,
 			Title:          "🎧",
@@ -173,13 +191,12 @@ func withMarkup(result models.InlineQueryResult, markup models.ReplyMarkup) mode
 	return result
 }
 
-func answerInline(
+func (in *Inline) answerInline(
 	ctx context.Context,
-	b *bot.Bot,
 	inlineQueryID string,
 	results ...models.InlineQueryResult,
 ) {
-	_, err := b.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
+	_, err := in.Telegram.Bot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
 		InlineQueryID: inlineQueryID,
 		Results:       results,
 		CacheTime:     1,
@@ -188,4 +205,81 @@ func answerInline(
 	if err != nil {
 		slog.Error("answer_inline_query", "error", err)
 	}
+}
+
+type trackFiles map[uint]*trackfile.File
+
+// of returns nil if the Track has no Telegram file yet.
+func (f trackFiles) of(track *library.Track) *trackfile.File {
+	if track == nil {
+		return nil
+	}
+	return f[track.ID]
+}
+
+// filesOf skips nil Tracks; on error the Tracks go without files.
+func (in *Inline) filesOf(ctx context.Context, tracks ...*library.Track) trackFiles {
+	ids := make([]uint, 0, len(tracks))
+	for _, track := range tracks {
+		if track != nil {
+			ids = append(ids, track.ID)
+		}
+	}
+	files, err := in.Files.Of(ctx, ids)
+	if err != nil {
+		slog.Error("find_telegram_files", "error", err)
+	}
+	return files
+}
+
+func (in *Inline) handleInlineFeed(ctx context.Context, queryID string) {
+	c := texts(ctx)
+	entries, err := in.ViewFeed.Execute(ctx, feedLimit)
+	if err != nil {
+		slog.Error("shared_feed", "error", err)
+		in.answerInline(ctx, queryID, article("error", c.FeedFailedArticle()))
+		return
+	}
+	if len(entries) == 0 {
+		in.answerInline(ctx, queryID, article("empty-feed", c.FeedEmptyArticle()))
+		return
+	}
+
+	results := make([]models.InlineQueryResult, 0, len(entries)+1)
+	results = append(results, article("shared-list", c.FeedList(entries)))
+	tracks := make([]*library.Track, 0, len(entries))
+	for i := range entries {
+		tracks = append(tracks, &entries[i].Track)
+	}
+	files := in.filesOf(ctx, tracks...)
+	for i := range entries {
+		entry := &entries[i]
+		id := "shared-" + strconv.FormatUint(uint64(entry.Track.ID), 10)
+		caption := c.FeedCaption(entry)
+		if file := files.of(&entry.Track); file != nil {
+			results = append(results, cachedFileResult(id, file, caption))
+			continue
+		}
+		results = append(results, &models.InlineQueryResultArticle{
+			ID:          id,
+			Title:       i18n.ResultTitle(entry.Track.Artist, entry.Track.Title),
+			Description: c.SharedBy(&entry.Author),
+			InputMessageContent: &models.InputTextMessageContent{
+				MessageText: caption,
+				ParseMode:   models.ParseModeHTML,
+			},
+		})
+	}
+	in.answerInline(ctx, queryID, results...)
+}
+
+func (in *Inline) handleInlineTop(ctx context.Context, queryID string) {
+	c := texts(ctx)
+	top, err := in.GetTop.Execute(ctx)
+	if err != nil {
+		slog.Error("get_top", "error", err)
+		in.answerInline(ctx, queryID, article("error", c.TopFailedArticle()))
+		return
+	}
+	in.answerInline(ctx, queryID, article("top", c.TopArticle(top)))
 }

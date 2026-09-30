@@ -4,15 +4,26 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"strconv"
 
-	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/browse_shared"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/sharing"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/trackfile"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/window"
 )
+
+// Feed is the Shared feed and the top, with Take and the file.
+type Feed struct {
+	Telegram      *Telegram
+	ViewFeed      *browse_shared.ViewFeed
+	GetTop        *view_top.GetTop
+	TakeTrack     *browse_shared.TakeTrack
+	GetTrackAudio *browse_shared.GetTrackAudio
+	Files         *trackfile.Files
+}
 
 const feedLimit = 10
 
@@ -21,16 +32,16 @@ const (
 	actionSendFile = "pl"
 )
 
-func (h *Handler) feedView(ctx context.Context) view {
+func (f *Feed) feedView(ctx context.Context) window.View {
 	c := texts(ctx)
 	back := backRow(ctx, place{screen: screenHome})
-	entries, err := h.ViewFeed.Execute(ctx, feedLimit)
+	entries, err := f.ViewFeed.Execute(ctx, feedLimit)
 	if err != nil {
 		slog.Error("shared_feed", "error", err)
-		return view{text: c.FeedFailed(), rows: [][]models.InlineKeyboardButton{back}}
+		return window.View{Text: c.FeedFailed(), Rows: [][]models.InlineKeyboardButton{back}}
 	}
 	if len(entries) == 0 {
-		return view{text: c.FeedEmpty(), rows: [][]models.InlineKeyboardButton{back}}
+		return window.View{Text: c.FeedEmpty(), Rows: [][]models.InlineKeyboardButton{back}}
 	}
 
 	rows := make([][]models.InlineKeyboardButton, 0, len(entries)+1)
@@ -44,119 +55,67 @@ func (h *Handler) feedView(ctx context.Context) view {
 			{Text: c.SendFileButton(i + 1), CallbackData: callbackData(actionSendFile, entry.Track.ID)},
 		})
 	}
-	return view{text: c.Feed(entries), rows: append(rows, back)}
+	return window.View{Text: c.Feed(entries), Rows: append(rows, back)}
 }
 
-func (h *Handler) handleTake(ctx context.Context, b *bot.Bot, query *models.CallbackQuery, sharedTrackID uint) {
+func (f *Feed) handleTake(ctx context.Context, query *models.CallbackQuery, sharedTrackID uint) {
 	c := texts(ctx)
-	err := h.TakeTrack.Execute(ctx, sharedTrackID)
+	err := f.TakeTrack.Execute(ctx, sharedTrackID)
 	switch {
 	case err == nil:
-		answerCallback(ctx, b, query.ID, c.Taken())
+		f.Telegram.answerCallback(ctx, query.ID, c.Taken())
 	case errors.Is(err, library.ErrAlreadyInLibrary):
-		answerCallback(ctx, b, query.ID, c.AlreadyInLibrary())
+		f.Telegram.answerCallback(ctx, query.ID, c.AlreadyInLibrary())
 	case errors.Is(err, sharing.ErrNotShared):
-		answerCallback(ctx, b, query.ID, c.NotShared())
+		f.Telegram.answerCallback(ctx, query.ID, c.NotShared())
 	default:
 		slog.Error("take", "error", err)
-		answerCallback(ctx, b, query.ID, c.TryLater())
+		f.Telegram.answerCallback(ctx, query.ID, c.TryLater())
 		return
 	}
 	if msg := query.Message.Message; msg != nil {
-		h.show(ctx, b, h.pressedWindow(ctx, msg), place{screen: screenFeed}, "")
+		f.Telegram.show(ctx, msg.Chat.ID, msg.ID, place{screen: screenFeed}, "")
 	}
 }
 
 // handleSendFile sends to the private chat: the button may be in an inline
 // message, where the bot cannot post.
-func (h *Handler) handleSendFile(ctx context.Context, b *bot.Bot, query *models.CallbackQuery, sharedTrackID uint) {
+func (f *Feed) handleSendFile(ctx context.Context, query *models.CallbackQuery, sharedTrackID uint) {
 	c := texts(ctx)
-	err := h.sendFile(ctx, query.From.ID, sharedTrackID)
+	err := f.sendFile(ctx, query.From.ID, sharedTrackID)
 	switch {
 	case err == nil:
-		answerCallback(ctx, b, query.ID, "")
+		f.Telegram.answerCallback(ctx, query.ID, "")
 	case errors.Is(err, sharing.ErrNotShared):
-		answerCallback(ctx, b, query.ID, c.NotShared())
-	case errors.Is(err, ErrFileTooLarge):
-		answerCallback(ctx, b, query.ID, c.FileTooLarge())
+		f.Telegram.answerCallback(ctx, query.ID, c.NotShared())
+	case errors.Is(err, trackfile.ErrFileTooLarge):
+		f.Telegram.answerCallback(ctx, query.ID, c.FileTooLarge())
 	default:
 		slog.Error("send_shared_file", "error", err)
-		answerCallback(ctx, b, query.ID, c.TryLater())
+		f.Telegram.answerCallback(ctx, query.ID, c.TryLater())
 	}
 }
 
 // sendFile uploads the Track only once: the file serves its copies too.
-func (h *Handler) sendFile(ctx context.Context, chatID int64, sharedTrackID uint) error {
-	track, path, err := h.GetTrackAudio.Execute(ctx, sharedTrackID)
+func (f *Feed) sendFile(ctx context.Context, chatID int64, sharedTrackID uint) error {
+	track, path, err := f.GetTrackAudio.Execute(ctx, sharedTrackID)
 	if err != nil {
 		return err
 	}
-	file, uploaded, err := h.fileFor(ctx, chatID, track, path)
-	if err != nil || uploaded {
+	file, posted, err := f.Files.For(ctx, chatID, track, path)
+	if err != nil || posted {
 		return err
 	}
-	return h.Sender.Send(ctx, chatID, file)
+	return f.Files.Sender.Send(ctx, chatID, file)
 }
 
-func (h *Handler) handleInlineFeed(ctx context.Context, b *bot.Bot, queryID string) {
-	c := texts(ctx)
-	entries, err := h.ViewFeed.Execute(ctx, feedLimit)
-	if err != nil {
-		slog.Error("shared_feed", "error", err)
-		answerInline(ctx, b, queryID, article("error", c.FeedFailedArticle()))
-		return
-	}
-	if len(entries) == 0 {
-		answerInline(ctx, b, queryID, article("empty-feed", c.FeedEmptyArticle()))
-		return
-	}
-
-	results := make([]models.InlineQueryResult, 0, len(entries)+1)
-	results = append(results, article("shared-list", c.FeedList(entries)))
-	tracks := make([]*library.Track, 0, len(entries))
-	for i := range entries {
-		tracks = append(tracks, &entries[i].Track)
-	}
-	files := h.filesOf(ctx, tracks...)
-	for i := range entries {
-		entry := &entries[i]
-		id := "shared-" + strconv.FormatUint(uint64(entry.Track.ID), 10)
-		caption := c.FeedCaption(entry)
-		if file := files.of(&entry.Track); file != nil {
-			results = append(results, cachedFileResult(id, file, caption))
-			continue
-		}
-		results = append(results, &models.InlineQueryResultArticle{
-			ID:          id,
-			Title:       i18n.ResultTitle(entry.Track.Artist, entry.Track.Title),
-			Description: c.SharedBy(&entry.Author),
-			InputMessageContent: &models.InputTextMessageContent{
-				MessageText: caption,
-				ParseMode:   models.ParseModeHTML,
-			},
-		})
-	}
-	answerInline(ctx, b, queryID, results...)
-}
-
-func (h *Handler) topView(ctx context.Context) view {
+func (f *Feed) topView(ctx context.Context) window.View {
 	c := texts(ctx)
 	back := backRow(ctx, place{screen: screenHome})
-	top, err := h.GetTop.Execute(ctx)
+	top, err := f.GetTop.Execute(ctx)
 	if err != nil {
 		slog.Error("get_top", "error", err)
-		return view{text: c.TopFailed(), rows: [][]models.InlineKeyboardButton{back}}
+		return window.View{Text: c.TopFailed(), Rows: [][]models.InlineKeyboardButton{back}}
 	}
-	return view{text: c.Top(top), rows: [][]models.InlineKeyboardButton{back}}
-}
-
-func (h *Handler) handleInlineTop(ctx context.Context, b *bot.Bot, queryID string) {
-	c := texts(ctx)
-	top, err := h.GetTop.Execute(ctx)
-	if err != nil {
-		slog.Error("get_top", "error", err)
-		answerInline(ctx, b, queryID, article("error", c.TopFailedArticle()))
-		return
-	}
-	answerInline(ctx, b, queryID, article("top", c.TopArticle(top)))
+	return window.View{Text: c.Top(top), Rows: [][]models.InlineKeyboardButton{back}}
 }

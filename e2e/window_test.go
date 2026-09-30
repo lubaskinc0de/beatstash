@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -77,6 +79,65 @@ func TestHome(t *testing.T) {
 
 		assert.Contains(t, adminButtons, "🎟 Пригласить")
 		assert.NotContains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), "🎟 Пригласить")
+	})
+}
+
+func TestWindowOnInstances(t *testing.T) {
+	t.Parallel()
+
+	t.Run("starts on two instances leave one window with buttons", func(t *testing.T) {
+		s := harness.New(t, harness.WithLeaseTTL(time.Minute))
+		replica := s.StartReplica()
+		first := s.Telegram.Hold("sendMessage")
+		var starts sync.WaitGroup
+		starts.Go(func() { s.Send(s.TextMessage(alice, "/start")) })
+		<-first.Arrived()
+
+		starts.Go(func() { replica.Send(replica.TextMessage(alice, "/start")) })
+		assert.False(t, s.Telegram.WaitCalls("sendMessage", 1, anotherRound), "another instance acted meanwhile")
+		first.Release()
+		starts.Wait()
+
+		assert.Len(t, s.Telegram.MessagesWithButtons(), 1)
+	})
+
+	t.Run("window works again after an instance crashed amid a redraw", func(t *testing.T) {
+		s := harness.New(t)
+		replica := s.StartReplica()
+		redraw := s.Telegram.Hold("sendMessage")
+		var start sync.WaitGroup
+		start.Go(func() { replica.Send(replica.TextMessage(alice, "/start")) })
+		<-redraw.Arrived()
+		replica.Stop()
+		start.Wait()
+
+		s.Open(alice)
+
+		assert.Contains(t, s.WindowText(), "Привет")
+		assert.Len(t, s.Telegram.MessagesWithButtons(), 1)
+	})
+
+	t.Run("Imports refresh leaves the screen opened meanwhile on another instance", func(t *testing.T) {
+		s := harness.New(t, harness.WithLeaseTTL(time.Minute))
+		replica := s.StartReplica()
+		s.ConnectZvuk(alice, harness.ZvukToken)
+		s.AddZvukCollection(harness.ZvukToken)
+		s.Zvuk.HoldStreams(0)
+		s.ImportZvuk(alice)
+		back := s.Button("← Назад")
+		refresh := s.Telegram.Hold("editMessageText")
+		edits := len(s.Telegram.CallsTo("editMessageText"))
+		s.Zvuk.ReleaseStreams()
+		<-refresh.Arrived()
+
+		var press sync.WaitGroup
+		press.Go(func() { replica.Press(alice, back) })
+		assert.False(t, s.Telegram.WaitCalls("editMessageText", edits+1, anotherRound), "another instance acted meanwhile")
+		refresh.Release()
+		press.Wait()
+		s.WaitIngest()
+
+		assert.Contains(t, s.WindowText(), "Подключите сервис")
 	})
 }
 

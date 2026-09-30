@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -202,9 +203,28 @@ func TestImports(t *testing.T) {
 		s.Zvuk.ReleaseStreams()
 		s.WaitIngest()
 
-		summaries := s.SentMessagesContaining("Импорт из Звука")
+		summaries := s.SentMessagesContaining(alice, "Импорт из Звука")
 		require.Len(t, summaries, 1)
 		assert.Contains(t, summaries[0], "✅ Импорт из Звука: 9 из 9 в библиотеке")
+	})
+
+	t.Run("two instances send one summary", func(t *testing.T) {
+		s := harness.New(t, harness.WithLeaseTTL(time.Minute))
+		s.StartReplica()
+		s.ConnectZvuk(alice, harness.ZvukToken)
+		s.AddZvukCollection(harness.ZvukToken)
+		s.Zvuk.HoldStreams(0)
+		s.ImportZvuk(alice)
+		summary := s.Telegram.Hold("sendMessage")
+		sent := len(s.Telegram.CallsTo("sendMessage"))
+
+		s.Zvuk.ReleaseStreams()
+		<-summary.Arrived()
+		assert.False(t, s.Telegram.WaitCalls("sendMessage", sent+1, anotherRound), "another instance acted meanwhile")
+		summary.Release()
+		s.WaitIngest()
+
+		assert.Len(t, s.SentMessagesContaining(alice, "Импорт из Звука"), 1)
 	})
 
 	t.Run("summary lists the track that failed", func(t *testing.T) {
@@ -217,11 +237,25 @@ func TestImports(t *testing.T) {
 		s.WaitIngest()
 
 		assert.Len(t, s.PersonalFiles(alice), 8)
-		summaries := s.SentMessagesContaining("Импорт из Звука")
+		summaries := s.SentMessagesContaining(alice, "Импорт из Звука")
 		require.Len(t, summaries, 1)
 		assert.Contains(t, summaries[0], "8 из 9 в библиотеке")
 		assert.Contains(t, summaries[0], "Не удалось загрузить (1)")
 		assert.Contains(t, summaries[0], "Zvuk Band — Song 2")
+	})
+
+	t.Run("summary Telegram failed to take comes again", func(t *testing.T) {
+		s := harness.New(t)
+		s.ConnectZvuk(alice, harness.ZvukToken)
+		s.AddZvukCollection(harness.ZvukToken)
+		s.Zvuk.HoldStreams(0)
+		s.ImportZvuk(alice)
+		s.Telegram.FailCalls("sendMessage", 1, http.StatusInternalServerError)
+
+		s.Zvuk.ReleaseStreams()
+		s.WaitIngest()
+
+		assert.Len(t, s.SentMessagesContaining(alice, "Импорт из Звука"), 1)
 	})
 
 	t.Run("restart mid-Import keeps the Imports and the summary", func(t *testing.T) {
@@ -236,7 +270,7 @@ func TestImports(t *testing.T) {
 		s.Zvuk.ReleaseStreams()
 		s.WaitIngest()
 
-		assert.Len(t, s.SentMessagesContaining("Импорт из Звука"), 1)
+		assert.Len(t, s.SentMessagesContaining(alice, "Импорт из Звука"), 1)
 		assert.Contains(t, s.WindowText(), "Сейчас ничего не импортируется")
 	})
 

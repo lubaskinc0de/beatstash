@@ -4,12 +4,11 @@ import (
 	"context"
 	"log/slog"
 	"strings"
-	"sync"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/store"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/window"
 )
 
 type screen string
@@ -40,26 +39,6 @@ type place struct {
 // argJoin marks onboarding screens: once done, they lead Home.
 const argJoin = "join"
 
-type view struct {
-	text string
-	rows [][]models.InlineKeyboardButton
-}
-
-func (v view) markup() *models.InlineKeyboardMarkup {
-	if v.rows == nil {
-		return noKeyboard()
-	}
-	return &models.InlineKeyboardMarkup{InlineKeyboard: v.rows}
-}
-
-// withNotice puts the outcome of the last action above the screen.
-func (v view) withNotice(notice string) view {
-	if notice != "" {
-		v.text = notice + "\n\n" + v.text
-	}
-	return v
-}
-
 // Callback data never carries a text, so a button works in any language.
 const (
 	actionGo          = "go"
@@ -83,221 +62,41 @@ func backRow(ctx context.Context, to place) []models.InlineKeyboardButton {
 	return []models.InlineKeyboardButton{goButton(texts(ctx).Back(), to)}
 }
 
-func (h *Handler) render(ctx context.Context, b *bot.Bot, at place) view {
-	switch at.screen {
-	case screenFeed:
-		return h.feedView(ctx)
-	case screenTop:
-		return h.topView(ctx)
-	case screenSources:
-		return h.sourcesView(ctx)
-	case screenProvider:
-		return h.providerView(ctx, at.arg)
-	case screenConnect:
-		return h.connectView(ctx, at.arg)
-	case screenPlan:
-		return h.planView(ctx, at.arg)
-	case screenImports:
-		return h.importsView(ctx)
-	case screenNavidrome:
-		return h.navidromeView(ctx)
-	case screenLink:
-		return h.linkView(ctx, at.arg)
-	case screenRegister:
-		return h.registerView(ctx)
-	case screenInvite:
-		return h.inviteView(ctx, b)
-	case screenHowTo:
-		return howToView(ctx)
-	case screenListen:
-		return listenView(ctx)
-	case screenLanguages:
-		return h.languagesView(ctx)
-	default:
-		return h.homeView(ctx, b)
-	}
+// show draws the screen as the chat's window, on the message the action
+// came from if that is the window; see window.Windows.Show.
+func (t *Telegram) show(ctx context.Context, chatID int64, on int, at place, notice string) {
+	v := t.screens.view(ctx, at.screen, at.arg).WithNotice(notice)
+	t.Windows.Show(ctx, chatID, on, window.Place{Screen: string(at.screen), Arg: at.arg}, v)
 }
 
-// textHandler returns nil for a screen that awaits no text.
-func (h *Handler) textHandler(s screen) func(context.Context, *bot.Bot, windowInput) {
-	switch s {
-	case screenConnect:
-		return h.connectProvider
-	case screenLink:
-		return h.linkNavidrome
-	case screenRegister:
-		return h.registerNavidrome
-	default:
-		return nil
-	}
-}
-
-// openWindow also takes the buttons off the old window.
-func (h *Handler) openWindow(ctx context.Context, b *bot.Bot, chatID int64, at place, notice string) {
-	h.draw(ctx, b, messageRef{chatID: chatID}, at, notice)
-}
-
-// show makes the message the chat's window; an older window loses its
-// buttons.
-func (h *Handler) show(ctx context.Context, b *bot.Bot, msg messageRef, at place, notice string) {
-	h.draw(ctx, b, msg, at, notice)
-}
-
-// showInWindow opens a window if the chat has none.
-func (h *Handler) showInWindow(ctx context.Context, b *bot.Bot, chatID int64, at place, notice string) {
-	msg := messageRef{chatID: chatID}
-	if window := h.window(ctx, chatID); window != nil {
-		msg.messageID = window.MessageID
-	}
-	h.draw(ctx, b, msg, at, notice)
-}
-
-// draw sends a new window when msg has no message id or has moved up the
-// chat: an edit there would go unseen.
-func (h *Handler) draw(ctx context.Context, b *bot.Bot, msg messageRef, at place, notice string) {
-	unlock := h.chats.lock(msg.chatID)
-	defer unlock()
-	old := h.window(ctx, msg.chatID)
-	if old != nil && old.MessageID == msg.messageID && old.Below > 0 {
-		msg.messageID = 0
-	}
-	if old != nil && old.MessageID != msg.messageID {
-		stripKeyboard(ctx, b, msg.chatID, old.MessageID)
-	}
-
-	v := h.render(ctx, b, at).withNotice(notice)
-	if msg.messageID == 0 {
-		sent, err := b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: msg.chatID, Text: v.text, ParseMode: models.ParseModeHTML,
-			ReplyMarkup: v.markup(), LinkPreviewOptions: noPreview,
-		})
-		if err != nil {
-			slog.Error("send_window", "error", err)
-			return
-		}
-		msg.messageID = sent.ID
-	} else {
-		editWindow(ctx, b, msg, v)
-	}
-	h.remember(ctx, &store.Window{ChatID: msg.chatID, MessageID: msg.messageID, Screen: string(at.screen), Arg: at.arg, Shown: v.text})
-}
-
-// refreshImports redraws a window still on the Imports if its text changed.
-// ctx carries the texts of the chat's user.
-func (h *Handler) refreshImports(ctx context.Context, b *bot.Bot, chatID int64) {
-	unlock := h.chats.lock(chatID)
-	defer unlock()
-	window := h.window(ctx, chatID)
-	if window == nil || screen(window.Screen) != screenImports {
-		return
-	}
-	v := h.importsView(ctx)
-	if v.text == window.Shown {
-		return
-	}
-	editWindow(ctx, b, messageRef{chatID: chatID, messageID: window.MessageID}, v)
-	window.Shown = v.text
-	h.remember(ctx, window)
-}
-
-func (h *Handler) window(ctx context.Context, chatID int64) *store.Window {
-	window, err := h.Windows.Get(ctx, chatID)
-	if err != nil {
-		slog.Error("read_window", "error", err)
-	}
-	return window
-}
-
-func (h *Handler) remember(ctx context.Context, window *store.Window) {
-	if err := h.Windows.Save(ctx, window); err != nil {
-		slog.Error("save_window", "error", err)
-	}
-}
-
-var noPreview = &models.LinkPreviewOptions{IsDisabled: bot.True()}
-
-func editWindow(ctx context.Context, b *bot.Bot, msg messageRef, v view) {
-	_, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
-		ChatID: msg.chatID, MessageID: msg.messageID, Text: v.text, ParseMode: models.ParseModeHTML,
-		ReplyMarkup: v.markup(), LinkPreviewOptions: noPreview,
-	})
-	if err != nil && !strings.Contains(err.Error(), "message is not modified") {
-		slog.Error("edit_window", "error", err)
-	}
-}
-
-// stripKeyboard ignores a message the user deleted.
-func stripKeyboard(ctx context.Context, b *bot.Bot, chatID int64, messageID int) {
-	_, err := b.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
-		ChatID:      chatID,
-		MessageID:   messageID,
-		ReplyMarkup: noKeyboard(),
-	})
-	if err != nil && !strings.Contains(err.Error(), "not found") && !strings.Contains(err.Error(), "not modified") {
-		slog.Error("strip_window", "error", err)
-	}
-}
-
-// windowCallback is a press of a button; see pressedWindow.
+// windowCallback is a press of a button; messageID is the pressed message.
 type windowCallback struct {
 	messageRef
 	query *models.CallbackQuery
 }
 
-type windowAction func(ctx context.Context, b *bot.Bot, cb windowCallback, arg string)
-
-func (h *Handler) windowAction(action string) (windowAction, bool) {
-	switch action {
-	case actionGo:
-		return h.goTo, true
-	case actionLanguage:
-		return h.chooseLanguage, true
-	case actionStartImport:
-		return h.startImport, true
-	case actionDisconnect:
-		return h.disconnect, true
-	default:
-		return nil, false
-	}
-}
-
-func (h *Handler) handleWindowCallback(ctx context.Context, b *bot.Bot, query *models.CallbackQuery, handle windowAction, arg string) {
-	msg := query.Message.Message
-	if msg == nil {
-		answerCallback(ctx, b, query.ID, "")
-		return
-	}
-	handle(ctx, b, windowCallback{messageRef: h.pressedWindow(ctx, msg), query: query}, arg)
-}
-
-// pressedWindow has no message id for a press on another message, like a
-// notice or an old window: the press opens a new window and leaves that
-// message as it is.
-func (h *Handler) pressedWindow(ctx context.Context, msg *models.Message) messageRef {
-	if window := h.window(ctx, msg.Chat.ID); window == nil || window.MessageID != msg.ID {
-		return messageRef{chatID: msg.Chat.ID}
-	}
-	return messageRef{chatID: msg.Chat.ID, messageID: msg.ID}
-}
-
-func (h *Handler) goTo(ctx context.Context, b *bot.Bot, cb windowCallback, arg string) {
+func (h *Handler) goTo(ctx context.Context, cb windowCallback, arg string) {
 	name, arg, _ := strings.Cut(arg, ":")
-	answerCallback(ctx, b, cb.query.ID, "")
-	h.show(ctx, b, cb.messageRef, place{screen(name), arg}, "")
+	h.Telegram.answerCallback(ctx, cb.query.ID, "")
+	h.Telegram.show(ctx, cb.chatID, cb.messageID, place{screen(name), arg}, "")
 }
 
 // handleText ignores text unless the window awaits it.
-func (h *Handler) handleText(ctx context.Context, b *bot.Bot, update *models.Update) {
+func (h *Handler) handleText(ctx context.Context, _ *bot.Bot, update *models.Update) {
 	msg := update.Message
-	window := h.window(ctx, msg.Chat.ID)
-	if window == nil {
+	w, err := h.Telegram.Windows.Get(ctx, msg.Chat.ID)
+	if err != nil {
+		slog.Error("read_window", "error", err)
 		return
 	}
-	if handle := h.textHandler(screen(window.Screen)); handle != nil {
-		handle(ctx, b, windowInput{
+	if w == nil {
+		return
+	}
+	if handle := h.onText(screen(w.Screen)); handle != nil {
+		handle(ctx, windowInput{
 			messageRef: messageRef{chatID: msg.Chat.ID, messageID: msg.ID},
 			text:       strings.TrimSpace(msg.Text),
-			arg:        window.Arg,
+			arg:        w.Arg,
 		})
 	}
 }
@@ -311,26 +110,4 @@ type windowInput struct {
 
 func isText(update *models.Update) bool {
 	return update.Message != nil && update.Message.Text != "" && !strings.HasPrefix(update.Message.Text, "/")
-}
-
-// chatLocks serializes redraws of a chat's window: the Poller redraws the
-// Imports while the user may navigate.
-type chatLocks struct {
-	mu    sync.Mutex
-	chats map[int64]*sync.Mutex
-}
-
-func (l *chatLocks) lock(chatID int64) (unlock func()) {
-	l.mu.Lock()
-	if l.chats == nil {
-		l.chats = map[int64]*sync.Mutex{}
-	}
-	chat, ok := l.chats[chatID]
-	if !ok {
-		chat = &sync.Mutex{}
-		l.chats[chatID] = chat
-	}
-	l.mu.Unlock()
-	chat.Lock()
-	return chat.Unlock
 }

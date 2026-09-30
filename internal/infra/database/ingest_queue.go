@@ -116,9 +116,9 @@ func (q *IngestQueue) Save(ctx context.Context, job *ingest.IngestJob) error {
 	return dbForContext(ctx, q.DB).Omit("User", "Batch").Save(job).Error
 }
 
-func (q *IngestQueue) Get(ctx context.Context, ids []uint) ([]ingest.IngestJob, error) {
+func (q *IngestQueue) GetOf(ctx context.Context, userID uint, ids []uint) ([]ingest.IngestJob, error) {
 	var jobs []ingest.IngestJob
-	err := dbForContext(ctx, q.DB).Where("id IN ?", ids).Order("id").Find(&jobs).Error
+	err := dbForContext(ctx, q.DB).Where("user_id = ? AND id IN ?", userID, ids).Order("id").Find(&jobs).Error
 	return jobs, err
 }
 

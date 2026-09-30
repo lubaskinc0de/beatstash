@@ -9,28 +9,29 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sync"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/store"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/trackfile"
 )
 
 const Name = provider.ProviderTelegram
 
 type File struct {
-	ID        string         `json:"file_id"`
-	UniqueID  string         `json:"-"`
-	Kind      store.FileKind `json:"kind"`
-	Name      string         `json:"file_name,omitempty"`
-	Format    library.Format `json:"format"`
-	Performer string         `json:"performer,omitempty"`
-	Title     string         `json:"title,omitempty"`
+	ID        string             `json:"file_id"`
+	UniqueID  string             `json:"-"`
+	Kind      trackfile.FileKind `json:"kind"`
+	Name      string             `json:"file_name,omitempty"`
+	Format    library.Format     `json:"format"`
+	Performer string             `json:"performer,omitempty"`
+	Title     string             `json:"title,omitempty"`
 }
 
 // Ref keys the Track Ref by file_unique_id, which stays the same across
@@ -43,13 +44,21 @@ func Ref(file File) (provider.TrackRef, error) {
 	return provider.TrackRef{Provider: Name, ID: file.UniqueID, Payload: string(payload)}, nil
 }
 
+// LocalFile is a file a local Bot API server downloaded for a Track Ref,
+// to be removed on Release by whichever instance finishes the Ingest Job.
+type LocalFile struct {
+	RefID string `gorm:"primaryKey"`
+	Path  string `gorm:"not null"`
+}
+
+func (LocalFile) TableName() string {
+	return "telegram_local_files"
+}
+
 type Provider struct {
 	Bot   *bot.Bot
-	Files *store.Files
-
-	// localFiles maps Track Ref ids to files a local Bot API server
-	// downloaded for them, to be removed on Release.
-	localFiles sync.Map
+	Files *trackfile.Files
+	DB    *gorm.DB
 }
 
 func (p *Provider) Name() provider.ProviderName {
@@ -86,15 +95,17 @@ func (p *Provider) Recognize(ctx context.Context, ref provider.TrackRef) ([]uint
 	return p.Files.Recognize(ctx, ref.ID)
 }
 
-func (p *Provider) Release(_ context.Context, ref provider.TrackRef) error {
-	path, ok := p.localFiles.LoadAndDelete(ref.ID)
-	if !ok {
-		return nil
-	}
-	if err := os.Remove(path.(string)); err != nil && !errors.Is(err, os.ErrNotExist) {
+// Release removes the file before its row: a crash between leaves the row
+// for the next Release.
+func (p *Provider) Release(ctx context.Context, ref provider.TrackRef) error {
+	var files []LocalFile
+	if err := p.DB.WithContext(ctx).Where("ref_id = ?", ref.ID).Find(&files).Error; err != nil || len(files) == 0 {
 		return err
 	}
-	return nil
+	if err := os.Remove(files[0].Path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return p.DB.WithContext(ctx).Delete(&files[0]).Error
 }
 
 // open reads the file a local Bot API server (--local) put on the shared
@@ -105,7 +116,11 @@ func (p *Provider) open(ctx context.Context, ref provider.TrackRef, filePath str
 		if err != nil {
 			return nil, fmt.Errorf("open local file: %w", err)
 		}
-		p.localFiles.Store(ref.ID, filePath)
+		err = p.DB.WithContext(ctx).Clauses(clause.OnConflict{UpdateAll: true}).Create(&LocalFile{RefID: ref.ID, Path: filePath}).Error
+		if err != nil {
+			_ = file.Close()
+			return nil, fmt.Errorf("remember local file: %w", err)
+		}
 		return file, nil
 	}
 

@@ -10,8 +10,8 @@ import (
 
 type IngestBatches interface {
 	Save(ctx context.Context, batch *ingest.IngestBatch) error
-	// Get leaves out the batches that are gone.
-	Get(ctx context.Context, ids []uint) ([]ingest.IngestBatch, error)
+	// GetOf leaves out the batches that are not the user's.
+	GetOf(ctx context.Context, userID uint, ids []uint) ([]ingest.IngestBatch, error)
 	GetForUpdate(ctx context.Context, id uint) (*ingest.IngestBatch, error)
 	Unfinished(ctx context.Context) ([]ingest.IngestBatch, error)
 	UnfinishedOf(ctx context.Context, userID uint) ([]ingest.IngestBatch, error)

@@ -1,8 +1,7 @@
-package store
+package bot
 
 import (
 	"context"
-	"errors"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -22,13 +21,17 @@ type Users struct {
 	DB *gorm.DB
 }
 
-func (u *Users) Language(ctx context.Context, id int64) (string, bool, error) {
-	var user User
-	err := u.DB.WithContext(ctx).Where("id = ?", id).Take(&user).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return "", false, nil
+// Languages leaves out the users who never wrote to the bot.
+func (u *Users) Languages(ctx context.Context, ids []int64) (map[int64]string, error) {
+	var users []User
+	if err := u.DB.WithContext(ctx).Where("id IN ?", ids).Find(&users).Error; err != nil {
+		return nil, err
 	}
-	return user.Language, err == nil, err
+	languages := make(map[int64]string, len(users))
+	for _, user := range users {
+		languages[user.ID] = user.Language
+	}
+	return languages, nil
 }
 
 // Meet keeps an already saved language.

@@ -1,4 +1,4 @@
-package bot
+package window
 
 import (
 	"bytes"
@@ -15,12 +15,10 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/store"
 )
 
-// arrivalMiddleware counts the user's messages below the window.
-func arrivalMiddleware(windows *store.Windows) bot.Middleware {
+// CountArrivals counts the user's messages below the window.
+func CountArrivals(windows *Windows) bot.Middleware {
 	return func(next bot.HandlerFunc) bot.HandlerFunc {
 		return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 			if msg := update.Message; msg != nil {
@@ -33,15 +31,15 @@ func arrivalMiddleware(windows *store.Windows) bot.Middleware {
 	}
 }
 
-// watch counts the bot's messages below the window: it sees every call, so
+// Watch counts the bot's messages below the window: it sees every call, so
 // no send, the Poller's included, slips by.
-func watch(windows *store.Windows, next bot.HttpClient) bot.HttpClient {
+func Watch(windows *Windows, next bot.HttpClient) bot.HttpClient {
 	return &watchingClient{next: next, windows: windows}
 }
 
 type watchingClient struct {
 	next    bot.HttpClient
-	windows *store.Windows
+	windows *Windows
 }
 
 func (c *watchingClient) Do(req *http.Request) (*http.Response, error) {
@@ -128,24 +126,29 @@ func sentMessages(result json.RawMessage) []sentMessage {
 
 // deletedMessage reads the multipart form the bot library sends; the
 // request keeps its body.
-func deletedMessage(req *http.Request) messageRef {
+func deletedMessage(req *http.Request) message {
 	_, params, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
 	if err != nil || req.GetBody == nil {
-		return messageRef{}
+		return message{}
 	}
 	body, err := req.GetBody()
 	if err != nil {
-		return messageRef{}
+		return message{}
 	}
 	form, err := multipart.NewReader(body, params["boundary"]).ReadForm(1 << 10)
 	if err != nil {
 		slog.Error("read_deleted_message", "error", err)
-		return messageRef{}
+		return message{}
 	}
 	defer func() { _ = form.RemoveAll() }()
 	chatID, _ := strconv.ParseInt(formValue(form, "chat_id"), 10, 64)
 	messageID, _ := strconv.Atoi(formValue(form, "message_id"))
-	return messageRef{chatID: chatID, messageID: messageID}
+	return message{chatID: chatID, messageID: messageID}
+}
+
+type message struct {
+	chatID    int64
+	messageID int
 }
 
 func formValue(form *multipart.Form, key string) string {

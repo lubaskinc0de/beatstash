@@ -30,6 +30,10 @@ func WithTelegramPollInterval(d time.Duration) Option {
 	return func(c *app.Config) { c.TelegramPollInterval = d }
 }
 
+func WithLeaseTTL(d time.Duration) Option {
+	return func(c *app.Config) { c.TelegramLeaseTTL = d }
+}
+
 func WithZvukPause(d time.Duration) Option {
 	return func(c *app.Config) { c.ZvukPauseMin, c.ZvukPauseMax = d, d }
 }
@@ -40,6 +44,11 @@ func WithSyncInterval(d time.Duration) Option {
 
 func WithStorageChat(chatID int64) Option {
 	return func(c *app.Config) { c.StorageChatID = chatID }
+}
+
+// WithoutStorageFill uploads Tracks to the storage chat only when chosen.
+func WithoutStorageFill() Option {
+	return func(c *app.Config) { c.FillStorageChat = false }
 }
 
 func WithMaxUpload(bytes int64) Option {

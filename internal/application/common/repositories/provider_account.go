@@ -3,7 +3,6 @@ package repositories
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
@@ -14,7 +13,7 @@ type ProviderAccounts interface {
 	GetForUpdate(ctx context.Context, userID uint, providerName provider.ProviderName) (*provider.ProviderAccount, error)
 	All(ctx context.Context, providerName provider.ProviderName) ([]provider.ProviderAccount, error)
 	Save(ctx context.Context, account *provider.ProviderAccount) error
-	InvalidatedSince(ctx context.Context, since time.Time) ([]provider.ProviderAccount, error)
+	Invalid(ctx context.Context) ([]provider.ProviderAccount, error)
 }
 
 var ErrProviderAccountNotFound = errors.New("provider account not found")

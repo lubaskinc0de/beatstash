@@ -13,7 +13,6 @@ import (
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/browse_shared"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/import_collection"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/ingest_track"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/share_tracks"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/show_playing"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
@@ -288,16 +287,16 @@ func (c Catalog) StartImport() string   { return c.t("plan.start", nil) }
 func (c Catalog) ImportRunning() string { return c.t("plan.running", nil) }
 func (c Catalog) AllInLibrary() string  { return c.t("plan.all_in_library", nil) }
 
-func (c Catalog) Imports(running []import_collection.RunningImport) string {
+func (c Catalog) Imports(running []import_collection.ImportProgress) string {
 	return c.t("imports.title", nil) + "\n\n" +
 		imports(running, importLabels{nothing: c.t("imports.nothing", nil), errors: c.t("imports.errors", nil)},
-			func(imp import_collection.RunningImport) string { return c.ProviderName(imp.Provider) })
+			func(imp import_collection.ImportProgress) string { return c.ProviderName(imp.Provider) })
 }
 
-func (c Catalog) ImportSummary(state *ingest_track.BatchState) string {
-	data := c.providerArgs(state.Batch.Provider)
-	data["Done"], data["Total"] = state.Progress.Done, state.Batch.Total
-	return c.t("imports.summary", data) + failedList(state, c.t("imports.failed", nil), c.t("imports.more", nil))
+func (c Catalog) ImportSummary(result *import_collection.ImportResult) string {
+	data := c.providerArgs(result.Provider)
+	data["Done"], data["Total"] = result.Progress.Done, result.Total
+	return c.t("imports.summary", data) + failedList(result.FailedNames, c.t("imports.failed", nil), c.t("imports.more", nil))
 }
 
 func (c Catalog) UploadFailed(reason ingest.FailureReason) string {

@@ -177,6 +177,16 @@ func TestSharedFeed(t *testing.T) {
 		assert.Contains(t, results[2].Caption, "@alice")
 	})
 
+	t.Run("Share made on one instance is in another's feed", func(t *testing.T) {
+		s := harness.New(t)
+		replica := s.StartReplica()
+		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), "🔗 Трек")
+
+		replica.Open(bob, "🎵 Лента")
+
+		assert.Contains(t, s.WindowText(), audiofile.FixtureTitle)
+	})
+
 	t.Run("empty feed says nobody has shared yet", func(t *testing.T) {
 		s := harness.New(t)
 

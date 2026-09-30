@@ -4,7 +4,9 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,6 +22,10 @@ import (
 	tgbot "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/bot"
 	app "github.com/lubaskinc0de/navidrome-tg/internal/main"
 )
+
+// LeaseTTL outlasts a Bot API call of the double even under the load of the
+// whole suite, and keeps short the wait for a crashed instance.
+const LeaseTTL = 200 * time.Millisecond
 
 const (
 	NavidromePublicURL = "https://music.example.com"
@@ -55,13 +61,40 @@ type Scenario struct {
 	config app.Config
 	// navidromeRoot is the host directory Navidrome sees as its LibraryMount.
 	navidromeRoot string
-	app           *app.App
-	stop          func()
+	// app gets the updates the scenario sends; ctx ends when it stops.
+	app  *app.App
+	ctx  context.Context
+	stop func()
+	// running are all the instances over the scenario's database.
+	running *instances
 
-	updates int64
-	uploads int
+	updates *atomic.Int64
+	uploads *atomic.Int64
 
 	sharedZvukAudio zvuk.Audio
+}
+
+type instances struct {
+	mu   sync.Mutex
+	apps []*app.App
+}
+
+func (i *instances) add(a *app.App) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.apps = append(i.apps, a)
+}
+
+func (i *instances) remove(a *app.App) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.apps = slices.DeleteFunc(i.apps, func(other *app.App) bool { return other == a })
+}
+
+func (i *instances) all() []*app.App {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return slices.Clone(i.apps)
 }
 
 type Option func(*app.Config)
@@ -114,6 +147,8 @@ func prepare(t *testing.T, opts ...Option) *Scenario {
 		IngestRetryDelays:    []time.Duration{10 * time.Millisecond, 10 * time.Millisecond, 10 * time.Millisecond},
 		IngestPollInterval:   50 * time.Millisecond,
 		TelegramPollInterval: 200 * time.Millisecond,
+		TelegramLeaseTTL:     LeaseTTL,
+		FillStorageChat:      true,
 		ZvukURL:              zvukAPI.URL(),
 		SyncInterval:         time.Hour,
 		MirrorRetryInterval:  250 * time.Millisecond,
@@ -125,27 +160,48 @@ func prepare(t *testing.T, opts ...Option) *Scenario {
 	return &Scenario{
 		t: t, Clock: clk, config: cfg, Telegram: api, Zvuk: zvukAPI,
 		Navidrome: env.navidrome, Library: library, navidromeRoot: env.libraryRoot,
+		running: &instances{}, updates: &atomic.Int64{}, uploads: &atomic.Int64{},
 	}
 }
 
 func (s *Scenario) start() {
 	s.t.Helper()
 
-	a, err := app.New(s.t.Context(), s.config, bot.WithSkipGetMe(), bot.WithNotAsyncHandlers())
+	a, err := app.New(s.t.Context(), s.config, bot.WithNotAsyncHandlers())
 	require.NoError(s.t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	stopped := a.StartWorkers(ctx)
 	var once sync.Once
-	s.app = a
+	s.app, s.ctx = a, ctx
+	s.running.add(a)
 	s.stop = func() {
 		once.Do(func() {
+			s.running.remove(a)
+			// The database goes first, as in a crash: the instance frees
+			// nothing it holds.
+			_ = a.Close()
 			cancel()
 			<-stopped
-			_ = a.Close()
 		})
 	}
 	s.t.Cleanup(s.stop)
+}
+
+// StartReplica starts one more instance of the bot over the same database,
+// Library and Bot API; the returned scenario sends updates to it.
+func (s *Scenario) StartReplica() *Scenario {
+	s.t.Helper()
+
+	replica := *s
+	replica.start()
+	return &replica
+}
+
+// Stop stops the instance, even amid an update: it is gone as if it
+// crashed.
+func (s *Scenario) Stop() {
+	s.stop()
 }
 
 // Restart stops the bot, even mid-Ingest, and starts it again on the same
@@ -163,15 +219,18 @@ func (s *Scenario) Restart(opts ...Option) {
 }
 
 func (s *Scenario) Send(update *models.Update) {
-	s.app.Bot().ProcessUpdate(s.t.Context(), update)
+	s.app.Bot().ProcessUpdate(s.ctx, update)
 }
 
+// WaitIngest waits for every running instance.
 func (s *Scenario) WaitIngest() {
 	s.t.Helper()
 
 	ctx, cancel := context.WithTimeout(s.t.Context(), time.Minute)
 	defer cancel()
-	require.NoError(s.t, s.app.WaitIngest(ctx))
+	for _, a := range s.running.all() {
+		require.NoError(s.t, a.WaitIngest(ctx))
+	}
 }
 
 // NewOwnNavidrome runs the bot on a Navidrome of its own, with Attached

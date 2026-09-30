@@ -9,6 +9,8 @@ import (
 
 type Users interface {
 	GetByIdentity(ctx context.Context, identity access.Identity) (*access.User, error)
+	// Identities leaves out the Users without an Identity in the Channel.
+	Identities(ctx context.Context, channel access.Channel, userIDs []uint) ([]access.Identity, error)
 	All(ctx context.Context) ([]access.User, error)
 	Save(ctx context.Context, user *access.User) error
 	SetUsername(ctx context.Context, userID uint, username string) error

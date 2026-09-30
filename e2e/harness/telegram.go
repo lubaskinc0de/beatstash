@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -55,8 +56,7 @@ func (s *Scenario) LastReply() telegram.Reply {
 }
 
 func (s *Scenario) nextUpdateID() int64 {
-	s.updates++
-	return s.updates
+	return s.updates.Add(1)
 }
 
 // UploadAudio puts a fixture on the Bot API double, as if the user had
@@ -96,8 +96,7 @@ func (s *Scenario) UploadDocument(path, mimeType string) models.Document {
 func (s *Scenario) Upload(path string) (fileID string, size int64) {
 	s.t.Helper()
 
-	s.uploads++
-	fileID = fileIDFor(path, s.uploads)
+	fileID = fileIDFor(path, int(s.uploads.Add(1)))
 	stored := s.Telegram.AddFile(s.t, fileID, path)
 
 	info, err := os.Stat(stored)
@@ -263,10 +262,11 @@ func (s *Scenario) BotAudio(to User, audio models.Audio) *models.Update {
 	return update
 }
 
-func (s *Scenario) SentMessagesContaining(text string) []string {
+func (s *Scenario) SentMessagesContaining(to User, text string) []string {
+	chatID := strconv.FormatInt(to.ID, 10)
 	var texts []string
 	for _, call := range s.Telegram.CallsTo("sendMessage") {
-		if strings.Contains(call.Params["text"], text) {
+		if call.Params["chat_id"] == chatID && strings.Contains(call.Params["text"], text) {
 			texts = append(texts, call.Params["text"])
 		}
 	}

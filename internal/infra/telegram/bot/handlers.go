@@ -1,65 +1,95 @@
 package bot
 
 import (
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/add_track"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/browse_shared"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/connect_navidrome"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/connect_provider"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/greet_stranger"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/import_collection"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/invite_friend"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/join_by_invite"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/share_tracks"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/show_playing"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
+	"context"
+
+	"github.com/go-telegram/bot"
+
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/store"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/window"
 )
 
+// Telegram is what every feature draws and writes with.
+type Telegram struct {
+	Bot     *bot.Bot
+	BotName string
+	Windows *window.Windows
+	Texts   *i18n.Bundle
+
+	// screens draws any screen: a feature's action may lead to another's.
+	screens *Handler
+}
+
+// Handler routes the updates, screens, texts and buttons to the features.
 type Handler struct {
-	IDs common.IDProvider
+	Telegram  *Telegram
+	Home      *Home
+	Feed      *Feed
+	Imports   *Imports
+	Navidrome *Navidrome
+	Sharing   *Sharing
+	Inline    *Inline
+	Uploads   *Uploads
+}
 
-	EnqueueIngest             *add_track.EnqueueIngest
-	GetNowPlaying             *show_playing.GetNowPlaying
-	GetRecentlyPlayed         *show_playing.GetRecentlyPlayed
-	GetTrackFile              *show_playing.GetTrackFile
-	LinkNavidromeAccount      *connect_navidrome.LinkNavidromeAccount
-	GetNavidromeAccount       *connect_navidrome.GetNavidromeAccount
-	CreateInvite              *invite_friend.CreateInvite
-	CheckCanInvite            *invite_friend.CheckCanInvite
-	AcceptInvite              *join_by_invite.AcceptInvite
-	RegisterAccount           *connect_navidrome.RegisterNavidromeAccount
-	ShowShareOptions          *share_tracks.ShowShareOptions
-	ShareTrack                *share_tracks.ShareTrack
-	ShareAlbum                *share_tracks.ShareAlbum
-	UnshareTrack              *share_tracks.UnshareTrack
-	UnshareAlbum              *share_tracks.UnshareAlbum
-	ViewFeed                  *browse_shared.ViewFeed
-	TakeTrack                 *browse_shared.TakeTrack
-	GetTrackAudio             *browse_shared.GetTrackAudio
-	GetTop                    *view_top.GetTop
-	GetServiceStats           *greet_stranger.GetServiceStats
-	ConnectProviderAccount    *connect_provider.ConnectProviderAccount
-	DisconnectProviderAccount *connect_provider.DisconnectProviderAccount
-	ListImportSources         *import_collection.ListImportSources
-	PlanImport                *import_collection.PlanImport
-	StartImport               *import_collection.StartImport
-	GetRunningImports         *import_collection.GetRunningImports
-	AdminContact              string
+// Register adds the routes; they never match the same update.
+func (h *Handler) Register() {
+	h.Telegram.screens = h
+	b := h.Telegram.Bot
+	b.RegisterHandlerMatchFunc(hasAudio, h.Uploads.handleAudio)
+	b.RegisterHandlerMatchFunc(isCommand("start"), h.Home.handleStart)
+	b.RegisterHandlerMatchFunc(isCommand("share"), h.Sharing.handleShare)
+	b.RegisterHandlerMatchFunc(isText, h.handleText)
+	b.RegisterHandlerMatchFunc(isInlineQuery, h.Inline.handleInlineQuery)
+	b.RegisterHandlerMatchFunc(isCallbackQuery, h.handleCallbackQuery)
+	b.RegisterHandlerMatchFunc(isChosenInlineResult, h.Inline.handleChosenInlineResult)
+}
 
-	Windows     *store.Windows
-	Users       *store.Users
-	JobMessages *store.JobMessages
-	Followed    *store.FollowedBatches
-	Files       *store.Files
-	Sender      *AudioSender
-	Texts       *i18n.Bundle
+func (h *Handler) view(ctx context.Context, s screen, arg string) window.View {
+	switch s {
+	case screenFeed:
+		return h.Feed.feedView(ctx)
+	case screenTop:
+		return h.Feed.topView(ctx)
+	case screenSources:
+		return h.Imports.sourcesView(ctx)
+	case screenProvider:
+		return h.Imports.providerView(ctx, arg)
+	case screenConnect:
+		return h.Imports.connectView(ctx, arg)
+	case screenPlan:
+		return h.Imports.planView(ctx, arg)
+	case screenImports:
+		return h.Imports.importsView(ctx)
+	case screenNavidrome:
+		return h.Navidrome.navidromeView(ctx)
+	case screenLink:
+		return h.Navidrome.linkView(ctx, arg)
+	case screenRegister:
+		return h.Navidrome.registerView(ctx)
+	case screenInvite:
+		return h.Home.inviteView(ctx)
+	case screenHowTo:
+		return h.Home.howToView(ctx)
+	case screenListen:
+		return h.Home.listenView(ctx)
+	case screenLanguages:
+		return h.Home.languagesView(ctx)
+	default:
+		return h.Home.homeView(ctx)
+	}
+}
 
-	// StorageChatID gets the Tracks without a Telegram file, so inline mode
-	// sends them as audio; zero turns it off.
-	StorageChatID int64
-
-	names botNames
-	chats chatLocks
+// onText returns nil for a screen that awaits no text.
+func (h *Handler) onText(s screen) func(context.Context, windowInput) {
+	switch s {
+	case screenConnect:
+		return h.Imports.connectProvider
+	case screenLink:
+		return h.Navidrome.linkNavidrome
+	case screenRegister:
+		return h.Navidrome.registerNavidrome
+	default:
+		return nil
+	}
 }

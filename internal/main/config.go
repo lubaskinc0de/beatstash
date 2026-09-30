@@ -21,10 +21,16 @@ type Config struct {
 	// StorageChatID is where the bot posts Tracks that came without a
 	// Telegram file; zero posts them on first request only.
 	StorageChatID int64
+	// FillStorageChat uploads every Track without a Telegram file to the
+	// storage chat in the background; off, only the ones users choose.
+	FillStorageChat bool
 	// TelegramPollInterval is how often the bot looks for answers it owes.
 	TelegramPollInterval time.Duration
-	DBDSN                string
-	MusicDir             string
+	// TelegramLeaseTTL bounds how long a crashed instance keeps a chat's
+	// window, an answer or an upload to itself.
+	TelegramLeaseTTL time.Duration
+	DBDSN            string
+	MusicDir         string
 	// NavidromeMusicDir is MusicDir as Navidrome's container sees it.
 	NavidromeMusicDir string
 	// Admins are Identities such as telegram:123; StartApp makes them Admins.
@@ -78,9 +84,11 @@ type fileConfig struct {
 	} `toml:"i18n"`
 
 	Telegram struct {
-		BotAPIURL     string        `toml:"bot_api_url"`
-		StorageChatID int64         `toml:"storage_chat_id"`
-		PollInterval  time.Duration `toml:"poll_interval"`
+		BotAPIURL       string        `toml:"bot_api_url"`
+		StorageChatID   int64         `toml:"storage_chat_id"`
+		FillStorageChat bool          `toml:"fill_storage_chat"`
+		PollInterval    time.Duration `toml:"poll_interval"`
+		LeaseTTL        time.Duration `toml:"lease_ttl"`
 	} `toml:"telegram"`
 
 	Library struct {
@@ -120,6 +128,8 @@ func defaultFileConfig() fileConfig {
 	f.ServiceName = "navidrome-tg"
 	f.I18n.DefaultLanguage = "en"
 	f.Telegram.PollInterval = 2 * time.Second
+	f.Telegram.LeaseTTL = time.Minute
+	f.Telegram.FillStorageChat = true
 	f.Navidrome.AttachInterval = time.Hour
 	f.Invites.TTL = 7 * 24 * time.Hour
 	f.Ingest.Workers = 2
@@ -171,7 +181,9 @@ func LoadConfig() (Config, error) {
 		BotAPIURL:            file.Telegram.BotAPIURL,
 		MaxPostSize:          maxPostSize(file.Telegram.BotAPIURL),
 		StorageChatID:        file.Telegram.StorageChatID,
+		FillStorageChat:      file.Telegram.FillStorageChat,
 		TelegramPollInterval: file.Telegram.PollInterval,
+		TelegramLeaseTTL:     file.Telegram.LeaseTTL,
 		DBDSN:                secret("DB_DSN"),
 		MusicDir:             file.Library.MusicDir,
 		NavidromeMusicDir:    navidromeMusicDir,
@@ -229,6 +241,9 @@ func readFile(path string, file *fileConfig) []error {
 	}
 	if file.Telegram.PollInterval <= 0 {
 		problems = append(problems, errors.New("telegram.poll_interval must be positive"))
+	}
+	if file.Telegram.LeaseTTL <= 0 {
+		problems = append(problems, errors.New("telegram.lease_ttl must be positive"))
 	}
 	if file.Ingest.Workers < 1 {
 		problems = append(problems, errors.New("ingest.workers must be at least 1"))

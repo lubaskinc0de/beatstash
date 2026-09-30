@@ -24,6 +24,12 @@ func (r *UserRepository) GetByIdentity(ctx context.Context, identity access.Iden
 	return first[access.User](q, repositories.ErrUserNotFound)
 }
 
+func (r *UserRepository) Identities(ctx context.Context, channel access.Channel, userIDs []uint) ([]access.Identity, error) {
+	var identities []access.Identity
+	err := dbForContext(ctx, r.DB).Where("channel = ? AND user_id IN ?", channel, userIDs).Find(&identities).Error
+	return identities, err
+}
+
 func (r *UserRepository) All(ctx context.Context) ([]access.User, error) {
 	var users []access.User
 	err := dbForContext(ctx, r.DB).Preload("Identities").Order("id").Find(&users).Error

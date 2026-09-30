@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"time"
@@ -86,4 +87,22 @@ func (p *IDProvider) NewUser(ctx context.Context) (*access.User, error) {
 		return nil, err
 	}
 	return access.NewUser(s.from.Username, Identity(s.from.ID), p.Clock()), nil
+}
+
+// ChatsOf maps the Users to their private chats with the bot, leaving out
+// those who never used Telegram.
+func (p *IDProvider) ChatsOf(ctx context.Context, userIDs []uint) (map[uint]int64, error) {
+	identities, err := p.Users.Identities(ctx, Channel, userIDs)
+	if err != nil {
+		return nil, err
+	}
+	chats := make(map[uint]int64, len(identities))
+	for _, identity := range identities {
+		chatID, err := strconv.ParseInt(identity.ExternalID, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("telegram identity of user %d: %w", identity.UserID, err)
+		}
+		chats[identity.UserID] = chatID
+	}
+	return chats, nil
 }

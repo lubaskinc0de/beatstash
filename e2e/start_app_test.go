@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -116,6 +117,18 @@ func TestStartup(t *testing.T) {
 		var exit *exec.ExitError
 		require.ErrorAs(t, err, &exit)
 		assert.Contains(t, out, "ingest.poll_interval")
+	})
+
+	t.Run("bot refuses a negative lease ttl", func(t *testing.T) {
+		binary := buildBot(t)
+		vars := botEnv(t)
+		vars["CONFIG_FILE"] = writeConfig(t, strings.Replace(botConfig(t), "[telegram]\n", "[telegram]\nlease_ttl = \"-1s\"\n", 1))
+
+		out, err := runBot(t, binary, vars)
+
+		var exit *exec.ExitError
+		require.ErrorAs(t, err, &exit)
+		assert.Contains(t, out, "telegram.lease_ttl must be positive")
 	})
 
 	t.Run("bot without a config file still names missing secrets", func(t *testing.T) {

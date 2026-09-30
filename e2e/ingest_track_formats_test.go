@@ -101,6 +101,21 @@ func TestFormats(t *testing.T) {
 		assert.Equal(t, []string{"👀", "👍"}, s.Telegram.Reactions(t))
 		assert.NoFileExists(t, working)
 	})
+
+	t.Run("Bot API working file of an Ingest cut by a restart is removed", func(t *testing.T) {
+		s := harness.New(t)
+		audio := s.UploadAudio("track.mp3")
+		working := s.Telegram.PathOf(audio.FileID)
+		held := s.Telegram.HoldGetFile()
+		s.Send(s.AudioMessage(alice, audio))
+		<-held
+
+		s.Restart()
+		s.Telegram.ReleaseGetFile()
+		s.WaitIngest()
+
+		assert.NoFileExists(t, working)
+	})
 }
 
 func TestWavToFlac(t *testing.T) {

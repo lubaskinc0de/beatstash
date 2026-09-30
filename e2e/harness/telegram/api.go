@@ -36,9 +36,16 @@ type API struct {
 	failures map[string]int
 	hold     chan struct{}
 	held     chan struct{}
+	holds    map[string]*Hold
 	messages int
 	uploaded []string
 	refusals int
+	outages  map[string]outage
+}
+
+type outage struct {
+	calls int
+	code  int
 }
 
 const UploadedFileParam = "uploaded_file"
@@ -48,6 +55,8 @@ func New(t *testing.T) *API {
 		workDir:  t.TempDir(),
 		files:    map[string]string{},
 		failures: map[string]int{},
+		holds:    map[string]*Hold{},
+		outages:  map[string]outage{},
 	}
 	api.server = httptest.NewServer(http.HandlerFunc(api.handle))
 	t.Cleanup(api.server.Close)
@@ -113,6 +122,26 @@ func (a *API) refuseUpload(params map[string]string) bool {
 	return true
 }
 
+// FailCalls makes the next n calls to the method fail with the HTTP code.
+// A failed call is not noted: the user never sees it.
+func (a *API) FailCalls(method string, n, code int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.outages[method] = outage{calls: n, code: code}
+}
+
+func (a *API) failCall(method string) (code int, failed bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	o := a.outages[method]
+	if o.calls == 0 {
+		return 0, false
+	}
+	o.calls--
+	a.outages[method] = o
+	return o.code, true
+}
+
 func (a *API) handle(w http.ResponseWriter, r *http.Request) {
 	method, ok := strings.CutPrefix(r.URL.Path, "/bot"+Token+"/")
 	if !ok {
@@ -134,6 +163,13 @@ func (a *API) handle(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if !a.waitCallHold(r, method) {
+		return
+	}
+	if code, failed := a.failCall(method); failed {
+		writeError(w, code, http.StatusText(code))
+		return
+	}
 	a.mu.Lock()
 	call := &Call{Method: method, Params: params}
 	a.calls = append(a.calls, call)
@@ -210,6 +246,48 @@ func (a *API) UploadedFileID(n int) string {
 		return ""
 	}
 	return a.uploaded[n]
+}
+
+// Hold keeps one call to a method from Telegram until Release.
+type Hold struct {
+	arrived chan struct{}
+	release chan struct{}
+}
+
+// Arrived closes when the held call comes.
+func (h *Hold) Arrived() <-chan struct{} {
+	return h.arrived
+}
+
+func (h *Hold) Release() {
+	close(h.release)
+}
+
+// Hold makes the next call to the method hang until Release: the call
+// reaches Telegram only then, and never if the bot gives up on it first.
+func (a *API) Hold(method string) *Hold {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	h := &Hold{arrived: make(chan struct{}), release: make(chan struct{})}
+	a.holds[method] = h
+	return h
+}
+
+func (a *API) waitCallHold(r *http.Request, method string) bool {
+	a.mu.Lock()
+	h := a.holds[method]
+	delete(a.holds, method)
+	a.mu.Unlock()
+	if h == nil {
+		return true
+	}
+	close(h.arrived)
+	select {
+	case <-h.release:
+		return true
+	case <-r.Context().Done():
+		return false
+	}
 }
 
 func (a *API) waitHold(r *http.Request) bool {

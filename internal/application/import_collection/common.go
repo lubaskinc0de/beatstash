@@ -6,6 +6,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
@@ -72,4 +73,27 @@ func planOf(all, missing []providers.ListedTrack) *Plan {
 		plan.MissingBytes += track.Bytes
 	}
 	return plan
+}
+
+type ImportProgress struct {
+	Provider provider.ProviderName
+	Total    int
+	Progress repositories.BatchProgress
+}
+
+// progressOf keeps the order of the batches.
+func progressOf(ctx context.Context, queue repositories.IngestQueue, batches []ingest.IngestBatch) ([]ImportProgress, error) {
+	ids := make([]uint, 0, len(batches))
+	for _, batch := range batches {
+		ids = append(ids, batch.ID)
+	}
+	progress, err := queue.BatchProgress(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	imports := make([]ImportProgress, 0, len(batches))
+	for _, batch := range batches {
+		imports = append(imports, ImportProgress{Provider: batch.Provider, Total: batch.Total, Progress: progress[batch.ID]})
+	}
+	return imports, nil
 }

@@ -142,7 +142,7 @@ func TestZvukSync(t *testing.T) {
 		require.Eventually(t, func() bool {
 			return s.Zvuk.RefusedRequests() >= 2
 		}, 10*time.Second, 20*time.Millisecond)
-		assert.Empty(t, s.SentMessagesContaining(tokenRejected))
+		assert.Empty(t, s.SentMessagesContaining(alice, tokenRejected))
 	})
 
 	t.Run("revoked token pauses Sync and tells the user once", func(t *testing.T) {
@@ -159,7 +159,43 @@ func TestZvukSync(t *testing.T) {
 		require.Never(t, func() bool {
 			return s.Zvuk.RequestsOf("userCollection") > requests
 		}, 5*syncInterval, 20*time.Millisecond)
-		assert.Len(t, s.SentMessagesContaining(tokenRejected), 1)
+		assert.Len(t, s.SentMessagesContaining(alice, tokenRejected), 1)
+	})
+
+	t.Run("two instances tell of a revoked token once", func(t *testing.T) {
+		s := harness.New(t, harness.WithSyncInterval(syncInterval))
+		s.StartReplica()
+		s.ConnectZvuk(alice, harness.ZvukToken)
+		s.AddZvukCollection(harness.ZvukToken)
+		s.ImportZvuk(alice)
+		s.WaitIngest()
+		notice := s.Telegram.Hold("sendMessage")
+		sent := len(s.Telegram.CallsTo("sendMessage"))
+
+		s.Zvuk.Revoke(harness.ZvukToken)
+		<-notice.Arrived()
+		assert.False(t, s.Telegram.WaitCalls("sendMessage", sent+1, anotherRound), "another instance acted meanwhile")
+		notice.Release()
+
+		untilTokenRejected(t, s)
+		assert.Len(t, s.SentMessagesContaining(alice, tokenRejected), 1)
+	})
+
+	t.Run("token revoked again after reconnect is told of again", func(t *testing.T) {
+		s := harness.New(t, harness.WithSyncInterval(syncInterval))
+		s.ConnectZvuk(alice, harness.ZvukToken)
+		s.AddZvukCollection(harness.ZvukToken)
+		s.ImportZvuk(alice)
+		s.WaitIngest()
+		s.Zvuk.Revoke(harness.ZvukToken)
+		untilTokenRejected(t, s)
+
+		s.ConnectZvuk(alice, harness.ZvukToken)
+		s.Zvuk.Revoke(harness.ZvukToken)
+
+		require.Eventually(t, func() bool {
+			return len(s.SentMessagesContaining(alice, tokenRejected)) == 2
+		}, 10*time.Second, 20*time.Millisecond)
 	})
 
 	t.Run("revoked token notice leads to the Zvuk screen", func(t *testing.T) {
@@ -205,7 +241,7 @@ func untilTokenRejected(t *testing.T, s *harness.Scenario) {
 	t.Helper()
 
 	require.Eventually(t, func() bool {
-		return len(s.SentMessagesContaining(tokenRejected)) > 0
+		return len(s.SentMessagesContaining(alice, tokenRejected)) > 0
 	}, 10*time.Second, 20*time.Millisecond, "the user never heard of the rejected token")
 }
 

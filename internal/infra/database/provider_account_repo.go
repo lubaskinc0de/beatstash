@@ -2,7 +2,6 @@ package database
 
 import (
 	"context"
-	"time"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -48,11 +47,12 @@ func (r *ProviderAccountRepository) Save(ctx context.Context, account *provider.
 		Create(account).Error
 }
 
-func (r *ProviderAccountRepository) InvalidatedSince(ctx context.Context, since time.Time) ([]provider.ProviderAccount, error) {
+func (r *ProviderAccountRepository) Invalid(ctx context.Context) ([]provider.ProviderAccount, error) {
 	var accounts []provider.ProviderAccount
 	err := dbForContext(ctx, r.DB).
-		Where("status = ? AND invalidated_at >= ?", provider.ProviderAccountInvalid, since).
-		Order("invalidated_at, user_id").
+		Select("user_id, provider, invalidated_at").
+		Where("status = ? AND invalidated_at IS NOT NULL", provider.ProviderAccountInvalid).
+		Order("user_id, provider").
 		Find(&accounts).Error
 	return accounts, err
 }

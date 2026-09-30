@@ -11,7 +11,6 @@ import (
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/store"
 )
 
 func updateSender(update *models.Update) *models.User {
@@ -42,17 +41,17 @@ func senderMiddleware(next bot.HandlerFunc) bot.HandlerFunc {
 
 // languageMiddleware takes the language from the client on first contact;
 // afterwards only the switch changes it.
-func languageMiddleware(users *store.Users, bundle *i18n.Bundle) bot.Middleware {
+func languageMiddleware(users *Users, bundle *i18n.Bundle) bot.Middleware {
 	return func(next bot.HandlerFunc) bot.HandlerFunc {
 		return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 			from := updateSender(update)
 			lang := bundle.Match(from.LanguageCode)
-			saved, known, err := users.Language(ctx, from.ID)
+			saved, err := users.Languages(ctx, []int64{from.ID})
 			switch {
 			case err != nil:
 				slog.Error("read_language", "error", err)
-			case known:
-				lang = i18n.Language(saved)
+			case saved[from.ID] != "":
+				lang = i18n.Language(saved[from.ID])
 			default:
 				if err := users.Meet(ctx, from.ID, string(lang)); err != nil {
 					slog.Error("save_language", "error", err)
