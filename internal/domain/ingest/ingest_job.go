@@ -1,3 +1,8 @@
+// IngestJob: one planned Ingest of a Track Ref and how it ended. A done job
+// keeps its Outcome, the Track that was stored or already existed, and the
+// version of that Track's file the job left. A failed job keeps its
+// FailureReason.
+
 package ingest
 
 import (
@@ -29,11 +34,9 @@ type IngestJob struct {
 	RunAt     time.Time       `gorm:"not null;index:idx_ingest_job_due"`
 	LastError string
 
-	// Outcome and TrackID are set when the job is done. TrackID is the
-	// Track that was stored or already existed. FailureReason is set when
-	// the job failed.
 	Outcome       library.Outcome
 	TrackID       *uint
+	FileVersion   int `gorm:"not null;default:0"`
 	FailureReason FailureReason
 
 	CreatedAt time.Time
@@ -81,12 +84,19 @@ func (j *IngestJob) Failed() bool {
 	return j.Status == IngestJobFailed
 }
 
-func (j *IngestJob) Succeed(outcome library.Outcome, trackID uint) {
+func (j *IngestJob) Succeed(outcome library.Outcome, trackID uint, fileVersion int) {
 	j.Attempts++
 	j.Status = IngestJobDone
 	j.Outcome = outcome
 	j.TrackID = &trackID
+	j.FileVersion = fileVersion
 	j.LastError = ""
+}
+
+// Delivered reports whether the job's audio became the Track's file: an
+// audio that already existed did not.
+func (j *IngestJob) Delivered() bool {
+	return j.Done() && j.Outcome != library.AlreadyExists
 }
 
 // Fail records a failed attempt. The job is retried later, unless the

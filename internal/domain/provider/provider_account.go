@@ -1,3 +1,9 @@
+// ProviderAccount: a User's token for a Provider, the last Collection, and
+// the state of Sync and Mirror. The token is sealed with SECRET_KEY.
+// InvalidatedAt is when the Provider last rejected it. Collection is nil
+// before the first Import. SyncTriedAt keeps a failing Sync from running
+// again before its interval.
+
 package provider
 
 import (
@@ -15,22 +21,16 @@ type ProviderAccount struct {
 	UserID uint        `gorm:"primaryKey"`
 	User   access.User `gorm:"constraint:OnDelete:CASCADE;"`
 
-	Provider ProviderName `gorm:"primaryKey"`
-	// Token is sealed with SECRET_KEY.
-	Token  []byte                `gorm:"not null"`
-	Status ProviderAccountStatus `gorm:"not null"`
-	// InvalidatedAt is when the Provider last rejected the token.
-	InvalidatedAt *time.Time `gorm:"index"`
+	Provider      ProviderName          `gorm:"primaryKey"`
+	Token         []byte                `gorm:"not null"`
+	Status        ProviderAccountStatus `gorm:"not null"`
+	InvalidatedAt *time.Time            `gorm:"index"`
 
-	// Collection is the Provider Collection from the last Import or Sync;
-	// nil before the first Import.
 	Collection   *CollectionSnapshot `gorm:"type:jsonb;serializer:json"`
 	Mirror       MirrorState         `gorm:"type:jsonb;serializer:json"`
 	MirrorWanted bool                `gorm:"not null"`
 	SyncedAt     *time.Time
-	// SyncTriedAt is the last Sync attempt, so a failing Sync is not retried
-	// before the interval passes.
-	SyncTriedAt *time.Time
+	SyncTriedAt  *time.Time
 
 	CreatedAt time.Time
 	UpdatedAt time.Time

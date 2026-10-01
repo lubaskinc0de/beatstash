@@ -1,3 +1,5 @@
+// LayoutPath: the path a Track's metadata gives it inside a Library.
+
 package library
 
 import (

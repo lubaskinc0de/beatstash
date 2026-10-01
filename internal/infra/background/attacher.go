@@ -30,14 +30,19 @@ func (a *Attacher) Run(ctx context.Context) {
 	if a.Interval <= 0 {
 		return
 	}
-	ticker := time.NewTicker(a.Interval)
+	every(ctx, a.Interval, a.Once)
+}
+
+// every runs fn each interval until ctx is done, starting with a wait.
+func every(ctx context.Context, interval time.Duration, fn func(context.Context)) {
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			a.Once(ctx)
+			fn(ctx)
 		}
 	}
 }

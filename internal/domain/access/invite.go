@@ -1,3 +1,5 @@
+// Invite: a one-time code that lets a person join the service as a User.
+
 package access
 
 import (

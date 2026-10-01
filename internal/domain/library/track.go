@@ -1,3 +1,11 @@
+// Track: one audio file in a Library with its metadata, Quality and Track
+// Sources. Path is relative to the Library's Dir; Size is in bytes.
+// FileVersion grows each time the content of the file changes, and a move
+// keeps it. FileModTime and FileInode are the file as the bot last saw it,
+// zero until it records them. SongID is set only on a Track of an Attached
+// Library. A TrackSource copies its Track's LibraryID for the unique index:
+// one Track per Track Ref in a Library.
+
 package library
 
 import (
@@ -11,23 +19,21 @@ import (
 type Track struct {
 	ID uint `gorm:"primaryKey"`
 
-	LibraryID uint `gorm:"not null;uniqueIndex:idx_track_library_path"`
-	// Path is relative to the Library's Dir.
-	Path string `gorm:"not null;uniqueIndex:idx_track_library_path"`
+	LibraryID uint   `gorm:"not null;uniqueIndex:idx_track_library_path"`
+	Path      string `gorm:"not null;uniqueIndex:idx_track_library_path"`
 
 	Metadata
 	Quality
 
-	DurationMs int
-	Format     Format
-	// Size is the file's, in bytes.
-	Size int64 `gorm:"not null;default:0"`
+	DurationMs  int
+	Format      Format
+	Size        int64     `gorm:"not null;default:0"`
+	FileVersion int       `gorm:"not null;default:0"`
+	FileModTime time.Time `gorm:"not null;default:'0001-01-01 00:00:00+00'"`
+	FileInode   uint64    `gorm:"not null;default:0"`
 
-	// SongID is the Navidrome song a Track of an Attached Library follows;
-	// empty for other Tracks.
 	SongID string `gorm:"index"`
 
-	// Sources: one per Track Ref.
 	Sources []*TrackSource `gorm:"constraint:OnDelete:CASCADE;"`
 
 	CreatedAt time.Time
@@ -41,8 +47,6 @@ type TrackSource struct {
 
 	TrackID uint `gorm:"not null;index"`
 
-	// LibraryID is the Track's LibraryID, copied here for the unique index:
-	// one Track per Track Ref in a Library.
 	LibraryID uint                  `gorm:"not null;uniqueIndex:idx_track_source_library_ref"`
 	Provider  provider.ProviderName `gorm:"not null;uniqueIndex:idx_track_source_library_ref"`
 	Ref       string                `gorm:"not null;uniqueIndex:idx_track_source_library_ref"`
@@ -71,6 +75,15 @@ func NewTrack(lib *Library, in Incoming) (*Track, Outcome) {
 		return t, StoredInInbox
 	}
 	return t, Stored
+}
+
+// NewFoundTrack is a Track for a file put into a Library by hand: it has no
+// Sources and keeps the file's path. Without artist or title it counts as
+// in the Inbox.
+func NewFoundTrack(lib *Library, file LibraryFile, probe Probe) *Track {
+	t := &Track{LibraryID: lib.ID, Path: file.Path}
+	t.takeAudio(file, probe)
+	return t
 }
 
 // NewAttachedTrack follows a song of an Attached Library. It has no Layout
@@ -116,6 +129,7 @@ func (t *Track) Absorb(in Incoming) Outcome {
 	t.Format = in.Format
 	t.Quality = in.Quality
 	t.DurationMs = in.DurationMs
+	t.FileVersion++
 	return Replaced
 }
 
@@ -134,8 +148,30 @@ func (t *Track) GrowthTo(size int64) int64 {
 	return size - t.Size
 }
 
-func (t *Track) Resize(size int64) {
-	t.Size = size
+// RecordFile keeps what the Track's file is like now, before it goes to
+// the Track's path: a rename keeps all of it.
+func (t *Track) RecordFile(file LibraryFile) {
+	t.Size = file.Size
+	t.FileModTime = file.ModTime
+	t.FileInode = file.Inode
+}
+
+// Holds tells whether the file at the Track's path is the one the Track
+// recorded.
+func (t *Track) Holds(file LibraryFile) bool {
+	return file.holds(t.Size, t.FileModTime)
+}
+
+// FollowFile takes the Track's audio from its file changed by hand: the
+// metadata from its tags, with spaces tidied so Duplicates match, and the
+// rest from the audio itself. The path stays. A Track that never recorded
+// its file cannot tell whether the audio changed, so its FileVersion stays.
+func (t *Track) FollowFile(file LibraryFile, probe Probe) {
+	recorded := t.recorded()
+	t.takeAudio(file, probe)
+	if recorded {
+		t.FileVersion++
+	}
 }
 
 func (t *Track) AddSource(ref provider.TrackRef) *TrackSource {
@@ -189,19 +225,37 @@ func (t *Track) Single() bool {
 
 // CopyTo copies the Track without Sources: a Track Ref can be used once
 // per Library, and only the caller can check which ones the target Library
-// already has. The copy is the bot's own and follows no song.
+// already has. The copy is the bot's own and follows no song. Its file is
+// a hardlink of the Track's.
 func (t *Track) CopyTo(library *Library, path string) *Track {
 	return &Track{
-		LibraryID:  library.ID,
-		Path:       path,
-		Metadata:   t.Metadata,
-		Quality:    t.Quality,
-		DurationMs: t.DurationMs,
-		Format:     t.Format,
-		Size:       t.Size,
+		LibraryID:   library.ID,
+		Path:        path,
+		Metadata:    t.Metadata,
+		Quality:     t.Quality,
+		DurationMs:  t.DurationMs,
+		Format:      t.Format,
+		Size:        t.Size,
+		FileModTime: t.FileModTime,
+		FileInode:   t.FileInode,
 	}
 }
 
 func (s *TrackSource) TrackRef() provider.TrackRef {
 	return provider.TrackRef{Provider: s.Provider, ID: s.Ref}
+}
+
+func (t *Track) takeAudio(file LibraryFile, probe Probe) {
+	if format, ok := file.Format(); ok {
+		t.Format = format
+	}
+	t.Metadata = probe.Tags.Normalize()
+	t.Quality = probe.Quality
+	t.DurationMs = probe.DurationMs
+	t.RecordFile(file)
+}
+
+// recorded is false for a Track that never recorded its file.
+func (t *Track) recorded() bool {
+	return !t.FileModTime.IsZero()
 }

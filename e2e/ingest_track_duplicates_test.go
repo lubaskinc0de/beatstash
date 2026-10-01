@@ -41,7 +41,7 @@ func TestDuplicates(t *testing.T) {
 		harness.AssertAlreadyExists(t, s, alice, resent.Message.ID)
 	})
 
-	t.Run("FLAC replaces MP3 and inline still sends the track", func(t *testing.T) {
+	t.Run("FLAC replaces MP3 and inline sends the FLAC", func(t *testing.T) {
 		s := harness.New(t)
 		mp3 := s.UploadAudioFile(audiofile.Generate(t, "song.mp3", audiofile.Spec{Bitrate: "128k", Tags: audiofile.SongTags}))
 		s.Send(s.AudioMessage(alice, mp3))
@@ -62,8 +62,8 @@ func TestDuplicates(t *testing.T) {
 		answers := s.Telegram.InlineAnswers(t)
 		require.Len(t, answers, 1)
 		require.Len(t, answers[0].Results, 1)
-		assert.Equal(t, "audio", answers[0].Results[0].Type)
-		assert.Equal(t, mp3.FileID, answers[0].Results[0].AudioFileID)
+		assert.Equal(t, "document", answers[0].Results[0].Type)
+		assert.Equal(t, flac.FileID, answers[0].Results[0].DocumentFileID)
 	})
 
 	t.Run("higher bitrate MP3 replaces lower", func(t *testing.T) {

@@ -3,6 +3,7 @@ package ingest_track
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"path/filepath"
 	"sync/atomic"
@@ -29,7 +30,7 @@ type ProcessIngestJob struct {
 	Lock      repositories.LibraryLock
 	Quotas    *quotas.Quotas
 	Disk      common.Disk
-	Tags      AudioTags
+	Tags      common.AudioTags
 	Remuxer   Remuxer
 	Batches   repositories.IngestBatches
 	InFlight  *InFlight
@@ -41,13 +42,6 @@ type UploadRepository interface {
 	Save(ctx context.Context, upload *library.Upload) error
 }
 
-type AudioTags interface {
-	// Probe returns ErrCorruptAudio for unreadable tags or no duration.
-	Probe(path string) (*library.Probe, error)
-	WriteTags(path string, m library.Metadata) error
-	WriteCover(path string, image []byte) error
-}
-
 type Remuxer interface {
 	// Codec returns "" if it cannot tell.
 	Codec(ctx context.Context, path string) string
@@ -55,8 +49,6 @@ type Remuxer interface {
 	// UnpackFlac takes FLAC out of MP4 without re-encoding.
 	UnpackFlac(ctx context.Context, mp4 string) (string, error)
 }
-
-var ErrCorruptAudio = errors.New("audio file is corrupt")
 
 // InFlight counts jobs from claim to the end of their bookkeeping; empty polls don't
 // count, or WaitIdle would rarely see zero.
@@ -152,7 +144,7 @@ func (i *ProcessIngestJob) finish(ctx context.Context, a attempt) {
 
 func (i *ProcessIngestJob) recordAttempt(job *ingest.IngestJob, result *jobResult, procErr error) {
 	if procErr == nil {
-		job.Succeed(result.Outcome, result.TrackID)
+		job.Succeed(result.Outcome, result.TrackID, result.FileVersion)
 		return
 	}
 
@@ -190,9 +182,10 @@ func failureReason(err error) (reason ingest.FailureReason, permanent bool) {
 }
 
 type jobResult struct {
-	Outcome library.Outcome
-	Path    string
-	TrackID uint
+	Outcome     library.Outcome
+	Path        string
+	TrackID     uint
+	FileVersion int
 }
 
 func alreadyExists(trackID uint) *jobResult {
@@ -272,7 +265,7 @@ func (i *ProcessIngestJob) process(ctx context.Context, job *ingest.IngestJob, f
 	// is a no-op once the file has been moved into the Library.
 	staged, err := i.stage(audio)
 	if err != nil {
-		return nil, wrapStep(stepStage, err)
+		return nil, err
 	}
 	defer i.Disk.Remove(staged)
 
@@ -295,7 +288,7 @@ func (i *ProcessIngestJob) process(ctx context.Context, job *ingest.IngestJob, f
 	}
 
 	probe, err := i.Tags.Probe(staged)
-	if errors.Is(err, ErrCorruptAudio) {
+	if errors.Is(err, common.ErrCorruptAudio) {
 		return nil, wrapStep(stepProbe, providers.Permanent(ingest.ReasonCorruptFile, err))
 	}
 	if err != nil {
@@ -594,7 +587,7 @@ func (i *ProcessIngestJob) linkShared(
 	if err := i.recordUpload(ctx, job.UserID, copied, ref); err != nil {
 		return nil, err
 	}
-	return &jobResult{Outcome: library.Stored, Path: target, TrackID: copied.ID}, nil
+	return &jobResult{Outcome: library.Stored, Path: target, TrackID: copied.ID, FileVersion: copied.FileVersion}, nil
 }
 
 // recordUpload: the ref is how this user sent the Track.
@@ -627,7 +620,7 @@ func (i *ProcessIngestJob) storeNew(ctx context.Context, st storing, in library.
 	if err := st.files.Place(st.staged, target); err != nil {
 		return nil, err
 	}
-	return &jobResult{Outcome: outcome, Path: target, TrackID: track.ID}, nil
+	return &jobResult{Outcome: outcome, Path: target, TrackID: track.ID, FileVersion: track.FileVersion}, nil
 }
 
 func (i *ProcessIngestJob) mergeDuplicate(ctx context.Context, st storing, track *library.Track, in library.Incoming) (*jobResult, error) {
@@ -653,7 +646,7 @@ func (i *ProcessIngestJob) mergeDuplicate(ctx context.Context, st storing, track
 	if err := st.files.Replace(st.staged, filepath.Join(st.dir, old), target); err != nil {
 		return nil, err
 	}
-	return &jobResult{Outcome: library.Replaced, Path: target, TrackID: track.ID}, nil
+	return &jobResult{Outcome: library.Replaced, Path: target, TrackID: track.ID, FileVersion: track.FileVersion}, nil
 }
 
 // freePath moves the Track off a path another file takes. own is the path
@@ -682,14 +675,14 @@ func (i *ProcessIngestJob) saveFile(ctx context.Context, st storing, track *libr
 			return err
 		}
 	}
-	size, err := i.Disk.Size(st.staged)
+	file, err := i.Disk.Stat(st.staged)
 	if err != nil {
 		return err
 	}
-	if err := i.admit(ctx, st.lib, track.GrowthTo(size)); err != nil {
+	if err := i.admit(ctx, st.lib, track.GrowthTo(file.Size)); err != nil {
 		return err
 	}
-	track.Resize(size)
+	track.RecordFile(file)
 	return i.Tracks.SaveTrack(ctx, track)
 }
 
@@ -705,10 +698,33 @@ func (i *ProcessIngestJob) admit(ctx context.Context, lib *library.Library, grow
 }
 
 // stage copies the Provider's stream into a scratch file, so the following
-// steps can read and tag a local file.
+// steps can read and tag a local file. A stream that breaks off fails the
+// fetch; a file that cannot be written, the stage.
 func (i *ProcessIngestJob) stage(audio *providers.FetchedAudio) (string, error) {
 	defer audio.Body.Close()
-	return i.Disk.Stage(audio.Body, audio.Format.Ext())
+	stream := &stream{Reader: audio.Body}
+	staged, err := i.Disk.Stage(stream, audio.Format.Ext())
+	switch {
+	case stream.err != nil:
+		return "", wrapStep(stepFetch, err)
+	case err != nil:
+		return "", wrapStep(stepStage, err)
+	}
+	return staged, nil
+}
+
+// stream remembers why the Provider's stream broke off.
+type stream struct {
+	io.Reader
+	err error
+}
+
+func (s *stream) Read(p []byte) (int, error) {
+	n, err := s.Reader.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) {
+		s.err = err
+	}
+	return n, err
 }
 
 type step string

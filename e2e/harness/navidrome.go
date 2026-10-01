@@ -11,6 +11,7 @@ import (
 
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/disk"
 )
 
 func (s *Scenario) LinkNewAccount(user User) navidrome.Account {
@@ -93,6 +94,14 @@ func (s *Scenario) NewMusicDirLibrary(name string, files ...string) NavidromeLib
 	return s.newNavidromeLibrary(s.Library, s.config.NavidromeMusicDir, name, files)
 }
 
+// NewScratchLibrary is NewNavidromeLibrary inside the bot's scratch folder.
+func (s *Scenario) NewScratchLibrary(name string) NavidromeLibrary {
+	s.t.Helper()
+
+	require.NoError(s.t, os.MkdirAll(s.scratchDir(), 0o755)) //nolint:gosec // G301: Navidrome container reads the library
+	return s.newNavidromeLibrary(s.scratchDir(), s.NavidromePath(disk.ScratchDir), name, nil)
+}
+
 func (s *Scenario) newNavidromeLibrary(hostParent, navidromeParent, name string, files []string) NavidromeLibrary {
 	s.t.Helper()
 
@@ -115,11 +124,7 @@ func (s *Scenario) newNavidromeLibrary(hostParent, navidromeParent, name string,
 func (s *Scenario) AddToNavidromeLibrary(lib NavidromeLibrary, file, rel string) {
 	s.t.Helper()
 
-	data, err := os.ReadFile(file) //nolint:gosec // G304: paths come from the scenario
-	require.NoError(s.t, err)
-	target := filepath.Join(lib.Dir, rel)
-	require.NoError(s.t, os.MkdirAll(filepath.Dir(target), 0o755)) //nolint:gosec // G301: Navidrome container reads the library
-	require.NoError(s.t, os.WriteFile(target, data, 0o644))        //nolint:gosec // G306: Navidrome container reads the library
+	copyFile(s.t, file, filepath.Join(lib.Dir, rel))
 }
 
 // NewNavidromeRootLibrary makes a library of everything Navidrome sees,

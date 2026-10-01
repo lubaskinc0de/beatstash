@@ -10,9 +10,14 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
+
+	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/disk"
 )
 
 // Hidden entries are the bot's scratch space.
@@ -85,7 +90,7 @@ func (s *Scenario) PersonalPath(user User, rel string) string {
 
 func (s *Scenario) SharedFiles() []string {
 	s.t.Helper()
-	return filesUnder(s.t, filepath.Join(s.Library, "shared"))
+	return filesUnder(s.t, s.SharedPath(""))
 }
 
 // FilesWithContent maps the files under root to their bytes.
@@ -107,4 +112,71 @@ func FileSize(t *testing.T, path string) int64 {
 	info, err := os.Stat(path)
 	require.NoError(t, err)
 	return info.Size()
+}
+
+// PutScratchFile leaves a file in the bot's scratch folder as if written
+// age ago.
+func (s *Scenario) PutScratchFile(name string, age time.Duration) {
+	s.t.Helper()
+
+	path := filepath.Join(s.scratchDir(), name)
+	writeFile(s.t, path, []byte("left over"))
+	written := time.Now().Add(-age)
+	require.NoError(s.t, os.Chtimes(path, written, written))
+}
+
+func (s *Scenario) ScratchFiles() []string {
+	s.t.Helper()
+	return filesUnder(s.t, s.scratchDir())
+}
+
+func (s *Scenario) scratchDir() string {
+	return filepath.Join(s.Library, disk.ScratchDir)
+}
+
+// The ByHand methods change a Library's files behind the bot's back, as
+// the owner of the server might.
+func (s *Scenario) RemoveByHand(path string) {
+	s.t.Helper()
+	require.NoError(s.t, os.Remove(path))
+}
+
+// WriteByHand writes the source's bytes to path. An existing file keeps
+// its inode: its hardlinks change too.
+func (s *Scenario) WriteByHand(path, source string) {
+	s.t.Helper()
+	copyFile(s.t, source, path)
+}
+
+func (s *Scenario) MoveByHand(from, to string) {
+	s.t.Helper()
+
+	require.NoError(s.t, os.MkdirAll(filepath.Dir(to), 0o755)) //nolint:gosec // G301: Navidrome container reads the library
+	require.NoError(s.t, os.Rename(from, to))
+}
+
+func (s *Scenario) SharedPath(rel string) string {
+	return filepath.Join(s.Library, library.SharedLibraryDir, rel)
+}
+
+// copyFile makes the folders of target as needed; an existing target keeps
+// its inode.
+func copyFile(t *testing.T, source, target string) {
+	t.Helper()
+
+	data, err := os.ReadFile(source) //nolint:gosec // G304: paths come from the scenario
+	require.NoError(t, err)
+	writeFile(t, target, data)
+}
+
+func writeFile(t *testing.T, path string, data []byte) {
+	t.Helper()
+
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755)) //nolint:gosec // G301: Navidrome container reads the library
+	require.NoError(t, os.WriteFile(path, data, 0o644))        //nolint:gosec // G306: Navidrome container reads the library
+}
+
+func (s *Scenario) RetagByHand(path string, tags map[string]string) {
+	s.t.Helper()
+	audiofile.Retag(s.t, path, tags)
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
@@ -22,7 +23,7 @@ type AttachLibraries struct {
 	Tracks    repositories.Tracks
 	Navidrome navidrome.Client
 	Admin     navidrome.Credentials
-	MusicDir  string
+	Folders   library.SystemFolders
 }
 
 func (i *AttachLibraries) Execute(ctx context.Context) error {
@@ -37,7 +38,7 @@ func (i *AttachLibraries) Execute(ctx context.Context) error {
 
 	attachable := map[int]navidrome.Library{}
 	for _, nd := range existing {
-		switch library.PlacementOf(nd.Path, i.MusicDir) {
+		switch library.PlacementOf(nd.Path, i.Folders) {
 		case library.PlacedInside:
 		case library.PlacedAround:
 			slog.Warn("navidrome_library_holds_bot_folders", "library", nd.Name, "path", nd.Path)
@@ -113,16 +114,7 @@ func (i *AttachLibraries) attach(ctx context.Context, lib *library.Library, nd n
 			indexed = append(indexed, songOf(song))
 		}
 		save, gone := lib.Follow(tracks, indexed)
-
-		ids := make([]uint, 0, len(gone))
-		for _, track := range gone {
-			ids = append(ids, track.ID)
-		}
-		// Gone first: a new song may take the path of a gone one.
-		if err := i.Tracks.Delete(ctx, ids); err != nil {
-			return err
-		}
-		return i.Tracks.SaveTracks(ctx, save)
+		return libraries.ReplaceTracks(ctx, i.Tracks, save, gone)
 	})
 }
 

@@ -1,3 +1,6 @@
+// Upload: the record that a User sent a Track through one of its Track
+// Sources.
+
 package library
 
 import (

@@ -46,6 +46,9 @@ type API struct {
 	// holdOnly limits the hold to these tracks when set.
 	holdOnly map[string]bool
 	holding  map[string]bool
+	// stalls and trickles shape the body of the next download of a track.
+	stalls   map[string]*Stall
+	trickles map[string]time.Duration
 	events   []Event
 }
 
@@ -108,6 +111,8 @@ func New(t *testing.T) *API {
 		broken:      map[string]bool{},
 		unavailable: map[string]bool{},
 		holding:     map[string]bool{},
+		stalls:      map[string]*Stall{},
+		trickles:    map[string]time.Duration{},
 		downloads:   map[string]int{},
 		requests:    map[string]int{},
 	}
@@ -234,6 +239,41 @@ func (z *API) ReleaseStreams() {
 	defer z.mu.Unlock()
 	close(z.hold)
 	z.hold = nil
+}
+
+// Stall is a download that sent half of its body and went silent.
+type Stall struct {
+	arrived chan struct{}
+	resume  chan struct{}
+}
+
+// Arrived closes once the first half of the body is sent.
+func (s *Stall) Arrived() <-chan struct{} {
+	return s.arrived
+}
+
+// Resume sends the rest of the body.
+func (s *Stall) Resume() {
+	close(s.resume)
+}
+
+// StallStream makes the next download of the track send half of the audio
+// and then nothing until Resume or until the bot gives up; later downloads
+// send the audio whole.
+func (z *API) StallStream(id string) *Stall {
+	z.mu.Lock()
+	defer z.mu.Unlock()
+	s := &Stall{arrived: make(chan struct{}), resume: make(chan struct{})}
+	z.stalls[id] = s
+	return s
+}
+
+// TrickleStream makes the next download of the track send its audio in
+// small pieces, one each interval.
+func (z *API) TrickleStream(id string, every time.Duration) {
+	z.mu.Lock()
+	defer z.mu.Unlock()
+	z.trickles[id] = every
 }
 
 // RequestsOf counts authorized GraphQL requests of the operation.
@@ -422,12 +462,65 @@ func (z *API) cdn(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if _, err := w.Write(data); err == nil {
+	z.mu.Lock()
+	stall, every := z.stalls[id], z.trickles[id]
+	delete(z.stalls, id)
+	delete(z.trickles, id)
+	z.mu.Unlock()
+
+	var sent bool
+	switch {
+	case stall != nil:
+		sent = stalled(w, r, data, stall)
+	case every > 0:
+		sent = trickled(w, r, data, every)
+	default:
+		_, err := w.Write(data)
+		sent = err == nil
+	}
+	if sent {
 		z.mu.Lock()
 		z.downloads[id]++
 		z.mu.Unlock()
 		z.record(AudioServed, id)
 	}
+}
+
+func stalled(w http.ResponseWriter, r *http.Request, data []byte, stall *Stall) bool {
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	half := len(data) / 2
+	if _, err := w.Write(data[:half]); err != nil {
+		return false
+	}
+	_ = http.NewResponseController(w).Flush()
+	close(stall.arrived)
+	select {
+	case <-stall.resume:
+	case <-r.Context().Done():
+		return false
+	}
+	_, err := w.Write(data[half:])
+	return err == nil
+}
+
+// trickledPieces is how many pieces a trickled body comes in.
+const trickledPieces = 10
+
+func trickled(w http.ResponseWriter, r *http.Request, data []byte, every time.Duration) bool {
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	piece := len(data)/trickledPieces + 1
+	for start := 0; start < len(data); start += piece {
+		if _, err := w.Write(data[start:min(start+piece, len(data))]); err != nil {
+			return false
+		}
+		_ = http.NewResponseController(w).Flush()
+		select {
+		case <-time.After(every):
+		case <-r.Context().Done():
+			return false
+		}
+	}
+	return true
 }
 
 type graphqlRequest struct {

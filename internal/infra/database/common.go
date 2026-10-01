@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"gorm.io/driver/postgres"
@@ -39,7 +40,7 @@ func New(dsn string) (*gorm.DB, error) {
 	)
 	db, err := gorm.Open(
 		postgres.Open(dsn), &gorm.Config{
-			Logger: quietOnCancel{gormLogger},
+			Logger: &quietOnShutdown{Interface: gormLogger},
 		},
 	)
 	if err != nil {
@@ -77,6 +78,9 @@ var models = []any{
 }
 
 func Close(db *gorm.DB) error {
+	if quiet, ok := db.Logger.(*quietOnShutdown); ok {
+		quiet.closed.Store(true)
+	}
 	sqlDB, err := db.DB()
 	if err != nil {
 		return err
@@ -137,14 +141,15 @@ func orderBy(sql string, args ...any) clause.OrderBy {
 	return clause.OrderBy{Expression: gorm.Expr(sql, args...)}
 }
 
-// quietOnCancel leaves out the queries cut short by a cancelled context:
-// shutdown cancels the ones in flight, and they are no errors.
-type quietOnCancel struct {
+// quietOnShutdown leaves out the queries a shutdown fails: those cut short
+// by a cancelled context, and those that reach the database after Close.
+type quietOnShutdown struct {
 	logger.Interface
+	closed atomic.Bool
 }
 
-func (l quietOnCancel) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
-	if errors.Is(err, context.Canceled) {
+func (l *quietOnShutdown) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
+	if errors.Is(err, context.Canceled) || l.closed.Load() {
 		return
 	}
 	l.Interface.Trace(ctx, begin, fc, err)

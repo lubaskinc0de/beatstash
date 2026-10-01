@@ -12,7 +12,6 @@ import (
 	"gorm.io/gorm/clause"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
 type FileKind string
@@ -22,11 +21,14 @@ const (
 	FileDocument FileKind = "document"
 )
 
+// File serves its Track only while FileVersion is the Track's: a file of
+// an older version holds audio the Track no longer has.
 type File struct {
-	TrackID  uint     `gorm:"primaryKey;autoIncrement:false"`
-	ID       string   `gorm:"column:file_id;not null"`
-	UniqueID string   `gorm:"column:file_unique_id;not null;index"`
-	Kind     FileKind `gorm:"not null"`
+	TrackID     uint     `gorm:"primaryKey;autoIncrement:false"`
+	ID          string   `gorm:"column:file_id;not null"`
+	UniqueID    string   `gorm:"column:file_unique_id;not null;index"`
+	Kind        FileKind `gorm:"not null"`
+	FileVersion int      `gorm:"not null;default:0"`
 }
 
 func (File) TableName() string {
@@ -54,7 +56,9 @@ func (f *Files) Of(ctx context.Context, trackIDs []uint) (map[uint]*File, error)
 	err := f.DB.WithContext(ctx).
 		Table("tracks").
 		Select("DISTINCT ON (tracks.id) tracks.id AS for_track, telegram_files.*").
-		Joins("JOIN telegram_files ON telegram_files.track_id = tracks.id OR telegram_files.track_id IN (?)", f.copies()).
+		Joins("JOIN telegram_files ON "+ofTrackOrCopy, f.copies()).
+		Joins("JOIN tracks owner ON owner.id = telegram_files.track_id").
+		Where(holdsAudio).
 		Where("tracks.id IN ?", trackIDs).
 		Order("tracks.id").
 		Order("telegram_files.track_id = tracks.id DESC").
@@ -71,6 +75,15 @@ func (f *Files) Of(ctx context.Context, trackIDs []uint) (map[uint]*File, error)
 	return files, nil
 }
 
+// ofTrackOrCopy matches the files of tracks and of its copies.
+const ofTrackOrCopy = "telegram_files.track_id = tracks.id OR telegram_files.track_id IN (?)"
+
+// holdsAudio keeps the files of tracks' audio: of the version their owner
+// has, and, of a copy, only while the copy weighs the same as tracks: one
+// of them may have been replaced since.
+const holdsAudio = `owner.file_version = telegram_files.file_version AND
+	(owner.id = tracks.id OR owner.size = tracks.size)`
+
 // copies lists the Tracks sharing a Track Ref with tracks.id of the outer
 // query: copies made by Share and Take, and the same file sent by several
 // users. They have the same audio, so one file serves them all.
@@ -82,12 +95,13 @@ func (f *Files) copies() *gorm.DB {
 		Where("source.track_id = tracks.id")
 }
 
-// Remember keeps a file sendable as audio over a document. A Track deleted
-// meanwhile gets no file.
+// Remember keeps a file of a newer version, and of the same version one
+// sendable as audio over a document. A Track deleted meanwhile gets no
+// file.
 func (f *Files) Remember(ctx context.Context, files ...File) error {
 	kept := make(map[uint]File, len(files))
 	for _, file := range files {
-		if _, ok := kept[file.TrackID]; !ok || file.Kind == FileAudio {
+		if other, ok := kept[file.TrackID]; !ok || better(file, other) {
 			kept[file.TrackID] = file
 		}
 	}
@@ -102,11 +116,20 @@ func (f *Files) Remember(ctx context.Context, files ...File) error {
 	}
 	return f.DB.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "track_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"file_id", "file_unique_id", "kind"}),
-		Where: clause.Where{Exprs: []clause.Expression{
-			clause.Expr{SQL: "telegram_files.kind <> ? AND excluded.kind = ?", Vars: []any{FileAudio, FileAudio}},
-		}},
+		DoUpdates: clause.AssignmentColumns([]string{"file_id", "file_unique_id", "kind", "file_version"}),
+		Where: clause.Where{Exprs: []clause.Expression{clause.Expr{
+			SQL: `excluded.file_version > telegram_files.file_version OR
+				excluded.file_version = telegram_files.file_version AND telegram_files.kind <> ? AND excluded.kind = ?`,
+			Vars: []any{FileAudio, FileAudio},
+		}}},
 	}).Create(&rows).Error
+}
+
+func better(file, than File) bool {
+	if file.FileVersion != than.FileVersion {
+		return file.FileVersion > than.FileVersion
+	}
+	return file.Kind == FileAudio
 }
 
 // Recognize lists the Tracks whose file has the unique id, with their copies.
@@ -129,10 +152,10 @@ type Unfiled struct {
 	Dir string
 }
 
-// Unfiled lists Tracks without a file of their own or of a copy, except
-// those that came from Telegram: their file is the one the user sent. It
-// skips the Tracks being posted now and those Telegram would not take
-// under the current size limit.
+// Unfiled lists Tracks without a current file of their own or of a copy.
+// It skips the Tracks whose file is a message a user sent and the bot has
+// yet to answer, the Tracks being posted now, and those Telegram would not
+// take under the current size limit.
 func (f *Files) Unfiled(ctx context.Context, limit int) ([]Unfiled, error) {
 	var tracks []Unfiled
 	err := f.DB.WithContext(ctx).
@@ -140,10 +163,13 @@ func (f *Files) Unfiled(ctx context.Context, limit int) ([]Unfiled, error) {
 		Select("tracks.*, libraries.dir").
 		Joins("JOIN libraries ON libraries.id = tracks.library_id").
 		Where(`NOT EXISTS (
-			SELECT 1 FROM telegram_files
-			WHERE telegram_files.track_id = tracks.id OR telegram_files.track_id IN (?)
+			SELECT 1 FROM telegram_files JOIN tracks owner ON owner.id = telegram_files.track_id
+			WHERE (`+ofTrackOrCopy+`) AND `+holdsAudio+`
 		)`, f.copies()).
-		Where("NOT EXISTS (SELECT 1 FROM track_sources WHERE track_sources.track_id = tracks.id AND provider = ?)", provider.ProviderTelegram).
+		Where(`NOT EXISTS (
+			SELECT 1 FROM telegram_job_messages messages JOIN ingest_jobs jobs ON jobs.id = messages.job_id
+			WHERE jobs.track_id = tracks.id
+		)`).
 		Where(`NOT EXISTS (
 			SELECT 1 FROM telegram_file_posts posts
 			WHERE posts.track_id = tracks.id AND (posts.claimed_until > now() OR posts.rejected_size > ?)

@@ -1,3 +1,6 @@
+// IngestBatch: the Ingest Jobs of one Import, which the User follows as a
+// whole.
+
 package ingest
 
 import (

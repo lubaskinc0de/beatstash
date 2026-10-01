@@ -1,3 +1,8 @@
+// User: a person allowed to use the service, the Identities they are known
+// by, their names and their Last Seen. Admin is set or removed from the
+// config on every start. LastSeenAt is nil until the User's first request
+// after joining.
+
 package access
 
 import "time"
@@ -6,13 +11,11 @@ import "time"
 type User struct {
 	ID uint `gorm:"primaryKey"`
 
-	Username  string
-	FirstName string
-	LastName  string
-	// Admin is set and removed from the config on every start.
-	Admin     bool `gorm:"not null;default:false"`
-	CreatedAt time.Time
-	// LastSeenAt is nil until the User's first request after joining.
+	Username   string
+	FirstName  string
+	LastName   string
+	Admin      bool `gorm:"not null;default:false"`
+	CreatedAt  time.Time
 	LastSeenAt *time.Time
 
 	Identities []Identity `gorm:"constraint:OnDelete:CASCADE;"`
@@ -27,6 +30,13 @@ type Identity struct {
 
 // Channel is a value object: where the User talks to the bot, e.g. Telegram.
 type Channel string
+
+// Profile is a value object: the names the User has in a Channel.
+type Profile struct {
+	Username  string
+	FirstName string
+	LastName  string
+}
 
 const (
 	// lastSeenStep: Last Seen is saved at most this often, not on every request.

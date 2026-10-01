@@ -1,3 +1,6 @@
+// Incoming and Probe: audio on its way into a Library, and the metadata
+// chosen for it from the Provider's hints, the file's tags and its name.
+
 package library
 
 import (

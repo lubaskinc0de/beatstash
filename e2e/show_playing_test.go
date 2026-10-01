@@ -20,6 +20,7 @@ func TestNowPlaying(t *testing.T) {
 		s.Link(alice, account)
 		audio := s.UploadAudio("track.mp3")
 		s.Send(s.AudioMessage(alice, audio))
+		s.WaitIngest()
 		track := s.Navidrome.IndexedTrack(t, account, s.Library, audiofile.FixtureTitle)
 		s.Navidrome.StartPlaying(t, account, track.ID)
 		query := s.InlineQuery(alice, "np")

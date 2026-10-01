@@ -1,3 +1,5 @@
+// TrackRef: a track as a Provider names it.
+
 package provider
 
 // TrackRef is a value object: a track in a Provider. Payload holds whatever

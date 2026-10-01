@@ -236,6 +236,24 @@ func (r *TrackRepository) InLibrary(ctx context.Context, libraryID uint) ([]libr
 	return all, err
 }
 
+func (r *TrackRepository) InLibraries(ctx context.Context, libraryIDs []uint) (map[uint][]library.Track, error) {
+	var all []library.Track
+	if err := dbForContext(ctx, r.DB).Where("library_id IN ?", libraryIDs).Order("id").Find(&all).Error; err != nil {
+		return nil, err
+	}
+	byLibrary := make(map[uint][]library.Track, len(libraryIDs))
+	for _, track := range all {
+		byLibrary[track.LibraryID] = append(byLibrary[track.LibraryID], track)
+	}
+	return byLibrary, nil
+}
+
+func (r *TrackRepository) AtPaths(ctx context.Context, libraryID uint, paths []string) ([]library.Track, error) {
+	var found []library.Track
+	err := dbForContext(ctx, r.DB).Where("library_id = ? AND path IN ?", libraryID, paths).Order("id").Find(&found).Error
+	return found, err
+}
+
 func (r *TrackRepository) BySongs(ctx context.Context, libraryIDs []uint, songIDs []string) (map[string]*library.Track, error) {
 	var found []library.Track
 	err := tracks(ctx, r.DB).Where("library_id IN ? AND song_id IN ?", libraryIDs, songIDs).Find(&found).Error

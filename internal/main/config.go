@@ -63,6 +63,14 @@ type Config struct {
 	// IngestRetryDelays are waits before each retry of a failed Ingest Job.
 	IngestRetryDelays  []time.Duration
 	IngestPollInterval time.Duration
+	// ScratchTTL is how old a scratch file gets before the bot takes it for
+	// one a crashed Ingest left behind.
+	ScratchTTL time.Duration
+	// StallTimeout cuts off a download that sent nothing for this long.
+	StallTimeout time.Duration
+	// ReconcileInterval is how often the bot brings the Tracks of the
+	// Personal Libraries and the Shared Library in step with their files.
+	ReconcileInterval time.Duration
 
 	ZvukURL string
 	// ZvukWorkers is how many Zvuk downloads run at once for all users;
@@ -96,8 +104,9 @@ type fileConfig struct {
 	} `toml:"telegram"`
 
 	Library struct {
-		MusicDir          string `toml:"music_dir"`
-		NavidromeMusicDir string `toml:"navidrome_music_dir"`
+		MusicDir          string        `toml:"music_dir"`
+		NavidromeMusicDir string        `toml:"navidrome_music_dir"`
+		ReconcileInterval time.Duration `toml:"reconcile_interval"`
 	} `toml:"library"`
 
 	Navidrome struct {
@@ -120,6 +129,8 @@ type fileConfig struct {
 		Workers      int             `toml:"workers"`
 		RetryDelays  []time.Duration `toml:"retry_delays"`
 		PollInterval time.Duration   `toml:"poll_interval"`
+		ScratchTTL   time.Duration   `toml:"scratch_ttl"`
+		StallTimeout time.Duration   `toml:"stall_timeout"`
 	} `toml:"ingest"`
 
 	Zvuk struct {
@@ -140,10 +151,13 @@ func defaultFileConfig() fileConfig {
 	f.Telegram.LeaseTTL = time.Minute
 	f.Telegram.FillStorageChat = true
 	f.Navidrome.AttachInterval = time.Hour
+	f.Library.ReconcileInterval = time.Hour
 	f.Invites.TTL = 7 * 24 * time.Hour
 	f.Ingest.Workers = 2
 	f.Ingest.RetryDelays = []time.Duration{10 * time.Second, time.Minute, 5 * time.Minute}
 	f.Ingest.PollInterval = time.Second
+	f.Ingest.ScratchTTL = time.Hour
+	f.Ingest.StallTimeout = time.Minute
 	f.Zvuk.URL = "https://zvuk.com"
 	f.Zvuk.Workers = 4
 	f.Zvuk.PerUser = 1
@@ -218,6 +232,9 @@ func LoadConfig() (Config, error) {
 		IngestWorkers:      file.Ingest.Workers,
 		IngestRetryDelays:  file.Ingest.RetryDelays,
 		IngestPollInterval: file.Ingest.PollInterval,
+		ScratchTTL:         file.Ingest.ScratchTTL,
+		StallTimeout:       file.Ingest.StallTimeout,
+		ReconcileInterval:  file.Library.ReconcileInterval,
 
 		ZvukURL:             file.Zvuk.URL,
 		ZvukWorkers:         file.Zvuk.Workers,
@@ -247,6 +264,9 @@ func readFile(path string, file *fileConfig) []error {
 	}
 	require(len(file.Admins) == 0, "admins")
 	require(file.Library.MusicDir == "", "library.music_dir")
+	if file.Library.ReconcileInterval <= 0 {
+		problems = append(problems, errors.New("library.reconcile_interval must be positive"))
+	}
 	require(file.Navidrome.URL == "", "navidrome.url")
 	require(file.Navidrome.User == "", "navidrome.user")
 	if file.Navidrome.AttachInterval < 0 {
@@ -263,6 +283,12 @@ func readFile(path string, file *fileConfig) []error {
 	}
 	if file.Ingest.PollInterval <= 0 {
 		problems = append(problems, errors.New("ingest.poll_interval must be positive"))
+	}
+	if file.Ingest.ScratchTTL <= 0 {
+		problems = append(problems, errors.New("ingest.scratch_ttl must be positive"))
+	}
+	if file.Ingest.StallTimeout <= 0 {
+		problems = append(problems, errors.New("ingest.stall_timeout must be positive"))
 	}
 	require(file.Zvuk.URL == "", "zvuk.url")
 	if file.Zvuk.Workers < 1 {

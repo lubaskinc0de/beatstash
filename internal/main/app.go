@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"log/slog"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/join_by_invite"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/manage_quotas"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/oversee_service"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/reconcile_libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/share_tracks"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/show_playing"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/start_app"
@@ -35,6 +37,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_home"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/audio"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/background"
@@ -52,12 +55,14 @@ import (
 )
 
 type App struct {
-	bot       *bot.Bot
-	workers   *background.IngestWorkers
-	scheduler *background.Scheduler
-	attacher  *background.Attacher
-	poller    *poller.Poller
-	db        *gorm.DB
+	bot        *bot.Bot
+	workers    *background.IngestWorkers
+	scheduler  *background.Scheduler
+	attacher   *background.Attacher
+	sweeper    *background.Sweeper
+	reconciler *background.Reconciler
+	poller     *poller.Poller
+	db         *gorm.DB
 
 	closeOnce sync.Once
 	closeErr  error
@@ -100,7 +105,13 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	navidromeClient := navidrome.NewClient(cfg.NavidromeURL, &database.NavidromeSessionRepository{DB: db})
 	navidromeAdmin := appnd.Credentials{Login: cfg.NavidromeUser, Password: cfg.NavidromePassword}
 	navidromeAccounts := &accounts.Navidrome{Repo: accountRepo, Box: box}
-	fileDisk := &disk.Disk{MusicDir: cfg.MusicDir}
+	fileDisk := &disk.Disk{
+		MusicDir:   cfg.MusicDir,
+		Scratch:    filepath.Join(cfg.MusicDir, disk.ScratchDir),
+		ScratchTTL: cfg.ScratchTTL,
+	}
+	fileDisk.SweepScratch()
+	folders := library.SystemFolders{Root: cfg.NavidromeMusicDir, Reserved: []string{disk.ScratchDir}}
 	quotaSettings := &database.QuotaSettingsRepository{DB: db}
 	libraryQuotas := &quotas.Quotas{Repo: quotaSettings, Libraries: libraryRepo, Tracks: tracks, Disk: fileDisk, Config: cfg.Quotas}
 
@@ -109,7 +120,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		Libraries: libs,
 		Navidrome: navidromeClient,
 		Admin:     navidromeAdmin,
-		MusicDir:  cfg.NavidromeMusicDir,
+		Folders:   folders,
 	}
 	startApp := &start_app.StartApp{
 		Admins:             cfg.Admins,
@@ -129,10 +140,20 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		Tracks:    tracks,
 		Navidrome: navidromeClient,
 		Admin:     navidromeAdmin,
-		MusicDir:  cfg.NavidromeMusicDir,
+		Folders:   folders,
 	}
 	attacher := &background.Attacher{Attach: attachLibraries, Interval: cfg.AttachInterval}
 	attacher.Once(ctx)
+	// Before the Ingest workers: a file a crashed Ingest left in a Library
+	// becomes a Track, so the retried job finds it a Duplicate.
+	reconciler := &background.Reconciler{
+		Reconcile: &reconcile_libraries.ReconcileLibraries{
+			Tx: txManager, Libraries: libraryRepo, Lock: libraryLock, Tracks: tracks,
+			Disk: fileDisk, Tags: audio.Tags{}, MusicDir: cfg.MusicDir,
+		},
+		Interval: cfg.ReconcileInterval,
+	}
+	reconciler.Once(ctx)
 	attached := &libraries.Attached{
 		Repo:      libraryRepo,
 		Accounts:  accountRepo,
@@ -173,9 +194,9 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	providerAccountRepo := &database.ProviderAccountRepository{DB: db}
 	providerAccounts := &accounts.ProviderTokens{Repo: providerAccountRepo, Box: box}
 	providers := providers.NewRegistry(
-		&tgprovider.Provider{Bot: b, Files: telegramFiles, DB: db},
+		&tgprovider.Provider{Bot: b, Files: telegramFiles, DB: db, StallTimeout: cfg.StallTimeout},
 		&zvuk.Provider{
-			Client: zvuk.NewClient(cfg.ZvukURL),
+			Client: zvuk.NewClient(cfg.ZvukURL, cfg.StallTimeout),
 			Tokens: providerAccounts,
 			Pacer:  &zvuk.Pacer{Min: cfg.ZvukPauseMin, Max: cfg.ZvukPauseMax, PerUser: cfg.ZvukPerUser},
 		},
@@ -208,7 +229,6 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		InFlight:      inFlight,
 		Queue:         ingestQueue,
 		SettleBatches: &ingest_track.SettleIngestBatches{Tx: txManager, Queue: ingestQueue, Batches: batchRepo},
-		Disk:          fileDisk,
 		Waker:         waker,
 		Lanes: []background.Lane{
 			{Filter: repositories.JobFilter{Except: paced}, Workers: cfg.IngestWorkers},
@@ -408,7 +428,11 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		Tick: min(cfg.SyncInterval, cfg.MirrorRetryInterval),
 	}
 
-	return &App{bot: b, workers: workers, scheduler: scheduler, attacher: attacher, poller: telegramPoller, db: db}, nil
+	return &App{
+		bot: b, workers: workers, scheduler: scheduler, attacher: attacher, sweeper: &background.Sweeper{Disk: fileDisk, Interval: cfg.ScratchTTL},
+		reconciler: reconciler,
+		poller:     telegramPoller, db: db,
+	}, nil
 }
 
 func (a *App) Bot() *bot.Bot {
@@ -426,6 +450,8 @@ func (a *App) StartWorkers(ctx context.Context) <-chan struct{} {
 	var wg sync.WaitGroup
 	wg.Go(func() { a.scheduler.Run(ctx) })
 	wg.Go(func() { a.attacher.Run(ctx) })
+	wg.Go(func() { a.sweeper.Run(ctx) })
+	wg.Go(func() { a.reconciler.Run(ctx) })
 	wg.Go(func() { a.poller.Run(ctx) })
 	stopped := make(chan struct{})
 	go func() {
@@ -450,4 +476,9 @@ func (a *App) Close() error {
 		a.closeErr = database.Close(a.db)
 	})
 	return a.closeErr
+}
+
+// WaitReconcile blocks until the Libraries are reconciled once more.
+func (a *App) WaitReconcile(ctx context.Context) error {
+	return a.reconciler.Wait(ctx)
 }

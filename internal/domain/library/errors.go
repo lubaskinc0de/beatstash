@@ -1,3 +1,5 @@
+// The errors the rules of Libraries and Tracks return.
+
 package library
 
 import "errors"

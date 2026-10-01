@@ -1,3 +1,6 @@
+// Format: the audio formats the bot takes, known by file extension or MIME
+// type.
+
 package library
 
 import (

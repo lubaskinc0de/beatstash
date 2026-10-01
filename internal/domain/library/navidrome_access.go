@@ -1,3 +1,6 @@
+// NavidromeAccess: the Navidrome libraries an account sees, and the Kept
+// Libraries of a user.
+
 package library
 
 import "slices"

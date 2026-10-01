@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -19,6 +20,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/stall"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/trackfile"
 )
 
@@ -58,7 +60,10 @@ func (LocalFile) TableName() string {
 type Provider struct {
 	Bot   *bot.Bot
 	Files *trackfile.Files
-	DB    *gorm.DB
+	// StallTimeout cuts off a download from a regular Bot API server that
+	// sent nothing for this long.
+	StallTimeout time.Duration
+	DB           *gorm.DB
 }
 
 func (p *Provider) Name() provider.ProviderName {
@@ -129,7 +134,7 @@ func (p *Provider) open(ctx context.Context, ref provider.TrackRef, filePath str
 	if err != nil {
 		return nil, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := stall.Do(http.DefaultClient, req, p.StallTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("download file: %w", err)
 	}

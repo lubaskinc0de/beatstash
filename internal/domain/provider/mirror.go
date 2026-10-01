@@ -1,3 +1,8 @@
+// Mirror: the stars and playlists the bot keeps in Navidrome for a Provider
+// Collection, and the changes that bring them in step with it. Starred maps
+// liked tracks to the songs the bot starred for them; a mirrored playlist
+// keeps the Navidrome song ids the bot last put in it.
+
 package provider
 
 import (
@@ -8,16 +13,14 @@ import (
 // MirrorState is a value object: the stars and playlists the bot has created
 // in Navidrome for a Provider Collection. The bot changes only these.
 type MirrorState struct {
-	// Starred maps liked tracks to the songs the bot has starred for them.
 	Starred   map[string]string           `json:"starred,omitempty"`
 	Playlists map[string]MirroredPlaylist `json:"playlists,omitempty"`
 }
 
 // MirroredPlaylist is a value object: a playlist the bot created in Navidrome.
 type MirroredPlaylist struct {
-	NavidromeID string `json:"navidrome_id"`
-	// Songs are the Navidrome song ids the bot last put in the playlist.
-	Songs []string `json:"songs"`
+	NavidromeID string   `json:"navidrome_id"`
+	Songs       []string `json:"songs"`
 }
 
 // WantedMirror is a value object: the MirrorState the bot should reach. It

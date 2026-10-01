@@ -134,6 +134,35 @@ var migrations = []*gormigrate.Migration{
 				ON ingest_jobs (user_id, provider, track_ref, id DESC)`).Error
 		},
 	},
+	{
+		ID: "0013_file_version",
+		Migrate: func(tx *gorm.DB) error {
+			return tx.Exec(`
+				ALTER TABLE tracks ADD COLUMN IF NOT EXISTS file_version bigint NOT NULL DEFAULT 0;
+				ALTER TABLE ingest_jobs ADD COLUMN IF NOT EXISTS file_version bigint NOT NULL DEFAULT 0;
+				ALTER TABLE telegram_files ADD COLUMN IF NOT EXISTS file_version bigint NOT NULL DEFAULT 0`).Error
+		},
+	},
+	{
+		// Tracks there are get the file's state on the first Reconciliation.
+		ID: "0014_track_file_state",
+		Migrate: func(tx *gorm.DB) error {
+			return tx.Exec(`
+				ALTER TABLE tracks ADD COLUMN IF NOT EXISTS file_mod_time timestamptz NOT NULL DEFAULT '0001-01-01 00:00:00+00';
+				ALTER TABLE tracks ADD COLUMN IF NOT EXISTS file_inode bigint NOT NULL DEFAULT 0`).Error
+		},
+	},
+	{
+		ID: "0015_takes_outlive_tracks",
+		Migrate: func(tx *gorm.DB) error {
+			return tx.Exec(`
+				ALTER TABLE takes ALTER COLUMN track_id DROP NOT NULL;
+				ALTER TABLE takes DROP CONSTRAINT IF EXISTS fk_takes_track;
+				ALTER TABLE takes ADD CONSTRAINT fk_takes_track
+					FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE SET NULL;
+				CREATE INDEX IF NOT EXISTS idx_takes_track_id ON takes (track_id)`).Error
+		},
+	},
 }
 
 func Migrate(db *gorm.DB) error {

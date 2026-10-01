@@ -16,12 +16,11 @@ import (
 
 const sharedLibraryName = "Общая"
 
-// MusicDir is music_dir as Navidrome sees it.
 type Navidrome struct {
 	Libraries *Libraries
 	Navidrome navidrome.Client
 	Admin     navidrome.Credentials
-	MusicDir  string
+	Folders   library.SystemFolders
 }
 
 // Grant creates the user's libraries in Navidrome and gives the account the
@@ -55,7 +54,7 @@ func (n *Navidrome) Grant(ctx context.Context, user *access.User, login string) 
 	for _, nd := range existing {
 		paths[nd.ID] = nd.Path
 	}
-	ids := library.Grant(account.Access.LibraryIDs, all, paths, n.MusicDir, libs.Personal, libs.Shared)
+	ids := library.Grant(account.Access.LibraryIDs, all, paths, n.Folders, libs.Personal, libs.Shared)
 	if err := n.Navidrome.SetLibraries(ctx, n.Admin, account.ID, ids); err != nil {
 		return library.NavidromeAccess{}, err
 	}
@@ -102,7 +101,7 @@ func (n *Navidrome) ShowNewAccountsOnlyShared(ctx context.Context) error {
 	}
 
 	for _, nd := range existing {
-		if library.PlacementOf(nd.Path, n.MusicDir) == library.PlacedApart {
+		if library.PlacementOf(nd.Path, n.Folders) == library.PlacedApart {
 			continue
 		}
 		wanted := nd.ID == shared.NavidromeID
@@ -126,7 +125,7 @@ func (n *Navidrome) adopt(lib *library.Library, existing []navidrome.Library) in
 		}
 	}
 
-	root := path.Clean(n.MusicDir)
+	root := path.Clean(n.Folders.Root)
 	if lib.Kind == library.LibraryShared && slices.ContainsFunc(existing, func(nd navidrome.Library) bool {
 		return nd.ID == navidromeRootLibraryID && nd.Path == root
 	}) {
@@ -159,7 +158,7 @@ func (n *Navidrome) create(ctx context.Context, lib *library.Library) (int, erro
 }
 
 func (n *Navidrome) navidromePath(lib *library.Library) string {
-	return path.Join(n.MusicDir, filepath.ToSlash(lib.Dir))
+	return path.Join(n.Folders.Root, filepath.ToSlash(lib.Dir))
 }
 
 // navidromeRootLibraryID is the library Navidrome makes from ND_MUSICFOLDER;

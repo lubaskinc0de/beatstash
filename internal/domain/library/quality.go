@@ -1,3 +1,5 @@
+// Quality: how good a Track's audio is, to choose between Duplicates.
+
 package library
 
 import "strings"

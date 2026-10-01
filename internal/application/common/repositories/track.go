@@ -42,6 +42,12 @@ type Tracks interface {
 	SourceSongs(ctx context.Context, libraryIDs []uint, providerName provider.ProviderName, refs []string) (map[string]string, error)
 	// InLibrary loads the Tracks without their Sources.
 	InLibrary(ctx context.Context, libraryID uint) ([]library.Track, error)
+	// InLibraries maps each of the libraries to its Tracks, without their
+	// Sources.
+	InLibraries(ctx context.Context, libraryIDs []uint) (map[uint][]library.Track, error)
+	// AtPaths loads the library's Tracks at the paths, without their
+	// Sources.
+	AtPaths(ctx context.Context, libraryID uint, paths []string) ([]library.Track, error)
 	// BySongs maps the Navidrome songs the libraries have Tracks of to them.
 	BySongs(ctx context.Context, libraryIDs []uint, songIDs []string) (map[string]*library.Track, error)
 	CountIn(ctx context.Context, libraryIDs []uint) (int64, error)

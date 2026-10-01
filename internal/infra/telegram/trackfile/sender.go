@@ -70,9 +70,11 @@ func (s *AudioSender) post(ctx context.Context, chatID int64, path string, track
 	case err != nil:
 		return nil, err
 	case msg.Audio != nil:
-		return &File{TrackID: track.ID, ID: msg.Audio.FileID, UniqueID: msg.Audio.FileUniqueID, Kind: FileAudio}, nil
+		return &File{TrackID: track.ID, ID: msg.Audio.FileID, UniqueID: msg.Audio.FileUniqueID, Kind: FileAudio, FileVersion: track.FileVersion}, nil
 	case msg.Document != nil:
-		return &File{TrackID: track.ID, ID: msg.Document.FileID, UniqueID: msg.Document.FileUniqueID, Kind: FileDocument}, nil
+		return &File{
+			TrackID: track.ID, ID: msg.Document.FileID, UniqueID: msg.Document.FileUniqueID, Kind: FileDocument, FileVersion: track.FileVersion,
+		}, nil
 	default:
 		return nil, errors.New("telegram kept the file as neither audio nor a document")
 	}

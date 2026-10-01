@@ -297,6 +297,16 @@ func AudioFileIDs(answer InlineAnswer) []string {
 	return ids
 }
 
+func DocumentFileIDs(answer InlineAnswer) []string {
+	var ids []string
+	for _, result := range answer.Results {
+		if result.DocumentFileID != "" {
+			ids = append(ids, result.DocumentFileID)
+		}
+	}
+	return ids
+}
+
 func ButtonNamed(t *testing.T, buttons []Button, name string) Button {
 	t.Helper()
 

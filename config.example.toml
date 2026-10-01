@@ -57,6 +57,10 @@ music_dir = "~/navidrome-tg/test_data"
 # beside music_dir or in it next to the bot's folders, as a Navidrome
 # library; a library that holds the bot's folders is ignored.
 navidrome_music_dir = "/music"
+# How often the bot looks at the files of music_dir/shared and music_dir/users
+# and follows the ones changed by hand: a removed file takes its Track away,
+# a retagged or replaced one updates it. It also does so at start.
+reconcile_interval = "1h"
 
 [navidrome]
 url = "http://localhost:4533"
@@ -88,6 +92,12 @@ workers = 2
 # Waits before each retry of a failed Ingest Job.
 retry_delays = ["10s", "1m", "5m"]
 poll_interval = "1s"
+# Files in music_dir/.navidrome-tg older than this were left by a crashed
+# Ingest and get removed, at start and this often. A download in progress
+# writes to its file all the time, so it never gets this old.
+scratch_ttl = "1h"
+# A download that sends nothing for this long is cut off and tried again.
+stall_timeout = "60s"
 
 [zvuk]
 url = "https://zvuk.com"

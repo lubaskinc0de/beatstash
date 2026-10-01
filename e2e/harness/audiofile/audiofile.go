@@ -157,6 +157,17 @@ func Tags(t *testing.T, path string) map[string]string {
 	return flat
 }
 
+// Retag sets taglib's keys, such as ARTIST or TITLE, in the file.
+func Retag(t *testing.T, path string, tags map[string]string) {
+	t.Helper()
+
+	values := make(map[string][]string, len(tags))
+	for key, value := range tags {
+		values[key] = []string{value}
+	}
+	require.NoError(t, taglib.WriteTags(path, values, 0))
+}
+
 func Codec(t *testing.T, path string) (codec string, seconds float64) {
 	t.Helper()
 

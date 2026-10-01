@@ -1,3 +1,5 @@
+// FailureReason: why an Ingest Job failed and will not be retried.
+
 package ingest
 
 // FailureReason is a value object: why an IngestJob failed and will not be retried.

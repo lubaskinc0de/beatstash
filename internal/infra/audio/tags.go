@@ -2,12 +2,13 @@ package audio
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
 	"go.senan.xyz/taglib"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/ingest_track"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
@@ -16,15 +17,15 @@ type Tags struct{}
 func (Tags) Probe(path string) (*library.Probe, error) {
 	props, err := taglib.ReadProperties(path)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ingest_track.ErrCorruptAudio, err)
+		return nil, corrupt(path, err)
 	}
 	if props.Length <= 0 {
-		return nil, fmt.Errorf("%w: no duration", ingest_track.ErrCorruptAudio)
+		return nil, fmt.Errorf("%w: no duration", common.ErrCorruptAudio)
 	}
 
 	tags, err := taglib.ReadTags(path)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ingest_track.ErrCorruptAudio, err)
+		return nil, corrupt(path, err)
 	}
 
 	return &library.Probe{
@@ -35,6 +36,15 @@ func (Tags) Probe(path string) (*library.Probe, error) {
 			Bitrate:  int(props.BitRate),
 		},
 	}, nil
+}
+
+// corrupt calls the file corrupt only if it is there: a file somebody
+// removed is no fault of the audio.
+func corrupt(path string, err error) error {
+	if _, statErr := os.Stat(path); statErr != nil {
+		return statErr
+	}
+	return fmt.Errorf("%w: %w", common.ErrCorruptAudio, err)
 }
 
 // isLossless: MP4 holds either AAC or ALAC, so its inner codec decides.

@@ -1,3 +1,5 @@
+// The errors of Provider Accounts.
+
 package provider
 
 import "errors"

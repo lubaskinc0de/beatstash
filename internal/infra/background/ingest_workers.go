@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/ingest_track"
 )
@@ -23,7 +22,6 @@ type IngestWorkers struct {
 	InFlight         *ingest_track.InFlight
 	Queue            repositories.IngestQueue
 	SettleBatches    *ingest_track.SettleIngestBatches
-	Disk             common.Disk
 	Waker            *Waker
 
 	Lanes []Lane
@@ -37,10 +35,6 @@ type IngestWorkers struct {
 // Start runs the workers until ctx is done; the returned channel closes
 // once all of them have stopped.
 func (w *IngestWorkers) Start(ctx context.Context) <-chan struct{} {
-	if err := w.Disk.ClearScratch(); err != nil {
-		slog.Error("clear_ingest_scratch", "error", err)
-	}
-
 	if err := w.SettleBatches.Execute(ctx); err != nil {
 		slog.Error("settle_ingest_batches", "error", err)
 	}

@@ -1,3 +1,8 @@
+// SharedTrack: a Track of the Shared Library with its Shares, oldest first,
+// and how a User shares, unshares or takes it. A Share's SourceTrackID is
+// nil once its source is gone. InTop is false if somebody else shared the
+// track first.
+
 package sharing
 
 import (
@@ -12,8 +17,7 @@ import (
 // Shares. Several Users can share the same track. It stays shared while at
 // least one Share is left. The oldest Share is the author's.
 type SharedTrack struct {
-	Track *library.Track
-	// Shares go oldest first.
+	Track  *library.Track
 	Shares []Share
 }
 
@@ -24,15 +28,12 @@ type Share struct {
 	TrackID uint          `gorm:"not null;index"`
 	Track   library.Track `gorm:"constraint:OnDelete:CASCADE;"`
 
-	// SourceTrackID is nil once the source is gone: a song of an Attached
-	// Library may vanish, and its Share stays.
 	SourceTrackID *uint          `gorm:"uniqueIndex"`
 	SourceTrack   *library.Track `gorm:"constraint:OnDelete:SET NULL;"`
 
 	UserID uint        `gorm:"not null;index"`
 	User   access.User `gorm:"constraint:OnDelete:CASCADE;"`
 
-	// InTop is false if somebody else shared the track first.
 	InTop bool `gorm:"not null"`
 
 	CreatedAt time.Time `gorm:"not null"`
@@ -83,7 +84,7 @@ func (s *SharedTrack) Author() *Share {
 
 // TakeBy creates a Take credited to the current author.
 func (s *SharedTrack) TakeBy(taker *access.User, copied *library.Track, at time.Time) *Take {
-	take := &Take{UserID: taker.ID, TrackID: copied.ID, CreatedAt: at}
+	take := &Take{UserID: taker.ID, TrackID: &copied.ID, CreatedAt: at}
 	if author := s.Author(); author != nil {
 		take.AuthorID = &author.UserID
 	}

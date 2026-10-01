@@ -105,11 +105,14 @@ func (s *answerIngests) Run(ctx context.Context) error {
 			continue
 		}
 		ids = append(ids, m.JobID)
-		if job.Done() && job.TrackID != nil && m.FileID != "" {
-			files = append(files, trackfile.File{TrackID: *job.TrackID, ID: m.FileID, UniqueID: m.FileUniqueID, Kind: m.FileKind})
+		if job.Delivered() && m.FileID != "" {
+			files = append(files, trackfile.File{
+				TrackID: *job.TrackID, ID: m.FileID, UniqueID: m.FileUniqueID, Kind: m.FileKind, FileVersion: job.FileVersion,
+			})
 		}
 	}
-	// The file the user sent becomes the Track's, for inline mode.
+	// The file the user sent becomes the Track's, for inline mode, if the
+	// Track holds its audio.
 	if err := s.files.Remember(ctx, files...); err != nil {
 		return err
 	}

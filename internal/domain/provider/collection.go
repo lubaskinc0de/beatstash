@@ -1,10 +1,12 @@
+// CollectionSnapshot: a Provider Collection as the last Import or Sync saw
+// it, and what was added to it since. Tracks lists every track once: liked
+// ones first, then saved albums, then playlists.
+
 package provider
 
 // CollectionSnapshot is a value object: a Provider Collection at the moment
 // of the last Import or Sync.
 type CollectionSnapshot struct {
-	// Tracks lists every track once: liked tracks first, then saved
-	// albums, then playlists.
 	Tracks    []string           `json:"tracks"`
 	Liked     []string           `json:"liked"`
 	Playlists []PlaylistSnapshot `json:"playlists"`

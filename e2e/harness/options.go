@@ -85,3 +85,11 @@ func WithDefaultQuota(q library.Quota) Option {
 func WithSharedQuota(q library.Quota) Option {
 	return func(c *app.Config) { c.Quotas.Shared = q }
 }
+
+func WithStallTimeout(d time.Duration) Option {
+	return func(c *app.Config) { c.StallTimeout = d }
+}
+
+func WithReconcileInterval(d time.Duration) Option {
+	return func(c *app.Config) { c.ReconcileInterval = d }
+}

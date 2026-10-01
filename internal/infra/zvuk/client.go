@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/stall"
 )
 
 const authHeader = "X-Auth-Token"
@@ -33,13 +34,16 @@ const requestTimeout = 30 * time.Second
 type Client struct {
 	baseURL string
 	http    *http.Client
+	// stallTimeout cuts off a download that sent nothing for this long.
+	stallTimeout time.Duration
 }
 
-func NewClient(baseURL string) *Client {
+func NewClient(baseURL string, stallTimeout time.Duration) *Client {
 	jar, _ := cookiejar.New(nil)
 	return &Client{
-		baseURL: strings.TrimRight(baseURL, "/"),
-		http:    &http.Client{Jar: jar, Transport: browser{http.DefaultTransport}},
+		baseURL:      strings.TrimRight(baseURL, "/"),
+		http:         &http.Client{Jar: jar, Transport: browser{http.DefaultTransport}},
+		stallTimeout: stallTimeout,
 	}
 }
 
@@ -125,7 +129,7 @@ func (c *Client) download(ctx context.Context, link string) (io.ReadCloser, erro
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.http.Do(req)
+	resp, err := stall.Do(c.http, req, c.stallTimeout)
 	if err != nil {
 		return nil, err
 	}

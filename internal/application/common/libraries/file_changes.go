@@ -2,7 +2,6 @@ package libraries
 
 import (
 	"context"
-	"path/filepath"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
@@ -52,8 +51,8 @@ func (c *FileChanges) Replace(staged, old, target string) error {
 
 	// Overwriting old now would lose it on a failed commit, so the new file
 	// waits in the scratch directory.
-	pending := filepath.Join(filepath.Dir(staged), "pending-"+filepath.Base(staged))
-	if err := c.disk.Place(staged, pending); err != nil {
+	pending, err := c.disk.Park(staged)
+	if err != nil {
 		return err
 	}
 	c.undo(func() { c.disk.Remove(pending) })

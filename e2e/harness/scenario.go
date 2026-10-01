@@ -152,6 +152,9 @@ func prepare(t *testing.T, opts ...Option) *Scenario {
 		ZvukPerUser:          1,
 		IngestRetryDelays:    []time.Duration{10 * time.Millisecond, 10 * time.Millisecond, 10 * time.Millisecond},
 		IngestPollInterval:   50 * time.Millisecond,
+		ScratchTTL:           time.Hour,
+		StallTimeout:         time.Minute,
+		ReconcileInterval:    time.Hour,
 		TelegramPollInterval: 200 * time.Millisecond,
 		TelegramLeaseTTL:     LeaseTTL,
 		FillStorageChat:      true,
@@ -239,6 +242,16 @@ func (s *Scenario) Restart(opts ...Option) {
 	}
 	s.texts = &catalogStore{}
 	s.start()
+}
+
+// WaitReconcile waits until the instance has reconciled the Libraries once
+// more.
+func (s *Scenario) WaitReconcile() {
+	s.t.Helper()
+
+	ctx, cancel := context.WithTimeout(s.t.Context(), time.Minute)
+	defer cancel()
+	require.NoError(s.t, s.app.WaitReconcile(ctx))
 }
 
 func (s *Scenario) Send(update *models.Update) {

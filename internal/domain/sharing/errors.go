@@ -1,3 +1,5 @@
+// The errors of sharing.
+
 package sharing
 
 import "errors"

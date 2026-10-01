@@ -1,3 +1,6 @@
+// Metadata: the tags of a Track, merged from several sources and tidied so
+// Duplicates match.
+
 package library
 
 import "strings"

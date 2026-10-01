@@ -11,7 +11,6 @@ import (
 
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/zvuk"
 )
 
@@ -60,7 +59,7 @@ func TestZvukTracks(t *testing.T) {
 		assert.InDelta(t, 320, audiofile.BitrateKbps(t, s.PersonalPath(alice, files[0])), 16)
 	})
 
-	t.Run("FLAC from Zvuk replaces the MP3 while the shared track keeps its Telegram file", func(t *testing.T) {
+	t.Run("FLAC from Zvuk replaces the MP3 and the feed no longer sends the MP3", func(t *testing.T) {
 		s := harness.New(t)
 		s.ConnectZvuk(alice, harness.ZvukToken)
 		s.AddZvukSong("103", "Better Song", true)
@@ -77,7 +76,9 @@ func TestZvukTracks(t *testing.T) {
 
 		s.Send(query)
 
-		assert.Equal(t, []string{audio.FileID}, telegram.AudioFileIDs(s.Telegram.InlineAnswerTo(t, query)))
+		results := s.Telegram.InlineAnswerTo(t, query).Results
+		require.Len(t, results, 2)
+		assert.Equal(t, "article", results[1].Type)
 	})
 
 	t.Run("playlist brings every available track of every page", func(t *testing.T) {

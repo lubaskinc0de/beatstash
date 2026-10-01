@@ -1,3 +1,6 @@
+// QuotaSettings: the Default Quota and the Shared Library's Quota the Admin
+// set in the bot.
+
 package library
 
 import "time"

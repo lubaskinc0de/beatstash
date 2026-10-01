@@ -1,3 +1,5 @@
+// Outcome: how storing incoming audio ended.
+
 package library
 
 // Outcome is a value object: the result of storing incoming audio.

@@ -1,3 +1,5 @@
+// RetryPolicy: how long a failed Ingest Job waits before each retry.
+
 package ingest
 
 import "time"
