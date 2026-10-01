@@ -165,17 +165,17 @@ func TestImports(t *testing.T) {
 	})
 
 	t.Run("Imports follow the progress and drop the finished Import", func(t *testing.T) {
-		s := harness.New(t, harness.WithTelegramPollInterval(time.Second))
+		s := harness.New(t, harness.WithZvukWorkers(1))
 		s.ConnectZvuk(alice, harness.ZvukToken)
 		s.AddZvukCollection(harness.ZvukToken)
-		s.Zvuk.HoldStreams(2)
+		held := s.Zvuk.HoldStreams(2)
 
 		s.ImportZvuk(alice)
+		<-held
+		s.Poll()
 		progress := import_collection.ImportProgress{Provider: "zvuk", Total: 9}
 		progress.Progress.Done = 2
-		require.Eventually(t, func() bool {
-			return strings.Contains(s.Telegram.Window().Params["text"], s.Catalog(alice).Imports([]import_collection.ImportProgress{progress}))
-		}, 5*time.Second, 50*time.Millisecond)
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).Imports([]import_collection.ImportProgress{progress}))
 		s.Zvuk.ReleaseStreams()
 		s.WaitIngest()
 
@@ -227,7 +227,8 @@ func TestImports(t *testing.T) {
 
 		s.Zvuk.ReleaseStreams()
 		<-summary.Arrived()
-		assert.False(t, s.Telegram.WaitCalls("sendMessage", sent+1, replicaResponseWindow), "another instance acted meanwhile")
+		s.PollAny()
+		assert.Len(t, s.Telegram.CallsTo("sendMessage"), sent, "another instance acted meanwhile")
 		summary.Release()
 		s.WaitIngest()
 

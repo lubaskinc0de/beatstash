@@ -34,16 +34,16 @@ const requestTimeout = 30 * time.Second
 type Client struct {
 	baseURL string
 	http    *http.Client
-	// stallTimeout cuts off a download that sent nothing for this long.
-	stallTimeout time.Duration
+	// stall cuts off a download that went silent.
+	stall stall.Watch
 }
 
-func NewClient(baseURL string, stallTimeout time.Duration) *Client {
+func NewClient(baseURL string, stall stall.Watch) *Client {
 	jar, _ := cookiejar.New(nil)
 	return &Client{
-		baseURL:      strings.TrimRight(baseURL, "/"),
-		http:         &http.Client{Jar: jar, Transport: browser{http.DefaultTransport}},
-		stallTimeout: stallTimeout,
+		baseURL: strings.TrimRight(baseURL, "/"),
+		http:    &http.Client{Jar: jar, Transport: browser{http.DefaultTransport}},
+		stall:   stall,
 	}
 }
 
@@ -129,7 +129,7 @@ func (c *Client) download(ctx context.Context, link string) (io.ReadCloser, erro
 	if err != nil {
 		return nil, err
 	}
-	resp, err := stall.Do(c.http, req, c.stallTimeout)
+	resp, err := c.stall.Do(c.http, req)
 	if err != nil {
 		return nil, err
 	}

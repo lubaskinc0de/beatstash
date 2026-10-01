@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/attach_libraries"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/runs"
 )
 
 // Attacher keeps the Attached Libraries in step with Navidrome. A zero
@@ -13,6 +14,8 @@ import (
 type Attacher struct {
 	Attach   *attach_libraries.AttachLibraries
 	Interval time.Duration
+
+	runs runs.Runs
 }
 
 // Once is not fatal: Navidrome may be down, and the next run catches up.
@@ -20,6 +23,7 @@ func (a *Attacher) Once(ctx context.Context) {
 	if a.Interval <= 0 {
 		return
 	}
+	defer a.runs.Start()()
 	if err := a.Attach.Execute(ctx); err != nil && ctx.Err() == nil {
 		slog.Error("attach_libraries", "error", err)
 	}
@@ -30,11 +34,18 @@ func (a *Attacher) Run(ctx context.Context) {
 	if a.Interval <= 0 {
 		return
 	}
-	every(ctx, a.Interval, a.Once)
+	every(ctx, a.Interval, nil, a.Once)
 }
 
-// every runs fn each interval until ctx is done, starting with a wait.
-func every(ctx context.Context, interval time.Duration, fn func(context.Context)) {
+// Wait blocks until a run that starts after the call is over; it lets a
+// caller see the effect of a change in Navidrome.
+func (a *Attacher) Wait(ctx context.Context) error {
+	return a.runs.Wait(ctx)
+}
+
+// every runs fn each interval, or sooner when woken, until ctx is done,
+// starting with a wait.
+func every(ctx context.Context, interval time.Duration, woken <-chan struct{}, fn func(context.Context)) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
@@ -42,7 +53,8 @@ func every(ctx context.Context, interval time.Duration, fn func(context.Context)
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			fn(ctx)
+		case <-woken:
 		}
+		fn(ctx)
 	}
 }

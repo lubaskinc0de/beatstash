@@ -6,25 +6,28 @@ import (
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/sync_collection"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/runs"
 )
 
 type Scheduler struct {
 	Provider provider.ProviderName
 	Sync     *sync_collection.SyncCollection
 	Tick     time.Duration
+
+	runs runs.Runs
 }
 
 func (s *Scheduler) Run(ctx context.Context) {
-	ticker := time.NewTicker(s.Tick)
-	defer ticker.Stop()
+	s.once(ctx)
+	every(ctx, s.Tick, s.runs.Woken(), s.once)
+}
 
-	for {
-		s.Sync.Execute(ctx, s.Provider)
+// Now runs Sync without waiting for the tick and waits for it to finish.
+func (s *Scheduler) Now(ctx context.Context) error {
+	return s.runs.Now(ctx)
+}
 
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
-	}
+func (s *Scheduler) once(ctx context.Context) {
+	defer s.runs.Start()()
+	s.Sync.Execute(ctx, s.Provider)
 }

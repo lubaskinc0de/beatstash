@@ -3,7 +3,6 @@ package e2e
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -249,8 +248,10 @@ func TestAttachedLibraryRefresh(t *testing.T) {
 
 		s.AddToNavidromeLibrary(own, audiofile.Fixture("track.flac"), "track.flac")
 		s.Navidrome.UntilSongs(t, own.ID, 2)
+		s.WaitAttach()
 
-		untilLinkSays(t, s, account, s.Catalog(alice).Linked(account.Login, 2))
+		s.Link(alice, account)
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).Linked(account.Login, 2))
 	})
 
 	t.Run("gone song leaves the bot and its Share stays in the feed", func(t *testing.T) {
@@ -264,8 +265,10 @@ func TestAttachedLibraryRefresh(t *testing.T) {
 
 		require.NoError(t, os.Remove(filepath.Join(own.Dir, "track.mp3")))
 		s.Navidrome.UntilSongs(t, own.ID, 1)
+		s.WaitAttach()
 
-		untilLinkSays(t, s, account, s.Catalog(alice).Linked(account.Login, 1))
+		s.Link(alice, account)
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).Linked(account.Login, 1))
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.SharedFiles())
 		s.Open(bob, s.Catalog(bob).FeedButton())
 		assert.Contains(t, s.WindowText(), audiofile.FixtureTitle)
@@ -325,16 +328,4 @@ func TestAttachedLibraryChanges(t *testing.T) {
 		s.PressInline(alice, share)
 		assert.Contains(t, s.LastCallbackAnswer(), s.Catalog(alice).ShareResult(&share_tracks.ShareResult{Created: 1}))
 	})
-}
-
-// untilLinkSays links the account again until the bot's answer has text.
-func untilLinkSays(t *testing.T, s *harness.Scenario, account navidrome.Account, text string) {
-	t.Helper()
-
-	var got string
-	require.Eventually(t, func() bool {
-		s.Link(alice, account)
-		got = s.WindowText()
-		return strings.Contains(got, text)
-	}, 30*time.Second, 200*time.Millisecond, "window: %q", &got)
 }

@@ -48,7 +48,7 @@ type API struct {
 	holding  map[string]bool
 	// stalls and trickles shape the body of the next download of a track.
 	stalls   map[string]*Stall
-	trickles map[string]time.Duration
+	trickles map[string]*Trickle
 	events   []Event
 }
 
@@ -112,7 +112,7 @@ func New(t *testing.T) *API {
 		unavailable: map[string]bool{},
 		holding:     map[string]bool{},
 		stalls:      map[string]*Stall{},
-		trickles:    map[string]time.Duration{},
+		trickles:    map[string]*Trickle{},
 		downloads:   map[string]int{},
 		requests:    map[string]int{},
 	}
@@ -268,12 +268,27 @@ func (z *API) StallStream(id string) *Stall {
 	return s
 }
 
+// Trickle is a download that sends its audio a piece at a time.
+type Trickle struct {
+	next chan struct{}
+}
+
+// TricklePieces is how many pieces a trickled body comes in.
+const TricklePieces = 10
+
+// Send lets the next piece go once the download is waiting for it.
+func (tr *Trickle) Send() {
+	tr.next <- struct{}{}
+}
+
 // TrickleStream makes the next download of the track send its audio in
-// small pieces, one each interval.
-func (z *API) TrickleStream(id string, every time.Duration) {
+// TricklePieces pieces, each when Send lets it.
+func (z *API) TrickleStream(id string) *Trickle {
 	z.mu.Lock()
 	defer z.mu.Unlock()
-	z.trickles[id] = every
+	tr := &Trickle{next: make(chan struct{})}
+	z.trickles[id] = tr
+	return tr
 }
 
 // RequestsOf counts authorized GraphQL requests of the operation.
@@ -463,7 +478,7 @@ func (z *API) cdn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	z.mu.Lock()
-	stall, every := z.stalls[id], z.trickles[id]
+	stall, trickle := z.stalls[id], z.trickles[id]
 	delete(z.stalls, id)
 	delete(z.trickles, id)
 	z.mu.Unlock()
@@ -472,8 +487,8 @@ func (z *API) cdn(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case stall != nil:
 		sent = stalled(w, r, data, stall)
-	case every > 0:
-		sent = trickled(w, r, data, every)
+	case trickle != nil:
+		sent = trickled(w, r, data, trickle)
 	default:
 		_, err := w.Write(data)
 		sent = err == nil
@@ -503,22 +518,18 @@ func stalled(w http.ResponseWriter, r *http.Request, data []byte, stall *Stall) 
 	return err == nil
 }
 
-// trickledPieces is how many pieces a trickled body comes in.
-const trickledPieces = 10
-
-func trickled(w http.ResponseWriter, r *http.Request, data []byte, every time.Duration) bool {
+func trickled(w http.ResponseWriter, r *http.Request, data []byte, trickle *Trickle) bool {
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
-	piece := len(data)/trickledPieces + 1
-	for start := 0; start < len(data); start += piece {
-		if _, err := w.Write(data[start:min(start+piece, len(data))]); err != nil {
-			return false
-		}
-		_ = http.NewResponseController(w).Flush()
+	for i := range TricklePieces {
 		select {
-		case <-time.After(every):
+		case <-trickle.next:
 		case <-r.Context().Done():
 			return false
 		}
+		if _, err := w.Write(data[i*len(data)/TricklePieces : (i+1)*len(data)/TricklePieces]); err != nil {
+			return false
+		}
+		_ = http.NewResponseController(w).Flush()
 	}
 	return true
 }

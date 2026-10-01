@@ -45,6 +45,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/disk"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/secrets"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/stall"
 	tgbot "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/bot"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/poller"
@@ -193,10 +194,11 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	takes := &database.TakeRepository{DB: db}
 	providerAccountRepo := &database.ProviderAccountRepository{DB: db}
 	providerAccounts := &accounts.ProviderTokens{Repo: providerAccountRepo, Box: box}
+	watch := stall.Watch{Timeout: cfg.StallTimeout, AfterFunc: cfg.AfterFunc}
 	providers := providers.NewRegistry(
-		&tgprovider.Provider{Bot: b, Files: telegramFiles, DB: db, StallTimeout: cfg.StallTimeout},
+		&tgprovider.Provider{Bot: b, Files: telegramFiles, DB: db, Stall: watch},
 		&zvuk.Provider{
-			Client: zvuk.NewClient(cfg.ZvukURL, cfg.StallTimeout),
+			Client: zvuk.NewClient(cfg.ZvukURL, watch),
 			Tokens: providerAccounts,
 			Pacer:  &zvuk.Pacer{Min: cfg.ZvukPauseMin, Max: cfg.ZvukPauseMax, PerUser: cfg.ZvukPerUser},
 		},
@@ -298,6 +300,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			BatchRepo: batchRepo,
 			Quotas:    libraryQuotas,
 			Waker:     waker,
+			Clock:     cfg.Clock,
 		},
 		GetRunningImports: &import_collection.GetRunningImports{IDs: ids, Queue: ingestQueue, Batches: batchRepo},
 		Followed:          &poller.FollowedBatches{DB: db},
@@ -417,6 +420,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			BatchRepo: batchRepo,
 			Waker:     waker,
 			Interval:  cfg.SyncInterval,
+			Clock:     cfg.Clock,
 
 			Libraries:         libraryRepo,
 			Attached:          attached,
@@ -481,4 +485,20 @@ func (a *App) Close() error {
 // WaitReconcile blocks until the Libraries are reconciled once more.
 func (a *App) WaitReconcile(ctx context.Context) error {
 	return a.reconciler.Wait(ctx)
+}
+
+// WaitAttach blocks until the Attached Libraries are taken from Navidrome
+// once more.
+func (a *App) WaitAttach(ctx context.Context) error {
+	return a.attacher.Wait(ctx)
+}
+
+// Sync runs Sync and Mirror now and waits for them to finish.
+func (a *App) Sync(ctx context.Context) error {
+	return a.scheduler.Now(ctx)
+}
+
+// Poll delivers now what the users should hear of so far.
+func (a *App) Poll(ctx context.Context) error {
+	return a.poller.WaitRound(ctx)
 }

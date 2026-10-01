@@ -12,6 +12,7 @@ import (
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/stall"
 )
 
 const defaultConfigFile = "config.toml"
@@ -57,7 +58,9 @@ type Config struct {
 	Quotas library.ServerQuotas
 
 	InviteTTL time.Duration
+	// Clock and AfterFunc are the bot's time.
 	Clock     func() time.Time
+	AfterFunc func(d time.Duration, f func()) stall.Timer
 
 	IngestWorkers int
 	// IngestRetryDelays are waits before each retry of a failed Ingest Job.
@@ -228,6 +231,7 @@ func LoadConfig() (Config, error) {
 
 		InviteTTL: file.Invites.TTL,
 		Clock:     time.Now,
+		AfterFunc: stall.RealTime,
 
 		IngestWorkers:      file.Ingest.Workers,
 		IngestRetryDelays:  file.Ingest.RetryDelays,

@@ -29,6 +29,7 @@ type SyncCollection struct {
 	BatchRepo repositories.IngestBatches
 	Waker     common.Waker
 	Interval  time.Duration
+	Clock func() time.Time
 
 	Libraries         repositories.Libraries
 	Attached          *libraries.Attached
@@ -58,7 +59,7 @@ func (i *SyncCollection) syncAll(ctx context.Context, providerName provider.Prov
 }
 
 func (i *SyncCollection) syncIfDue(ctx context.Context, account *provider.ProviderAccount) error {
-	if !account.SyncDue(time.Now(), i.Interval) {
+	if !account.SyncDue(i.Clock(), i.Interval) {
 		return nil
 	}
 	running, err := i.BatchRepo.Running(ctx, account.UserID, account.Provider, ingest.IngestBatchImport)
@@ -97,7 +98,7 @@ func (i *SyncCollection) try(ctx context.Context, account *provider.ProviderAcco
 		if err != nil {
 			return err
 		}
-		locked.TrySync(time.Now())
+		locked.TrySync(i.Clock())
 		return i.Accounts.Save(ctx, locked)
 	})
 }
@@ -130,7 +131,7 @@ func (i *SyncCollection) remember(ctx context.Context, userID uint, providerName
 		return err
 	}
 
-	account.Remember(snapshot, time.Now())
+	account.Remember(snapshot, i.Clock())
 	return i.Accounts.Save(ctx, account)
 }
 
@@ -188,7 +189,7 @@ func (i *SyncCollection) invalidate(ctx context.Context, account *provider.Provi
 		if err != nil {
 			return err
 		}
-		if !locked.Invalidate(account.Token, time.Now()) {
+		if !locked.Invalidate(account.Token, i.Clock()) {
 			return nil
 		}
 		return i.Accounts.Save(ctx, locked)

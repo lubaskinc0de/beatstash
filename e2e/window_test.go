@@ -88,6 +88,10 @@ func TestHome(t *testing.T) {
 	})
 }
 
+// replicaResponseWindow is how long a replica blocked on a window lease gets
+// to show it is not blocked: nothing tells that it tried and waits.
+const replicaResponseWindow = 500 * time.Millisecond
+
 func TestWindowOnInstances(t *testing.T) {
 	t.Parallel()
 

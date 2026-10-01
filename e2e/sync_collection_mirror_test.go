@@ -2,9 +2,8 @@ package e2e
 
 import (
 	"testing"
-	"time"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/zvuk"
@@ -61,15 +60,14 @@ func TestZvukToNavidrome(t *testing.T) {
 		account := s.LinkNewAccount(alice)
 		s.ConnectZvuk(alice, harness.ZvukToken)
 		s.AddZvukCollection(harness.ZvukToken)
-
 		s.ImportZvuk(alice)
 		s.WaitIngest()
 
-		liked := s.PersonalPath(alice, "Zvuk Band/Liked (2020)")
-		require.Never(t, func() bool {
-			starred := len(s.Navidrome.Starred(t, account)) > 0
-			return starred && len(s.Navidrome.SearchFor(t, account, liked, "Song")) < 5
-		}, 300*time.Millisecond, 50*time.Millisecond)
+		s.RunSync()
+
+		starred := len(s.Navidrome.Starred(t, account)) > 0
+		indexed := len(s.Navidrome.SearchFor(t, account, s.PersonalPath(alice, "Zvuk Band/Liked (2020)"), "Song")) == 5
+		assert.True(t, !starred || indexed, "stars came before the songs were indexed")
 	})
 
 	t.Run("stars and playlists appear once Navidrome indexes the files", func(t *testing.T) {

@@ -5,7 +5,6 @@ package poller
 import (
 	"context"
 	"log/slog"
-	"sync/atomic"
 	"time"
 
 	"gorm.io/gorm"
@@ -16,6 +15,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/runs"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/trackfile"
 )
 
@@ -69,9 +69,7 @@ type Poller struct {
 	interval time.Duration
 	steps    []namedStep
 
-	wake chan struct{}
-	// rounds counts finished rounds for WaitIdle.
-	rounds atomic.Int64
+	rounds runs.Runs
 }
 
 type namedStep struct {
@@ -82,7 +80,6 @@ type namedStep struct {
 func New(c Config) *Poller {
 	p := &Poller{
 		db: c.DB, files: c.Files, fill: c.StorageChatID != 0 && c.FillStorageChat, interval: c.Interval,
-		wake: make(chan struct{}, 1),
 	}
 	p.steps = []namedStep{
 		{"answer_ingests", (&answerIngests{
@@ -107,10 +104,7 @@ func New(c Config) *Poller {
 // Wake starts the next round now: something may have happened that the
 // user should hear of.
 func (p *Poller) Wake() {
-	select {
-	case p.wake <- struct{}{}:
-	default:
-	}
+	p.rounds.Wake()
 }
 
 func (p *Poller) Run(ctx context.Context) {
@@ -118,20 +112,29 @@ func (p *Poller) Run(ctx context.Context) {
 	defer ticker.Stop()
 
 	for {
-		for _, s := range p.steps {
-			if err := s.run(ctx); err != nil && ctx.Err() == nil {
-				slog.Error(s.name, "error", err)
-			}
-		}
-		p.rounds.Add(1)
+		p.round(ctx)
 
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-		case <-p.wake:
+		case <-p.rounds.Woken():
 		}
 	}
+}
+
+func (p *Poller) round(ctx context.Context) {
+	defer p.rounds.Start()()
+	for _, s := range p.steps {
+		if err := s.run(ctx); err != nil && ctx.Err() == nil {
+			slog.Error(s.name, "error", err)
+		}
+	}
+}
+
+// WaitRound starts a round now and waits for it to finish.
+func (p *Poller) WaitRound(ctx context.Context) error {
+	return p.rounds.Now(ctx)
 }
 
 // WaitIdle blocks until nothing is left to tell, then one more whole
@@ -140,23 +143,18 @@ func (p *Poller) WaitIdle(ctx context.Context) error {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 
-	idleSince := int64(-1)
 	for {
 		idle, err := p.idle(ctx)
 		if err != nil {
 			return err
 		}
-		rounds := p.rounds.Load()
-		switch {
-		case !idle:
-			idleSince = -1
-		case idleSince < 0:
-			idleSince = rounds
-			p.Wake()
-		case rounds >= idleSince+2:
-			return nil
-		default:
-			p.Wake()
+		if idle {
+			if err := p.WaitRound(ctx); err != nil {
+				return err
+			}
+			if idle, err = p.idle(ctx); err != nil || idle {
+				return err
+			}
 		}
 
 		select {

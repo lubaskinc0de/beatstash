@@ -26,6 +26,7 @@ type StartImport struct {
 	BatchRepo repositories.IngestBatches
 	Quotas    *quotas.Quotas
 	Waker     common.Waker
+	Clock func() time.Time
 }
 
 // Execute returns a *library.QuotaExceededError when the Personal Library
@@ -54,7 +55,7 @@ func (i *StartImport) Execute(ctx context.Context, providerName provider.Provide
 		if err != nil {
 			return err
 		}
-		account.Remember(surveyed.collection.Snapshot(), time.Now())
+		account.Remember(surveyed.collection.Snapshot(), i.Clock())
 		return i.Accounts.Save(ctx, account)
 	}
 	plan := surveyed.plan()

@@ -100,7 +100,7 @@ func TestZvukReconnect(t *testing.T) {
 	t.Parallel()
 
 	t.Run("reconnected Zvuk keeps updating the same Navidrome playlist", func(t *testing.T) {
-		s := harness.New(t, harness.WithSyncInterval(syncInterval))
+		s := harness.New(t)
 		account := s.LinkNewAccount(alice)
 		s.ConnectZvuk(alice, harness.ZvukToken)
 		s.AddZvukCollection(harness.ZvukToken)
@@ -112,6 +112,8 @@ func TestZvukReconnect(t *testing.T) {
 		s.OpenZvuk(alice, s.Catalog(alice).Disconnect())
 		s.SendZvukToken(alice, harness.ZvukToken)
 		s.Zvuk.UpdatePlaylist("810", func(p *zvuk.Playlist) { p.Tracks = append(p.Tracks, added...) })
+		s.Sync()
+		s.WaitIngest()
 
 		s.Navidrome.UntilPlaylist(t, account, "My Playlist", []string{"Listed/Song 1", "Liked/Song 1", "Again/Song 1"})
 		named := 0

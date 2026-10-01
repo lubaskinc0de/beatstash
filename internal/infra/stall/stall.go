@@ -13,18 +13,35 @@ import (
 
 var errStalled = errors.New("download stalled")
 
+// Watch cuts off the bodies that went silent for Timeout.
+type Watch struct {
+	Timeout time.Duration
+	// AfterFunc is time.AfterFunc unless the time is the caller's.
+	AfterFunc func(d time.Duration, f func()) Timer
+}
+
+// Timer is what Watch needs of a *time.Timer.
+type Timer interface {
+	Reset(d time.Duration) bool
+	Stop() bool
+}
+
+func RealTime(d time.Duration, f func()) Timer {
+	return time.AfterFunc(d, f)
+}
+
 // Do sends the request; its response body ends the request once no byte
-// comes for timeout. Only the body is watched: whatever waits before the
+// comes for the Timeout. Only the body is watched: whatever waits before the
 // request is none of its business.
-func Do(client *http.Client, req *http.Request, timeout time.Duration) (*http.Response, error) {
+func (w Watch) Do(client *http.Client, req *http.Request) (*http.Response, error) {
 	ctx, cancel := context.WithCancel(req.Context())
 	resp, err := client.Do(req.WithContext(ctx)) //nolint:gosec // G704: callers build the URL from their Provider
 	if err != nil {
 		cancel()
 		return nil, err
 	}
-	body := &body{ReadCloser: resp.Body, cancel: cancel, timeout: timeout}
-	body.timer = time.AfterFunc(timeout, body.cutOff)
+	body := &body{ReadCloser: resp.Body, cancel: cancel, timeout: w.Timeout}
+	body.timer = w.AfterFunc(w.Timeout, body.cutOff)
 	resp.Body = body
 	return resp, nil
 }
@@ -33,7 +50,7 @@ type body struct {
 	io.ReadCloser
 	cancel  context.CancelFunc
 	timeout time.Duration
-	timer   *time.Timer
+	timer   Timer
 	stalled atomic.Bool
 }
 

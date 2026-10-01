@@ -19,6 +19,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/zvuk"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/stall"
 	tgbot "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/bot"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
 	app "github.com/lubaskinc0de/navidrome-tg/internal/main"
@@ -34,9 +35,21 @@ const (
 	SecretKey          = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=" //nolint:gosec // G101: test-only key
 )
 
+// Clock is the bot's time: it stands still until Advance.
 type Clock struct {
-	mu  sync.Mutex
-	now time.Time
+	mu     sync.Mutex
+	now    time.Time
+	timers []*clockTimer
+	// armed close once all running timers are armed at the current time.
+	armed []chan struct{}
+}
+
+type clockTimer struct {
+	clock    *Clock
+	f        func()
+	deadline time.Time
+	armedAt  time.Time
+	running  bool
 }
 
 func (c *Clock) Now() time.Time {
@@ -45,10 +58,85 @@ func (c *Clock) Now() time.Time {
 	return c.now
 }
 
+// Advance fires the timers that are due by the new time.
 func (c *Clock) Advance(d time.Duration) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.now = c.now.Add(d)
+	var due []func()
+	for _, t := range c.timers {
+		if t.running && !t.deadline.After(c.now) {
+			t.running = false
+			due = append(due, t.f)
+		}
+	}
+	c.mu.Unlock()
+
+	for _, f := range due {
+		f()
+	}
+}
+
+func (c *Clock) AfterFunc(d time.Duration, f func()) stall.Timer {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	t := &clockTimer{clock: c, f: f}
+	c.timers = append(c.timers, t)
+	t.armLocked(d)
+	return t
+}
+
+// Armed closes once timers run and all of them were started or reset at
+// the current time: whoever holds them has acted since the last Advance.
+func (c *Clock) Armed() <-chan struct{} {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	armed := make(chan struct{})
+	c.armed = append(c.armed, armed)
+	c.notifyLocked()
+	return armed
+}
+
+func (c *Clock) notifyLocked() {
+	running := false
+	for _, t := range c.timers {
+		if !t.running {
+			continue
+		}
+		if !t.armedAt.Equal(c.now) {
+			return
+		}
+		running = true
+	}
+	if !running {
+		return
+	}
+	for _, armed := range c.armed {
+		close(armed)
+	}
+	c.armed = nil
+}
+
+func (t *clockTimer) Reset(d time.Duration) bool {
+	t.clock.mu.Lock()
+	defer t.clock.mu.Unlock()
+	was := t.running
+	t.armLocked(d)
+	return was
+}
+
+func (t *clockTimer) Stop() bool {
+	t.clock.mu.Lock()
+	defer t.clock.mu.Unlock()
+	was := t.running
+	t.running = false
+	t.clock.notifyLocked()
+	return was
+}
+
+func (t *clockTimer) armLocked(d time.Duration) {
+	c := t.clock
+	t.deadline, t.armedAt, t.running = c.now.Add(d), c.now, true
+	c.notifyLocked()
 }
 
 type Scenario struct {
@@ -132,6 +220,7 @@ func prepare(t *testing.T, opts ...Option) *Scenario {
 	clk := &Clock{now: time.Now()}
 	cfg := app.Config{
 		Clock:                clk.Now,
+		AfterFunc:            clk.AfterFunc,
 		InviteTTL:            7 * 24 * time.Hour,
 		Token:                telegram.Token,
 		BotAPIURL:            api.URL(),
@@ -254,6 +343,60 @@ func (s *Scenario) WaitReconcile() {
 	require.NoError(s.t, s.app.WaitReconcile(ctx))
 }
 
+// WaitAttach waits until the instance has taken the Attached Libraries from
+// Navidrome once more.
+func (s *Scenario) WaitAttach() {
+	s.t.Helper()
+
+	ctx, cancel := context.WithTimeout(s.t.Context(), time.Minute)
+	defer cancel()
+	require.NoError(s.t, s.app.WaitAttach(ctx))
+}
+
+// Sync moves the Clock a Sync interval on, so every account is due, and
+// runs Sync.
+func (s *Scenario) Sync() {
+	s.t.Helper()
+
+	s.Clock.Advance(s.config.SyncInterval)
+	s.RunSync()
+}
+
+// RunSync runs Sync and Mirror on the instance and waits for them; an
+// account that is not due is not synced.
+func (s *Scenario) RunSync() {
+	s.t.Helper()
+
+	ctx, cancel := context.WithTimeout(s.t.Context(), time.Minute)
+	defer cancel()
+	require.NoError(s.t, s.app.Sync(ctx))
+}
+
+// Poll waits for a whole round of the instance's poller.
+func (s *Scenario) Poll() {
+	s.t.Helper()
+
+	ctx, cancel := context.WithTimeout(s.t.Context(), time.Minute)
+	defer cancel()
+	require.NoError(s.t, s.app.Poll(ctx))
+}
+
+// PollAny waits until one of the instances finishes a whole round of its
+// poller. An instance stuck on a held Bot API call cannot, so the others
+// have had their turn by then.
+func (s *Scenario) PollAny() {
+	s.t.Helper()
+
+	ctx, cancel := context.WithTimeout(s.t.Context(), time.Minute)
+	defer cancel()
+	apps := s.running.all()
+	polled := make(chan error, len(apps))
+	for _, a := range apps {
+		go func() { polled <- a.Poll(ctx) }()
+	}
+	require.NoError(s.t, <-polled)
+}
+
 func (s *Scenario) Send(update *models.Update) {
 	s.app.Bot().ProcessUpdate(s.ctx, update)
 }
@@ -313,7 +456,7 @@ func StartNavidrome(t *testing.T) (server *navidrome.Server, root string) {
 	}
 
 	server, container, err := navidrome.Start(t.Context(), root)
-	t.Cleanup(func() { _ = testcontainers.TerminateContainer(container) })
+	t.Cleanup(func() { _ = testcontainers.TerminateContainer(container, testcontainers.StopTimeout(0)) })
 	require.NoError(t, err)
 	return server, root
 }

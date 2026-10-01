@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -60,10 +59,10 @@ func (LocalFile) TableName() string {
 type Provider struct {
 	Bot   *bot.Bot
 	Files *trackfile.Files
-	// StallTimeout cuts off a download from a regular Bot API server that
-	// sent nothing for this long.
-	StallTimeout time.Duration
-	DB           *gorm.DB
+	// Stall cuts off a download from a regular Bot API server that went
+	// silent.
+	Stall stall.Watch
+	DB    *gorm.DB
 }
 
 func (p *Provider) Name() provider.ProviderName {
@@ -134,7 +133,7 @@ func (p *Provider) open(ctx context.Context, ref provider.TrackRef, filePath str
 	if err != nil {
 		return nil, err
 	}
-	resp, err := stall.Do(http.DefaultClient, req, p.StallTimeout)
+	resp, err := p.Stall.Do(http.DefaultClient, req)
 	if err != nil {
 		return nil, fmt.Errorf("download file: %w", err)
 	}

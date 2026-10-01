@@ -2,10 +2,8 @@ package e2e
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
@@ -77,28 +75,28 @@ func TestSyncQuota(t *testing.T) {
 	t.Parallel()
 
 	t.Run("raised Quota lets the next Sync bring what did not fit", func(t *testing.T) {
-		s := harness.New(t, harness.WithDefaultQuota(twoZvukTracks(t)), harness.WithSyncInterval(syncInterval))
+		s := harness.New(t, harness.WithDefaultQuota(twoZvukTracks(t)))
 		s.ConnectZvuk(alice, harness.ZvukToken)
 		s.AddZvukCollection(harness.ZvukToken)
 		s.ImportZvuk(alice)
 		s.WaitIngest()
 
 		s.Restart(harness.WithDefaultQuota(library.Unlimited))
+		s.Sync()
+		s.WaitIngest()
 
-		require.Eventually(t, func() bool {
-			return len(s.PersonalFiles(alice)) == 9
-		}, 10*time.Second, 20*time.Millisecond, "Sync never brought the tracks over the Quota")
+		assert.Len(t, s.PersonalFiles(alice), 9)
 	})
 
 	t.Run("while the Personal Library is full Sync fetches nothing that did not fit", func(t *testing.T) {
-		s := harness.New(t, harness.WithDefaultQuota(twoZvukTracks(t)), harness.WithSyncInterval(syncInterval))
+		s := harness.New(t, harness.WithDefaultQuota(twoZvukTracks(t)))
 		s.ConnectZvuk(alice, harness.ZvukToken)
 		collection := s.AddZvukCollection(harness.ZvukToken)
 		s.ImportZvuk(alice)
 		s.WaitIngest()
 		s.Restart(harness.WithDefaultQuota(kb))
 
-		untilSynced(t, s, 2)
+		s.Sync()
 		s.WaitIngest()
 
 		assert.Equal(t, 1, s.Zvuk.DownloadsOf(collection.Tracks[8]))

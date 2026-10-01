@@ -54,6 +54,9 @@ func Run(m *testing.M) int {
 		postgres.WithUsername("postgres"),
 		postgres.WithPassword("postgres"),
 		postgres.WithDatabase("postgres"),
+		// SCRAM costs both sides a key derivation on every connection, and
+		// each scenario opens many.
+		testcontainers.WithEnv(map[string]string{"POSTGRES_HOST_AUTH_METHOD": "trust"}),
 		postgres.BasicWaitStrategies(),
 	)
 	defer func() { _ = testcontainers.TerminateContainer(pg) }()

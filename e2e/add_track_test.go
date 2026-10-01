@@ -67,8 +67,6 @@ func TestIngest(t *testing.T) {
 	})
 }
 
-const replicaResponseWindow = 500 * time.Millisecond
-
 func TestIngestAnswer(t *testing.T) {
 	t.Parallel()
 
@@ -80,7 +78,8 @@ func TestIngestAnswer(t *testing.T) {
 		answer := s.Telegram.Hold("setMessageReaction")
 		<-answer.Arrived()
 
-		assert.False(t, s.Telegram.WaitCalls("setMessageReaction", 2, replicaResponseWindow), "another instance acted meanwhile")
+		s.PollAny()
+		assert.Len(t, s.Telegram.CallsTo("setMessageReaction"), 1, "another instance acted meanwhile")
 		answer.Release()
 		s.WaitIngest()
 
