@@ -18,7 +18,7 @@ const pollTimeout = time.Minute
 
 func Options(ids common.IDProvider, users *Users, windows *window.Windows, bundle *i18n.Bundle) []bot.Option {
 	return []bot.Option{
-		bot.WithHTTPClient(pollTimeout, window.Watch(windows, &http.Client{Timeout: pollTimeout})),
+		bot.WithHTTPClient(pollTimeout, window.Watch(windows, &http.Client{Timeout: pollTimeout, Transport: http1Transport()})),
 		// The app calls getMe itself: it needs the username.
 		bot.WithSkipGetMe(),
 		bot.WithAllowedUpdates(bot.AllowedUpdates{
@@ -29,6 +29,18 @@ func Options(ids common.IDProvider, users *Users, windows *window.Windows, bundl
 		}),
 		bot.WithMiddlewares(window.CountArrivals(windows), senderMiddleware, languageMiddleware(users, bundle), membersOnly(ids)),
 	}
+}
+
+// http1Transport gives each concurrent call a connection of its own: over
+// one HTTP/2 connection Telegram holds getUpdates back while it takes an
+// upload, and the bot hears nothing until the upload is done.
+func http1Transport() *http.Transport {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	// A used default transport offers h2 in its TLS config.
+	transport.TLSClientConfig = nil
+	transport.Protocols = new(http.Protocols)
+	transport.Protocols.SetHTTP1(true)
+	return transport
 }
 
 func isInlineQuery(update *models.Update) bool {
