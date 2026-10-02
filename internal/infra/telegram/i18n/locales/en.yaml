@@ -98,7 +98,7 @@ how_to: |-
 
   Where to get files: find a track in @yv2t_bot or @murglar_bot and forward it here.
 
-  To share a track, reply <code>/share</code> to it or find it in «🎵 Music» on the «Mine» tab.
+  To share a track, find it in «🎵 Music» on the «Mine» tab.
 
 listen: |-
   📱 <b>How to listen</b>
@@ -269,12 +269,6 @@ upload:
   already_exists: This track is already in your library
 
 share:
-  usage: Reply /share to a message with a track from your library
-  what: What to share?
-  track: 🔗 The track
-  album: 💿 The whole album
-  unshare_track: Remove the track from Shared
-  unshare_album: Remove the album from Shared
   inbox: "A track from the «Inbox» can't be shared: it has no artist or title"
   not_own: This track is not in your library
   already: You've already shared this
@@ -282,7 +276,6 @@ share:
   by_other: "{{.Author}} has already shared this track"
   created_partly: "Added to the Shared Library: {{.Tracks}}, {{.Already}} were there already"
   unshared: Removed from the Shared Library
-  not_found: Could not find the track, try again later
 
 playing:
   now: Now playing

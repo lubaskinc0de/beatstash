@@ -16,6 +16,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/share_tracks"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
@@ -183,7 +184,8 @@ func TestStrangerHome(t *testing.T) {
 
 	t.Run("stranger learns what the service is", func(t *testing.T) {
 		s := harness.New(t, harness.WithAdminContact("@boss_support"))
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.ShareTrack(alice, fixtureButton)
 
 		s.Open(stranger)
 
@@ -269,7 +271,7 @@ func TestHelp(t *testing.T) {
 
 		text := s.WindowText()
 		assert.Contains(t, text, s.Catalog(alice).HowTo())
-		for _, marker := range []string{"mp3", "flac", "👀", "👍", "👎", "/share"} {
+		for _, marker := range []string{"mp3", "flac", "👀", "👍", "👎"} {
 			assert.Contains(t, text, marker)
 		}
 	})
@@ -330,16 +332,14 @@ func TestLanguage(t *testing.T) {
 
 	t.Run("share answers in the user's language", func(t *testing.T) {
 		s := harness.New(t)
-		upload := s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 		s.Open(alice, s.Catalog(alice).SettingsButton(), s.Catalog(harness.User{LanguageCode: "en"}).LanguageButton())
-
-		s.Send(s.ReplyCommand(alice, "/share", upload))
-
 		english := alice
 		english.LanguageCode = "en"
-		c := s.Catalog(english)
-		assert.Equal(t, c.ShareWhat(), s.LastReply().Text)
-		assert.Equal(t, []string{c.ShareTrack(), c.ShareAlbum()}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
+
+		s.ShareTrack(english, fixtureButton)
+
+		assert.Equal(t, s.Catalog(english).ShareResult(&share_tracks.ShareResult{Created: 1}), s.LastCallbackAnswer())
 	})
 
 	t.Run("inline answers follow the language switch", func(t *testing.T) {

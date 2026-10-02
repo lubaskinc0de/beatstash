@@ -5,7 +5,10 @@
 
 package access
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 // User is an aggregate root. Its Identities are part of it.
 type User struct {
@@ -44,6 +47,8 @@ const (
 	// activeWindow: a User seen within it is active.
 	activeWindow = 7 * 24 * time.Hour
 )
+
+var ErrNotAdmin = errors.New("not an admin")
 
 // NewUser creates a User with its first Identity: every User must have
 // one.

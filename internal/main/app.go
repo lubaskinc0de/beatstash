@@ -251,18 +251,18 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	listenLinkRepo := &database.ListenLinkRepository{DB: db}
 	listenLinks := &listening.ListenLinks{Accounts: navidromeAccounts, On: publicURL != ""}
 	getTrackListenLink := &send_listen_link.GetTrackListenLink{
-		IDs: ids, Tracks: tracks, Links: listenLinkRepo, LibraryRepo: libraryRepo,
+		IDs: ids, Tracks: tracks, Links: listenLinkRepo,
 		Libraries: libs, Attached: attached, ListenLinks: listenLinks,
 		Navidrome: navidromeClient, Admin: navidromeAdmin,
 		TTL: cfg.ListenLinkTTL, Downloadable: cfg.ListenLinkDownloadable, Clock: cfg.Clock,
 	}
 	getAlbumListenLink := &send_listen_link.GetAlbumListenLink{
-		IDs: ids, Tracks: tracks, Links: listenLinkRepo, LibraryRepo: libraryRepo,
+		IDs: ids, Tracks: tracks, Links: listenLinkRepo,
 		Libraries: libs, Attached: attached, ListenLinks: listenLinks,
 		Navidrome: navidromeClient, Admin: navidromeAdmin,
 		TTL: cfg.ListenLinkTTL, Downloadable: cfg.ListenLinkDownloadable, Clock: cfg.Clock,
 	}
-	getTrackFile := &show_playing.GetTrackFile{IDs: ids, Repo: tracks, Libraries: libs, Attached: attached}
+	getTrackFile := &show_playing.GetTrackFile{IDs: ids, Tracks: tracks, Libraries: libs, Attached: attached}
 	tg := &tgbot.Telegram{Bot: b, BotName: me.Username, Windows: windows, Texts: texts, AdminContact: cfg.AdminContact}
 	viewFeed := &browse_shared.ViewFeed{IDs: ids, Shared: sharedTracks, Tracks: tracks, Libraries: libs, Attached: attached}
 	getTop := &view_top.GetTop{IDs: ids, Shared: sharedTracks, Takes: takes, Clock: cfg.Clock}
@@ -317,7 +317,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Tracks:    tracks,
 			Accounts:  providerAccountRepo,
 			Queue:     ingestQueue,
-			BatchRepo: batchRepo,
+			Batches:   batchRepo,
 			Quotas:    libraryQuotas,
 			Waker:     waker,
 			Clock:     cfg.Clock,
@@ -329,20 +329,19 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		Telegram:            tg,
 		GetNavidromeAccount: &connect_navidrome.GetNavidromeAccount{IDs: ids, Accounts: accountRepo},
 		LinkNavidromeAccount: &connect_navidrome.LinkNavidromeAccount{
-			IDs:       ids,
-			Navidrome: navidromeClient,
-			Accounts:  navidromeAccounts,
-			Linked:    accountRepo,
-			Libraries: navidromeLibraries,
-			Attached:  libraryRepo,
-			Tracks:    tracks,
+			IDs:                ids,
+			Navidrome:          navidromeClient,
+			Accounts:           navidromeAccounts,
+			NavidromeLibraries: navidromeLibraries,
+			Libraries:          libraryRepo,
+			Tracks:             tracks,
 		},
 		RegisterAccount: &connect_navidrome.RegisterNavidromeAccount{
-			IDs:       ids,
-			Navidrome: navidromeClient,
-			Accounts:  navidromeAccounts,
-			Libraries: navidromeLibraries,
-			Admin:     navidromeAdmin,
+			IDs:                ids,
+			Navidrome:          navidromeClient,
+			Accounts:           navidromeAccounts,
+			NavidromeLibraries: navidromeLibraries,
+			Admin:              navidromeAdmin,
 		},
 	}
 	shareTrack := &share_tracks.ShareTrack{
@@ -363,20 +362,12 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks,
 		Libraries: libs, Attached: attached, Disk: fileDisk, MusicDir: cfg.MusicDir,
 	}
-	sharing := &tgbot.Sharing{
-		Telegram:         tg,
-		ShowShareOptions: &share_tracks.ShowShareOptions{IDs: ids, Tracks: tracks, Shared: sharedTracks, Libraries: libs},
-		ShareTrack:       shareTrack,
-		ShareAlbum:       shareAlbum,
-		UnshareTrack:     unshareTrack,
-		UnshareAlbum:     unshareAlbum,
-	}
 	inline := &tgbot.Inline{
 		Telegram: tg,
 		GetNowPlaying: &show_playing.GetNowPlaying{
 			IDs:         ids,
 			Client:      navidromeClient,
-			Repo:        tracks,
+			Tracks:      tracks,
 			Accounts:    navidromeAccounts,
 			Libraries:   libs,
 			Attached:    attached,
@@ -385,13 +376,13 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		GetRecentlyPlayed: &show_playing.GetRecentlyPlayed{
 			IDs:         ids,
 			Client:      navidromeClient,
-			Repo:        tracks,
+			Tracks:      tracks,
 			Accounts:    navidromeAccounts,
 			Libraries:   libs,
 			Attached:    attached,
 			ListenLinks: listenLinks,
 		},
-		GetTrackFile: &show_playing.GetTrackFile{IDs: ids, Repo: tracks, Libraries: libs, Attached: attached},
+		GetTrackFile: getTrackFile,
 		ViewFeed:     viewFeed,
 		GetTop:       getTop,
 		SearchMusic: &search_music.SearchMusic{
@@ -442,7 +433,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	}
 	handler := &tgbot.Handler{
 		Telegram: tg, Home: home, Feed: feed, Imports: imports, Navidrome: navidromeScreens,
-		Sharing: sharing, Inline: inline, Uploads: telegramUploads, Admin: adminScreens, Quotas: quotaScreens,
+		Inline: inline, Uploads: telegramUploads, Admin: adminScreens, Quotas: quotaScreens,
 		Share: shareScreen,
 	}
 	handler.Register()
@@ -471,7 +462,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Accounts:  providerAccountRepo,
 			Providers: providers,
 			Queue:     ingestQueue,
-			BatchRepo: batchRepo,
+			Batches:   batchRepo,
 			Waker:     waker,
 			Interval:  cfg.SyncInterval,
 			Clock:     cfg.Clock,

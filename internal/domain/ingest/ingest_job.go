@@ -1,7 +1,7 @@
 // IngestJob: one planned Ingest of a Track Ref and how it ended. A done job
 // keeps its Outcome, the Track that was stored or already existed, and the
 // version of that Track's file the job left. A failed job keeps its
-// FailureReason.
+// FailureReason; a RetryPolicy decides when a failed attempt runs again.
 
 package ingest
 
@@ -51,6 +51,25 @@ const (
 	IngestJobDone    IngestJobStatus = "done"
 	IngestJobFailed  IngestJobStatus = "failed"
 )
+
+// FailureReason is a value object: why an IngestJob failed and will not be retried.
+type FailureReason string
+
+const (
+	ReasonUnsupportedFormat FailureReason = "unsupported_format"
+	ReasonCorruptFile       FailureReason = "corrupt_file"
+	ReasonFetchFailed       FailureReason = "fetch_failed"
+	ReasonNoProviderAccount FailureReason = "no_provider_account"
+	ReasonTokenRejected     FailureReason = "token_rejected"
+	ReasonQuotaExceeded     FailureReason = "quota_exceeded"
+	ReasonInternal          FailureReason = "internal"
+)
+
+// RetryPolicy is a value object: how long to wait before each retry of a
+// failed IngestJob.
+type RetryPolicy struct {
+	Delays []time.Duration
+}
 
 func NewJob(userID uint, ref provider.TrackRef, displayName string, now time.Time) *IngestJob {
 	payload := ref.Payload
@@ -114,4 +133,19 @@ func (j *IngestJob) Fail(reason FailureReason, err error, permanent bool, policy
 	}
 	j.RunAt = now.Add(delay)
 	return false
+}
+
+// AwaitsRoom reports that the job failed because the Library had no room
+// for the Track: trying again makes sense once the Library has room.
+func (r FailureReason) AwaitsRoom() bool {
+	return r == ReasonQuotaExceeded
+}
+
+// Delay is how long to wait after the given failed attempt. It returns
+// false when no retries are left.
+func (p RetryPolicy) Delay(attempt int) (time.Duration, bool) {
+	if attempt < 1 || attempt > len(p.Delays) {
+		return 0, false
+	}
+	return p.Delays[attempt-1], true
 }

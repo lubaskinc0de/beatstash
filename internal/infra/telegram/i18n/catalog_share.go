@@ -2,6 +2,7 @@ package i18n
 
 import (
 	"path"
+	"path/filepath"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/share_tracks"
@@ -36,8 +37,12 @@ func (c Catalog) ShareScreen(query string, found bool) string {
 	}
 }
 
-// OwnTrackButton is plain text.
+// OwnTrackButton is plain text. An Inbox track has no artist or title, so it
+// goes by its file name.
 func (c Catalog) OwnTrackButton(track *library.Track) string {
+	if !track.Complete() {
+		return filepath.Base(track.Path)
+	}
 	return track.Artist + " — " + track.Title
 }
 
@@ -49,6 +54,9 @@ func (c Catalog) OwnAlbumButton(album repositories.AlbumSummary) string {
 func (c Catalog) TrackCard(card *share_tracks.TrackCard) string {
 	track := card.Track
 	text := TrackCaption(track.Artist, track.Title)
+	if !track.Complete() {
+		text = "🎧 " + esc(filepath.Base(track.Path))
+	}
 	if !track.Single() {
 		text += "\n💿 " + esc(track.Album)
 	}

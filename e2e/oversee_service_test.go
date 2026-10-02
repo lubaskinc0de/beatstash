@@ -43,7 +43,8 @@ func TestAdminScreen(t *testing.T) {
 
 	t.Run("stats count the weight, Shared Tracks and Takes", func(t *testing.T) {
 		s := harness.New(t)
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.ShareTrack(alice, fixtureButton)
 		s.Take(bob, 1)
 
 		s.Open(admin, s.Catalog(admin).AdminButton())

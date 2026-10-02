@@ -54,7 +54,8 @@ func TestSearchMusic(t *testing.T) {
 	t.Run("track shared by another user is found", func(t *testing.T) {
 		s := harness.New(t)
 		audio := s.UploadAudio("track.mp3")
-		s.Share(alice, s.Uploaded(alice, audio), s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, audio)
+		s.ShareTrack(alice, fixtureButton)
 
 		results := s.Search(bob, audiofile.FixtureTitle, "").Results
 
@@ -64,7 +65,8 @@ func TestSearchMusic(t *testing.T) {
 
 	t.Run("track both kept and shared is found once", func(t *testing.T) {
 		s := harness.New(t)
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.ShareTrack(alice, fixtureButton)
 
 		results := s.Search(alice, audiofile.FixtureTitle, "").Results
 

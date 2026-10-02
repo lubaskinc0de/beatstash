@@ -20,14 +20,12 @@ type UnshareAlbum struct {
 	MusicDir  string
 }
 
-func (i *UnshareAlbum) Execute(ctx context.Context, trackID uint) (*ShareState, error) {
+func (i *UnshareAlbum) Execute(ctx context.Context, trackID uint) error {
 	_, libs, kept, err := libraries.CurrentKept(ctx, i.IDs, i.Libraries, i.Attached)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	var state *ShareState
-	err = libraries.Within(ctx, i.Tx, i.Lock, i.Disk, libs, func(ctx context.Context, changes *libraries.FileChanges) error {
-		sharedDir := libraries.Dir(i.MusicDir, libs.Shared)
+	return libraries.Within(ctx, i.Tx, i.Lock, i.Disk, libs, func(ctx context.Context, changes *libraries.FileChanges) error {
 		track, err := keptTrack(ctx, i.Tracks, kept, trackID)
 		if err != nil {
 			return err
@@ -37,12 +35,10 @@ func (i *UnshareAlbum) Execute(ctx context.Context, trackID uint) (*ShareState, 
 			return err
 		}
 		for j := range tracks {
-			if err := unshare(ctx, i.Shared, sharedDir, changes, &tracks[j]); err != nil {
+			if err := unshare(ctx, i.Shared, libraries.Dir(i.MusicDir, libs.Shared), changes, &tracks[j]); err != nil {
 				return err
 			}
 		}
-		state, err = shareState(ctx, i.Shared, track, tracks)
-		return err
+		return nil
 	})
-	return state, err
 }

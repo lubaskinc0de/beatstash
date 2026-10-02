@@ -46,7 +46,6 @@ type JobCounter interface {
 	CountByStatus(ctx context.Context) (pending, failed int64, err error)
 }
 
-// GetOverview tells the Admin how the service lives.
 type GetOverview struct {
 	IDs       common.IDProvider
 	Users     UserCounter

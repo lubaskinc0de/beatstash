@@ -23,7 +23,7 @@ type StartImport struct {
 	Tracks    repositories.Tracks
 	Accounts  repositories.ProviderAccounts
 	Queue     repositories.IngestQueue
-	BatchRepo repositories.IngestBatches
+	Batches   repositories.IngestBatches
 	Quotas    *quotas.Quotas
 	Waker     common.Waker
 	Clock     func() time.Time
@@ -37,7 +37,7 @@ func (i *StartImport) Execute(ctx context.Context, providerName provider.Provide
 	if err != nil {
 		return nil, err
 	}
-	running, err := i.BatchRepo.Running(ctx, user.ID, providerName, ingest.IngestBatchImport)
+	running, err := i.Batches.Running(ctx, user.ID, providerName, ingest.IngestBatchImport)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (i *StartImport) Execute(ctx context.Context, providerName provider.Provide
 	}
 	// Rechecked under the lock: a second tap may have started an Import.
 	remember := func(ctx context.Context) error {
-		account, err := accounts.LockIdle(ctx, i.Accounts, i.BatchRepo, user.ID, providerName)
+		account, err := accounts.LockIdle(ctx, i.Accounts, i.Batches, user.ID, providerName)
 		if err != nil {
 			return err
 		}
@@ -96,7 +96,7 @@ func (i *StartImport) startBatch(
 		if err := remember(ctx); err != nil {
 			return err
 		}
-		if err := i.BatchRepo.Save(ctx, batch); err != nil {
+		if err := i.Batches.Save(ctx, batch); err != nil {
 			return err
 		}
 		jobs := make([]*ingest.IngestJob, 0, len(tracks))

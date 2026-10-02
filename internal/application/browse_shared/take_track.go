@@ -2,6 +2,7 @@ package browse_shared
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
@@ -10,6 +11,8 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
+
+var ErrAlreadyInLibrary = errors.New("the user has the track already")
 
 type TakeTrack struct {
 	IDs       common.IDProvider
@@ -45,7 +48,7 @@ func (i *TakeTrack) Execute(ctx context.Context, sharedTrackID uint) error {
 			return err
 		}
 		if alreadyKept[track.ID] {
-			return library.ErrAlreadyInLibrary
+			return ErrAlreadyInLibrary
 		}
 		if err := i.Quotas.Admit(ctx, libs.Personal, track.Size); err != nil {
 			return err

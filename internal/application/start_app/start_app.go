@@ -32,7 +32,7 @@ func (i *StartApp) Execute(ctx context.Context) error {
 	if err := i.appointAdmins(ctx); err != nil {
 		return err
 	}
-	if _, err := i.Libraries.Shared(ctx); err != nil {
+	if _, err := i.Libraries.EnsureShared(ctx); err != nil {
 		return err
 	}
 	users, err := i.Users.All(ctx)
@@ -42,7 +42,7 @@ func (i *StartApp) Execute(ctx context.Context) error {
 	byID := make(map[uint]*access.User, len(users))
 	for n := range users {
 		byID[users[n].ID] = &users[n]
-		if _, err := i.Libraries.Personal(ctx, &users[n]); err != nil {
+		if _, err := i.Libraries.EnsurePersonal(ctx, &users[n]); err != nil {
 			return err
 		}
 	}

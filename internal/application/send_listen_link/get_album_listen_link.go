@@ -26,7 +26,6 @@ type GetAlbumListenLink struct {
 	IDs         common.IDProvider
 	Tracks      repositories.Tracks
 	Links       repositories.ListenLinks
-	LibraryRepo repositories.Libraries
 	Libraries   *libraries.Libraries
 	Attached    *libraries.Attached
 	ListenLinks *listening.ListenLinks
@@ -92,5 +91,5 @@ func (i *GetAlbumListenLink) anySong(ctx context.Context, album library.AlbumKey
 			return t.SongID, nil
 		}
 	}
-	return songOf(ctx, i.Tracks, i.LibraryRepo, i.Navidrome, i.Admin, chosen)
+	return songOf(ctx, i.Tracks, i.Libraries.Repo, i.Navidrome, i.Admin, chosen)
 }

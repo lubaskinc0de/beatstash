@@ -42,7 +42,7 @@ func (i *AcceptInvite) Execute(ctx context.Context, code string) (*access.User, 
 		if err := invite.Redeem(user, i.Clock()); err != nil {
 			return err
 		}
-		if lib, err = i.Libraries.Personal(ctx, user); err != nil {
+		if lib, err = i.Libraries.EnsurePersonal(ctx, user); err != nil {
 			return err
 		}
 		return i.Invites.Save(ctx, invite)

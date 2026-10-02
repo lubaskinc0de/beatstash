@@ -205,8 +205,6 @@ type storing struct {
 // ctx's transaction; the file is moved into the Library last, and files
 // records how to make the Library follow the transaction's outcome.
 func (i *ProcessIngestJob) process(ctx context.Context, job *ingest.IngestJob, files *libraries.FileChanges) (*jobResult, error) {
-	ref := job.Ref()
-
 	personal, err := i.Libraries.Personal(ctx, job.UserID)
 	if err != nil {
 		return nil, wrapStep(stepSource, err)
@@ -216,61 +214,109 @@ func (i *ProcessIngestJob) process(ctx context.Context, job *ingest.IngestJob, f
 		return nil, wrapStep(stepSource, err)
 	}
 	libs := libraries.ManagedLibraries{Personal: personal, Shared: shared}
-
 	attached, err := i.Attached.VisibleTo(ctx, job.UserID)
 	if err != nil {
 		return nil, wrapStep(stepSource, err)
 	}
-	// A forwarded copy of a known file needs no download at all, and
-	// neither does the very file somebody shared or the service gave out.
-	if result, err := i.knownSource(ctx, job, library.KeptLibraries(personal, attached), ref); result != nil || err != nil {
+
+	if result, err := i.beforeFetch(ctx, job, libs, attached, files); result != nil || err != nil {
 		return result, wrapStep(stepSource, err)
 	}
-	inShared, err := i.inLibrary(ctx, shared, ref)
-	if err != nil {
-		return nil, wrapStep(stepSource, err)
-	}
-	recognized, err := i.recognize(ctx, libs, ref)
-	if err != nil {
-		return nil, wrapStep(stepSource, err)
-	}
-	if inShared || recognized.any() {
-		if result, err := i.lockAndRecheck(ctx, job, libs, ref, files); result != nil || err != nil {
-			return result, wrapStep(stepSource, err)
-		}
-	}
-
-	if result, err := i.attachedByDescription(ctx, job, attached, ref); result != nil || err != nil {
-		return result, wrapStep(stepSource, err)
-	}
-
-	// A Provider without the Capability will not grow it on retry.
-	fetcher, err := i.Providers.Fetcher(ref.Provider)
-	if err != nil {
-		return nil, wrapStep(stepFetch, providers.Permanent(ingest.ReasonInternal, err))
-	}
-
-	audio, err := fetcher.Fetch(ctx, job.UserID, ref)
-	if errors.Is(err, repositories.ErrProviderAccountNotFound) {
-		return nil, wrapStep(stepFetch, providers.Permanent(ingest.ReasonNoProviderAccount, err))
-	}
-	if errors.Is(err, providers.ErrUnauthorized) {
-		return nil, wrapStep(stepFetch, providers.Permanent(ingest.ReasonTokenRejected, err))
-	}
+	audio, err := i.fetch(ctx, job)
 	if err != nil {
 		return nil, wrapStep(stepFetch, err)
 	}
-
-	// From here on the pipeline works on its own copy; the deferred removal
-	// is a no-op once the file has been moved into the Library.
-	staged, err := i.stage(audio)
+	staged, in, cleanup, err := i.prepare(ctx, job.Ref(), audio)
+	defer cleanup()
 	if err != nil {
 		return nil, err
 	}
-	defer i.Disk.Remove(staged)
 
-	// WAV carries no proper tags and taglib sees nothing of FLAC packed
-	// into MP4, so both become FLAC files first.
+	// Workers download and probe in parallel, but the duplicate check and
+	// path choice run one at a time per Library: otherwise two workers could
+	// both miss the duplicate and store the same track twice. Another job may
+	// also have added this source while we were fetching.
+	if result, err := i.lockAndRecheck(ctx, job, libs, job.Ref(), files); result != nil || err != nil {
+		return result, wrapStep(stepSource, err)
+	}
+	st := storing{
+		job:    job,
+		lib:    personal,
+		dir:    libraries.Dir(i.MusicDir, personal),
+		cover:  audio.Cover,
+		staged: staged,
+		files:  files,
+	}
+	result, err := i.store(ctx, st, attached, in)
+	return result, wrapStep(stepStore, err)
+}
+
+// beforeFetch finds what spares the download: a forwarded copy of a known
+// file, the very file somebody shared or the service gave out, or a track an
+// Attached Library has by the Provider's description. nil means fetch.
+func (i *ProcessIngestJob) beforeFetch(
+	ctx context.Context,
+	job *ingest.IngestJob,
+	libs libraries.ManagedLibraries,
+	attached []*library.Library,
+	files *libraries.FileChanges,
+) (*jobResult, error) {
+	ref := job.Ref()
+	if result, err := i.knownSource(ctx, job, library.KeptLibraries(libs.Personal, attached), ref); result != nil || err != nil {
+		return result, err
+	}
+	inShared, err := i.inLibrary(ctx, libs.Shared, ref)
+	if err != nil {
+		return nil, err
+	}
+	recognized, err := i.recognize(ctx, libs, ref)
+	if err != nil {
+		return nil, err
+	}
+	if inShared || recognized.any() {
+		if result, err := i.lockAndRecheck(ctx, job, libs, ref, files); result != nil || err != nil {
+			return result, err
+		}
+	}
+	return i.attachedByDescription(ctx, job, attached, ref)
+}
+
+// fetch marks the failures a retry cannot fix as permanent: a Provider
+// without the Capability will not grow it.
+func (i *ProcessIngestJob) fetch(ctx context.Context, job *ingest.IngestJob) (*providers.FetchedAudio, error) {
+	ref := job.Ref()
+	fetcher, err := i.Providers.Fetcher(ref.Provider)
+	if err != nil {
+		return nil, providers.Permanent(ingest.ReasonInternal, err)
+	}
+	audio, err := fetcher.Fetch(ctx, job.UserID, ref)
+	switch {
+	case errors.Is(err, repositories.ErrProviderAccountNotFound):
+		return nil, providers.Permanent(ingest.ReasonNoProviderAccount, err)
+	case errors.Is(err, providers.ErrUnauthorized):
+		return nil, providers.Permanent(ingest.ReasonTokenRejected, err)
+	}
+	return audio, err
+}
+
+// prepare stages the audio and reads what it is. WAV carries no proper tags
+// and taglib sees nothing of FLAC packed into MP4, so both become FLAC files
+// first. cleanup removes the scratch files; for the one moved into the
+// Library it is a no-op.
+func (i *ProcessIngestJob) prepare(
+	ctx context.Context, ref provider.TrackRef, audio *providers.FetchedAudio,
+) (staged string, in library.Incoming, cleanup func(), err error) {
+	var scratch []string
+	cleanup = func() {
+		for _, path := range scratch {
+			i.Disk.Remove(path)
+		}
+	}
+	if staged, err = i.stage(audio); err != nil {
+		return "", in, cleanup, err
+	}
+	scratch = append(scratch, staged)
+
 	format := audio.Format
 	var remux func(context.Context, string) (string, error)
 	switch {
@@ -281,56 +327,39 @@ func (i *ProcessIngestJob) process(ctx context.Context, job *ingest.IngestJob, f
 	}
 	if remux != nil {
 		if staged, err = remux(ctx, staged); err != nil {
-			return nil, wrapStep(stepRemux, err)
+			return "", in, cleanup, wrapStep(stepRemux, err)
 		}
-		defer i.Disk.Remove(staged)
+		scratch = append(scratch, staged)
 		format = library.FormatFLAC
 	}
 
 	probe, err := i.Tags.Probe(staged)
 	if errors.Is(err, common.ErrCorruptAudio) {
-		return nil, wrapStep(stepProbe, providers.Permanent(ingest.ReasonCorruptFile, err))
+		return "", in, cleanup, wrapStep(stepProbe, providers.Permanent(ingest.ReasonCorruptFile, err))
 	}
 	if err != nil {
-		return nil, wrapStep(stepProbe, err)
+		return "", in, cleanup, wrapStep(stepProbe, err)
 	}
+	return staged, library.NewIncoming(ref, audio.Hint, audio.WeakHint, audio.FileName, format, *probe), cleanup, nil
+}
 
-	in := library.NewIncoming(ref, audio.Hint, audio.WeakHint, audio.FileName, format, *probe)
-
-	// Workers download and probe in parallel, but the duplicate check and
-	// path choice run one at a time per Library: otherwise two workers could
-	// both miss the duplicate and store the same track twice. Another job may
-	// also have added this source while we were fetching.
-	if result, err := i.lockAndRecheck(ctx, job, libs, ref, files); result != nil || err != nil {
-		return result, wrapStep(stepSource, err)
-	}
-
-	st := storing{
-		job:    job,
-		lib:    personal,
-		dir:    libraries.Dir(i.MusicDir, personal),
-		cover:  audio.Cover,
-		staged: staged,
-		files:  files,
-	}
-	attachedTrack, err := i.attachedDuplicate(ctx, attached, in.Metadata, in.DurationMs)
+// store merges the audio into its Duplicate, one of an Attached Library
+// first, or stores a new Track.
+func (i *ProcessIngestJob) store(ctx context.Context, st storing, attached []*library.Library, in library.Incoming) (*jobResult, error) {
+	duplicate, err := i.attachedDuplicate(ctx, attached, in.Metadata, in.DurationMs)
 	if err != nil {
-		return nil, wrapStep(stepStore, err)
+		return nil, err
 	}
-	if attachedTrack != nil {
-		result, err := i.mergeDuplicate(ctx, st, attachedTrack, in)
-		return result, wrapStep(stepStore, err)
+	if duplicate == nil {
+		duplicate, err = i.Tracks.FindDuplicate(ctx, []uint{st.lib.ID}, in.Metadata, in.DurationMs)
+		if errors.Is(err, repositories.ErrTrackNotFound) {
+			return i.storeNew(ctx, st, in)
+		}
+		if err != nil {
+			return nil, err
+		}
 	}
-	duplicate, err := i.Tracks.FindDuplicate(ctx, []uint{personal.ID}, in.Metadata, in.DurationMs)
-	switch {
-	case err == nil:
-		result, err := i.mergeDuplicate(ctx, st, duplicate, in)
-		return result, wrapStep(stepStore, err)
-	case !errors.Is(err, repositories.ErrTrackNotFound):
-		return nil, wrapStep(stepStore, err)
-	}
-	result, err := i.storeNew(ctx, st, in)
-	return result, wrapStep(stepStore, err)
+	return i.mergeDuplicate(ctx, st, duplicate, in)
 }
 
 // release is called once the job is finished for good; Providers that keep

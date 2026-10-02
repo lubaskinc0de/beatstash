@@ -20,7 +20,6 @@ type IngestResults struct {
 	Usage library.Usage
 }
 
-// GetIngestResults tells the User what became of the tracks they sent.
 type GetIngestResults struct {
 	IDs    common.IDProvider
 	Queue  repositories.IngestQueue

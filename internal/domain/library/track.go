@@ -12,6 +12,7 @@
 package library
 
 import (
+	"errors"
 	"slices"
 	"time"
 
@@ -62,6 +63,11 @@ type TrackSource struct {
 // can differ in duration by rounding. A bigger difference means a different
 // version.
 const DuplicateToleranceMs = 2000
+
+var (
+	ErrNotKeptTrack = errors.New("track is in none of the user's libraries")
+	ErrInboxTrack   = errors.New("inbox track cannot be shared")
+)
 
 // NewTrack creates a Track at its LayoutPath. Without artist or title the
 // Track goes to the Inbox.

@@ -30,7 +30,7 @@ type Chats interface {
 	AnswerIngest(ctx context.Context, msg JobMessage, job *ingest.IngestJob, usage library.Usage) error
 	SummarizeImport(ctx context.Context, chatID int64, result *import_collection.ImportResult) error
 	NoticeRejectedToken(ctx context.Context, chatID int64, providerName provider.ProviderName)
-	// RefreshImports redraws the windows on the Imports.
+	// RefreshImports redraws the windows on the Imports whose text changed.
 	RefreshImports(ctx context.Context) error
 }
 
@@ -132,7 +132,6 @@ func (p *Poller) round(ctx context.Context) {
 	}
 }
 
-// WaitRound starts a round now and waits for it to finish.
 func (p *Poller) WaitRound(ctx context.Context) error {
 	return p.rounds.Now(ctx)
 }

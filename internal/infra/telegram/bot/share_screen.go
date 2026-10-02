@@ -234,7 +234,7 @@ func (s *ShareScreen) shareCard(ctx context.Context, cb windowCallback, arg stri
 
 func (s *ShareScreen) unshareCard(ctx context.Context, cb windowCallback, arg string) {
 	trackID, _ := parseCardArg(arg)
-	_, err := s.UnshareTrack.Execute(ctx, trackID)
+	err := s.UnshareTrack.Execute(ctx, trackID)
 	s.afterShare(ctx, cb, place{screen: screenShareTrack, arg: arg}, nil, err)
 }
 
@@ -246,7 +246,7 @@ func (s *ShareScreen) shareAlbumCard(ctx context.Context, cb windowCallback, arg
 
 func (s *ShareScreen) unshareAlbumCard(ctx context.Context, cb windowCallback, arg string) {
 	trackID, _ := parseCardArg(arg)
-	_, err := s.UnshareAlbum.Execute(ctx, trackID)
+	err := s.UnshareAlbum.Execute(ctx, trackID)
 	s.afterShare(ctx, cb, place{screen: screenShareAlbum, arg: arg}, nil, err)
 }
 
@@ -308,4 +308,19 @@ func senderID(ctx context.Context) int64 {
 		return 0
 	}
 	return s.from.ID
+}
+
+func (t *Telegram) shareFailure(c i18n.Catalog, data string, err error) string {
+	var full *library.QuotaExceededError
+	switch {
+	case errors.As(err, &full):
+		return c.SharedLibraryFull(t.AdminContact)
+	case errors.Is(err, library.ErrNotKeptTrack):
+		return c.NotOwnTrack()
+	case errors.Is(err, library.ErrInboxTrack):
+		return c.InboxNotShareable()
+	default:
+		slog.Error("share_callback", "data", data, "error", err)
+		return c.TryLater()
+	}
 }

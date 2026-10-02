@@ -7,6 +7,7 @@
 package library
 
 import (
+	"errors"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -37,6 +38,8 @@ const (
 	LibraryShared   LibraryKind = "shared"
 	LibraryAttached LibraryKind = "attached"
 )
+
+var ErrNotPersonal = errors.New("only a Personal Library has a Quota of its own")
 
 func SharedLibrary() *Library {
 	return &Library{Kind: LibraryShared, Dir: SharedLibraryDir}

@@ -9,19 +9,11 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/quotas"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/sharing"
 )
-
-type ShareState struct {
-	TrackID     uint
-	Shared      bool
-	HasAlbum    bool
-	AlbumShared bool
-}
 
 type ShareResult struct {
 	// Created counts Tracks that appeared in the Shared Library.
@@ -30,7 +22,6 @@ type ShareResult struct {
 	// one who shared the first of them.
 	AlreadyShared int
 	Author        *access.User
-	State         *ShareState
 }
 
 // sharer shares Tracks of one user inside one libraries.Within transaction.
@@ -51,32 +42,6 @@ type sharer struct {
 	usage   library.Usage
 	changes *libraries.FileChanges
 	now     time.Time
-}
-
-// within runs fn in a transaction holding the current user's Managed
-// Libraries, with the sharer set for their Kept Libraries.
-func (s *sharer) within(
-	ctx context.Context,
-	ids common.IDProvider,
-	libs *libraries.Libraries,
-	attached *libraries.Attached,
-	tx repositories.TxManager,
-	quotas *quotas.Quotas,
-	now time.Time,
-	fn func(ctx context.Context) error,
-) error {
-	user, managed, kept, err := libraries.CurrentKept(ctx, ids, libs, attached)
-	if err != nil {
-		return err
-	}
-	return libraries.Within(ctx, tx, s.lock, s.disk, managed, func(ctx context.Context, changes *libraries.FileChanges) error {
-		usage, err := quotas.UsageOf(ctx, managed.Shared)
-		if err != nil {
-			return err
-		}
-		s.user, s.libs, s.kept, s.usage, s.changes, s.now = user, managed, kept, usage, changes, now
-		return fn(ctx)
-	})
 }
 
 // lockAttached keeps a refresh of the Attached Library from deleting the
@@ -229,30 +194,6 @@ func isShared(ctx context.Context, shared repositories.SharedTracks, trackID uin
 		return false, nil
 	}
 	return err == nil, err
-}
-
-// shareState tells what is shared of the track and of its album, as album
-// lists it.
-func shareState(
-	ctx context.Context,
-	sharedTracks repositories.SharedTracks,
-	track *library.Track,
-	albumTracks []library.Track,
-) (*ShareState, error) {
-	ids := []uint{track.ID}
-	for _, t := range albumTracks {
-		ids = append(ids, t.ID)
-	}
-	shared, err := sharedTracks.SharedSources(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	state := &ShareState{TrackID: track.ID, Shared: shared[track.ID], HasAlbum: !track.Single()}
-	state.AlbumShared = state.HasAlbum
-	for _, t := range albumTracks {
-		state.AlbumShared = state.AlbumShared && shared[t.ID]
-	}
-	return state, nil
 }
 
 func libraryOf(track *library.Track, kept []*library.Library) *library.Library {

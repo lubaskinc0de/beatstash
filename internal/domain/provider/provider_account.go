@@ -8,6 +8,7 @@ package provider
 
 import (
 	"bytes"
+	"errors"
 	"maps"
 	"slices"
 	"time"
@@ -48,6 +49,11 @@ const (
 	// Collection and Mirror are kept, so reconnecting continues Sync and the
 	// Mirror.
 	ProviderAccountDisconnected ProviderAccountStatus = "disconnected"
+)
+
+var (
+	ErrAccountDisconnected = errors.New("provider account is disconnected")
+	ErrTokenRejected       = errors.New("provider rejects the token")
 )
 
 func (a *ProviderAccount) Connect(token []byte) {

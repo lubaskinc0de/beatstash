@@ -52,11 +52,11 @@ func TestReconciliation(t *testing.T) {
 
 	t.Run("tags written by hand take an Inbox Track out of the Inbox", func(t *testing.T) {
 		s := harness.New(t)
-		upload := s.Uploaded(alice, s.UploadAudioFile(audiofile.Generate(t, "audio_1.mp3", audiofile.Spec{})))
+		s.Uploaded(alice, s.UploadAudioFile(audiofile.Generate(t, "audio_1.mp3", audiofile.Spec{})))
 		s.RetagByHand(s.PersonalPath(alice, "Inbox/audio_1.mp3"), map[string]string{"ARTIST": "Hand Artist", "TITLE": "Hand Title"})
 
 		s.Restart()
-		s.Share(alice, upload, s.Catalog(alice).ShareTrack())
+		s.ShareTrack(alice, "Hand Artist — Hand Title")
 
 		assert.Equal(t, []string{"Inbox/audio_1.mp3"}, s.SharedFiles())
 		s.Open(bob, s.Catalog(bob).MusicButton())
@@ -84,8 +84,8 @@ func TestReconciliation(t *testing.T) {
 
 	t.Run("feed sends the file replaced by hand", func(t *testing.T) {
 		s := harness.New(t)
-		upload := s.Uploaded(alice, s.UploadAudioFile(audiofile.Generate(t, "low.mp3", audiofile.Spec{Bitrate: "128k", Tags: audiofile.SongTags})))
-		s.Share(alice, upload, s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, s.UploadAudioFile(audiofile.Generate(t, "low.mp3", audiofile.Spec{Bitrate: "128k", Tags: audiofile.SongTags})))
+		s.ShareTrack(alice, dupSongButton)
 		high := audiofile.Generate(t, "high.mp3", audiofile.Spec{Bitrate: "320k", Tags: audiofile.SongTags})
 		s.WriteByHand(s.PersonalPath(alice, "Artist/Album/01 - Dup Song.mp3"), high)
 
@@ -132,11 +132,11 @@ func TestReconciliation(t *testing.T) {
 
 	t.Run("file renamed by hand stays the same Track", func(t *testing.T) {
 		s := harness.New(t)
-		upload := s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 		s.MoveByHand(s.PersonalPath(alice, audiofile.FixtureTrackPath), s.PersonalPath(alice, "Mine/renamed.mp3"))
 
 		s.Restart()
-		s.Share(alice, upload, s.Catalog(alice).ShareTrack())
+		s.ShareTrack(alice, fixtureButton)
 
 		assert.Equal(t, []string{"Mine/renamed.mp3"}, s.SharedFiles())
 		s.Telegram.Forget()
@@ -149,14 +149,14 @@ func TestReconciliation(t *testing.T) {
 
 	t.Run("shared file renamed in the Personal Library keeps its Share", func(t *testing.T) {
 		s := harness.New(t)
-		upload := s.Uploaded(alice, s.UploadAudio("track.mp3"))
-		s.Share(alice, upload, s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.ShareTrack(alice, fixtureButton)
 		s.MoveByHand(s.PersonalPath(alice, audiofile.FixtureTrackPath), s.PersonalPath(alice, "Mine/renamed.mp3"))
 
 		s.Restart()
-		s.Send(s.ReplyCommand(alice, "/share", upload))
+		s.Open(alice, s.Catalog(alice).MusicButton(), s.Catalog(alice).MineTab(), fixtureButton)
 
-		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), s.Catalog(alice).UnshareTrack())
+		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), s.Catalog(alice).UnshareCardButton())
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.SharedFiles())
 	})
 
@@ -198,7 +198,8 @@ func TestReconciliation(t *testing.T) {
 		s.WriteByHand(s.SharedPath(audiofile.FixtureTrackPath), audiofile.Fixture("track.mp3"))
 
 		s.Restart()
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.ShareTrack(alice, fixtureButton)
 
 		assert.Equal(t, []string{
 			"Fixture Artist/Fixture Album/01 - Fixture Song (2).mp3",
@@ -208,7 +209,8 @@ func TestReconciliation(t *testing.T) {
 
 	t.Run("file removed by hand from the Shared Library leaves the feed and keeps the Takes", func(t *testing.T) {
 		s := harness.New(t)
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.ShareTrack(alice, fixtureButton)
 		s.Take(bob, 1)
 		s.RemoveByHand(s.SharedPath(audiofile.FixtureTrackPath))
 
@@ -222,7 +224,8 @@ func TestReconciliation(t *testing.T) {
 
 	t.Run("Take counts for the author after the taker removes its file by hand", func(t *testing.T) {
 		s := harness.New(t)
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.ShareTrack(alice, fixtureButton)
 		s.Take(bob, 1)
 		s.RemoveByHand(s.PersonalPath(bob, audiofile.FixtureTrackPath))
 
@@ -233,7 +236,8 @@ func TestReconciliation(t *testing.T) {
 
 	t.Run("file removed by hand from the author's Personal Library keeps the Share", func(t *testing.T) {
 		s := harness.New(t)
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.ShareTrack(alice, fixtureButton)
 		s.RemoveByHand(s.PersonalPath(alice, audiofile.FixtureTrackPath))
 
 		s.Restart()

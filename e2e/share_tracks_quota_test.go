@@ -19,7 +19,8 @@ func TestTakeQuota(t *testing.T) {
 		quota := library.Quota(max(ownSize, takenSize) + min(ownSize, takenSize)/2)
 		s := harness.New(t, harness.WithDefaultQuota(quota), harness.WithAdminContact(adminContact))
 		s.Uploaded(bob, s.UploadAudioFile(own))
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.ShareTrack(alice, fixtureButton)
 
 		s.Take(bob, 1)
 
@@ -34,9 +35,9 @@ func TestShareQuota(t *testing.T) {
 
 	t.Run("Share over the Shared Library's Quota is rejected", func(t *testing.T) {
 		s := harness.New(t, harness.WithSharedQuota(20*kb), harness.WithAdminContact(adminContact))
-		upload := s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 
-		s.Share(alice, upload, s.Catalog(alice).ShareTrack())
+		s.ShareTrack(alice, fixtureButton)
 
 		assert.Equal(t, s.Catalog(alice).SharedLibraryFull(adminContact), s.LastCallbackAnswer())
 		assert.Empty(t, s.SharedFiles())
@@ -47,9 +48,9 @@ func TestShareQuota(t *testing.T) {
 			"artist": "Artist", "album": "Album", "track": "1", "title": "Song 1",
 		}})
 		s := harness.New(t, harness.WithSharedQuota(library.Quota(harness.FileSize(t, song)*5/2)))
-		uploads := s.UploadAlbum(alice, "Album", 3)
+		s.UploadAlbum(alice, "Album", 3)
 
-		s.Share(alice, uploads[0], s.Catalog(alice).ShareAlbum())
+		s.ShareAlbum(alice, uploadedAlbum("Album"))
 
 		assert.Equal(t, s.Catalog(alice).SharedLibraryFull(""), s.LastCallbackAnswer())
 		assert.Empty(t, s.SharedFiles())

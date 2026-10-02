@@ -54,11 +54,23 @@ func (r *TrackRepository) SaveTrack(ctx context.Context, track *library.Track) e
 // saveBatch keeps a statement within Postgres' limit of parameters.
 const saveBatch = 500
 
-func (r *TrackRepository) SaveTracks(ctx context.Context, tracks []*library.Track) error {
-	if len(tracks) == 0 {
+// Replace deletes first: a saved Track may take the path of a gone one,
+// and the path is unique in a Library.
+func (r *TrackRepository) Replace(ctx context.Context, save, gone []*library.Track) error {
+	db := dbForContext(ctx, r.DB)
+	if len(gone) > 0 {
+		ids := make([]uint, 0, len(gone))
+		for _, track := range gone {
+			ids = append(ids, track.ID)
+		}
+		if err := db.Delete(&library.Track{}, ids).Error; err != nil {
+			return err
+		}
+	}
+	if len(save) == 0 {
 		return nil
 	}
-	return dbForContext(ctx, r.DB).Clauses(clause.OnConflict{UpdateAll: true}).CreateInBatches(tracks, saveBatch).Error
+	return db.Clauses(clause.OnConflict{UpdateAll: true}).CreateInBatches(save, saveBatch).Error
 }
 
 func (r *TrackRepository) Get(ctx context.Context, id uint) (*library.Track, error) {
@@ -281,13 +293,6 @@ func (r *TrackRepository) Weigh(ctx context.Context, libraryIDs []uint) (map[uin
 		weights[row.LibraryID] = row.Size
 	}
 	return weights, err
-}
-
-func (r *TrackRepository) Delete(ctx context.Context, ids []uint) error {
-	if len(ids) == 0 {
-		return nil
-	}
-	return dbForContext(ctx, r.DB).Delete(&library.Track{}, ids).Error
 }
 
 // sameRecording is the Duplicate rule between the rows a and b: artist,

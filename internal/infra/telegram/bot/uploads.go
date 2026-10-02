@@ -15,7 +15,6 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/trackfile"
 )
 
-// Uploads takes the audio users send.
 type Uploads struct {
 	Telegram      *Telegram
 	EnqueueIngest *add_track.EnqueueIngest

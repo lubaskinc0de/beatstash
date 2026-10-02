@@ -91,7 +91,7 @@ func (n *Navidrome) Create(ctx context.Context, lib *library.Library) error {
 // in or around the bot's folders only the Shared Library goes to new
 // accounts. Attached Libraries are the admin's to set.
 func (n *Navidrome) ShowNewAccountsOnlyShared(ctx context.Context) error {
-	shared, err := n.Libraries.Shared(ctx)
+	shared, err := n.Libraries.Repo.Shared(ctx)
 	if err != nil {
 		return err
 	}

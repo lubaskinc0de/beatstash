@@ -29,7 +29,6 @@ type Handler struct {
 	Feed      *Feed
 	Imports   *Imports
 	Navidrome *Navidrome
-	Sharing   *Sharing
 	Inline    *Inline
 	Uploads   *Uploads
 	Admin     *Admin
@@ -43,7 +42,6 @@ func (h *Handler) Register() {
 	b := h.Telegram.Bot
 	b.RegisterHandlerMatchFunc(hasAudio, h.Uploads.handleAudio)
 	b.RegisterHandlerMatchFunc(isCommand("start"), h.Home.handleStart)
-	b.RegisterHandlerMatchFunc(isCommand("share"), h.Sharing.handleShare)
 	b.RegisterHandlerMatchFunc(isText, h.handleText)
 	b.RegisterHandlerMatchFunc(isInlineQuery, h.Inline.handleInlineQuery)
 	b.RegisterHandlerMatchFunc(isCallbackQuery, h.handleCallbackQuery)

@@ -14,13 +14,12 @@ import (
 )
 
 type LinkNavidromeAccount struct {
-	IDs       common.IDProvider
-	Navidrome navidrome.Client
-	Accounts  *accounts.Navidrome
-	Linked    repositories.NavidromeAccounts
-	Libraries *libraries.Navidrome
-	Attached  repositories.Libraries
-	Tracks    repositories.Tracks
+	IDs                common.IDProvider
+	Navidrome          navidrome.Client
+	Accounts           *accounts.Navidrome
+	NavidromeLibraries *libraries.Navidrome
+	Libraries          repositories.Libraries
+	Tracks             repositories.Tracks
 }
 
 var ErrNavidromeAccountTaken = errors.New("navidrome account is linked to another user")
@@ -41,7 +40,7 @@ func (i *LinkNavidromeAccount) Execute(ctx context.Context, creds navidrome.Cred
 	}
 	// Access narrows before the account counts as linked: a failure must not
 	// leave a linked account that still sees others' Personal Libraries.
-	access, granted := i.Libraries.Grant(ctx, user, creds.Login)
+	access, granted := i.NavidromeLibraries.Grant(ctx, user, creds.Login)
 	if granted != nil && !errors.Is(granted, navidrome.ErrAdminAccount) {
 		return 0, granted
 	}
@@ -53,7 +52,7 @@ func (i *LinkNavidromeAccount) Execute(ctx context.Context, creds navidrome.Cred
 
 // attachedSongCount only logs a failure: the account is linked by then.
 func (i *LinkNavidromeAccount) attachedSongCount(ctx context.Context, access library.NavidromeAccess) int {
-	attached, err := i.Attached.Attached(ctx)
+	attached, err := i.Libraries.Attached(ctx)
 	if err != nil {
 		slog.Error("list_attached_libraries", "error", err)
 		return 0
@@ -71,7 +70,7 @@ func (i *LinkNavidromeAccount) attachedSongCount(ctx context.Context, access lib
 }
 
 func (i *LinkNavidromeAccount) checkFree(ctx context.Context, userID uint, login string) error {
-	linked, err := i.Linked.ByLogin(ctx, login)
+	linked, err := i.Accounts.Repo.ByLogin(ctx, login)
 	switch {
 	case errors.Is(err, repositories.ErrNavidromeAccountNotFound):
 		return nil

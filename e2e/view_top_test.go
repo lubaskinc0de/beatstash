@@ -18,8 +18,10 @@ func TestTop(t *testing.T) {
 
 	t.Run("album counts as its tracks", func(t *testing.T) {
 		s := harness.New(t)
-		s.Share(alice, s.UploadAlbum(alice, "Album", 3)[0], s.Catalog(alice).ShareAlbum())
-		s.Share(bob, s.Uploaded(bob, s.UploadAudio("track.mp3")), s.Catalog(bob).ShareTrack())
+		s.UploadAlbum(alice, "Album", 3)
+		s.ShareAlbum(alice, uploadedAlbum("Album"))
+		s.Uploaded(bob, s.UploadAudio("track.mp3"))
+		s.ShareTrack(bob, fixtureButton)
 
 		top := top(s, alice)
 
@@ -29,8 +31,10 @@ func TestTop(t *testing.T) {
 
 	t.Run("author taken by two users ranks first", func(t *testing.T) {
 		s := harness.New(t)
-		s.Share(bob, s.Uploaded(bob, s.UploadAudioFile(audiofile.Generate(t, "song.mp3", audiofile.Spec{Tags: audiofile.SongTags}))), s.Catalog(bob).ShareTrack())
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
+		s.Uploaded(bob, s.UploadAudioFile(audiofile.Generate(t, "song.mp3", audiofile.Spec{Tags: audiofile.SongTags})))
+		s.ShareTrack(bob, dupSongButton)
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.ShareTrack(alice, fixtureButton)
 		s.Take(bob, 1)
 		s.Take(admin, 1)
 
@@ -41,9 +45,11 @@ func TestTop(t *testing.T) {
 
 	t.Run("last month's Share counts only for all time", func(t *testing.T) {
 		s := harness.New(t)
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.ShareTrack(alice, fixtureButton)
 		s.Clock.Advance(32 * 24 * time.Hour)
-		s.Share(bob, s.Uploaded(bob, s.UploadAudioFile(audiofile.Generate(t, "song.mp3", audiofile.Spec{Tags: audiofile.SongTags}))), s.Catalog(bob).ShareTrack())
+		s.Uploaded(bob, s.UploadAudioFile(audiofile.Generate(t, "song.mp3", audiofile.Spec{Tags: audiofile.SongTags})))
+		s.ShareTrack(bob, dupSongButton)
 
 		top := top(s, alice)
 
@@ -53,7 +59,8 @@ func TestTop(t *testing.T) {
 
 	t.Run("taking one's own Share does not count", func(t *testing.T) {
 		s := harness.New(t)
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.ShareTrack(alice, fixtureButton)
 
 		s.OpenShared(alice, 1)
 		s.Go(alice, s.Catalog(alice).InLibraryButton())
@@ -64,7 +71,8 @@ func TestTop(t *testing.T) {
 	t.Run("upload of a shared file does not count as Take", func(t *testing.T) {
 		s := harness.New(t)
 		audio := s.UploadAudio("track.mp3")
-		s.Share(alice, s.Uploaded(alice, audio), s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, audio)
+		s.ShareTrack(alice, fixtureButton)
 
 		s.Uploaded(bob, audio)
 
@@ -73,7 +81,8 @@ func TestTop(t *testing.T) {
 
 	t.Run("inline top is ready to send", func(t *testing.T) {
 		s := harness.New(t)
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.ShareTrack(alice, fixtureButton)
 		query := s.InlineQuery(bob, "top")
 
 		s.Send(query)

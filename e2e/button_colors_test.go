@@ -21,7 +21,8 @@ func TestButtonColors(t *testing.T) {
 
 	t.Run("take is green", func(t *testing.T) {
 		s := harness.New(t)
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.ShareTrack(alice, fixtureButton)
 
 		s.OpenShared(bob, 1)
 

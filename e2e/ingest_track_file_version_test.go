@@ -21,7 +21,7 @@ func TestTrackFileVersion(t *testing.T) {
 		replaced := s.DocumentMessage(alice, flac)
 		s.Send(replaced)
 		s.WaitIngest()
-		s.Share(alice, replaced, s.Catalog(alice).ShareTrack())
+		s.ShareTrack(alice, dupSongButton)
 		query := s.InlineQuery(bob, "shared")
 
 		s.Send(query)
@@ -36,7 +36,7 @@ func TestTrackFileVersion(t *testing.T) {
 		s.Send(stored)
 		s.WaitIngest()
 		s.Uploaded(alice, s.UploadAudioFile(audiofile.Generate(t, "song.mp3", audiofile.Spec{Bitrate: "320k", Tags: audiofile.SongTags})))
-		s.Share(alice, stored, s.Catalog(alice).ShareTrack())
+		s.ShareTrack(alice, dupSongButton)
 		query := s.InlineQuery(bob, "shared")
 
 		s.Send(query)

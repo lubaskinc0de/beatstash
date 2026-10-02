@@ -23,7 +23,6 @@ type GetTrackListenLink struct {
 	IDs         common.IDProvider
 	Tracks      repositories.Tracks
 	Links       repositories.ListenLinks
-	LibraryRepo repositories.Libraries
 	Libraries   *libraries.Libraries
 	Attached    *libraries.Attached
 	ListenLinks *listening.ListenLinks
@@ -45,7 +44,7 @@ func (i *GetTrackListenLink) Execute(ctx context.Context, trackID uint) (*TrackL
 	if err != nil {
 		return found, err
 	}
-	songID, err := songOf(ctx, i.Tracks, i.LibraryRepo, i.Navidrome, i.Admin, track)
+	songID, err := songOf(ctx, i.Tracks, i.Libraries.Repo, i.Navidrome, i.Admin, track)
 	if err != nil {
 		return found, err
 	}

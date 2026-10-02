@@ -6,6 +6,7 @@
 package sharing
 
 import (
+	"errors"
 	"slices"
 	"time"
 
@@ -38,6 +39,8 @@ type Share struct {
 
 	CreatedAt time.Time `gorm:"not null"`
 }
+
+var ErrNotShared = errors.New("track is not in the Shared Library")
 
 // NewSharedTrack is the first Share of a track: its file was copied to the
 // Shared Library, and the Share counts in the Top.

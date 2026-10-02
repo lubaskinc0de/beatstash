@@ -37,7 +37,6 @@ func ResultTitle(artist, title string) string {
 	return "🎧 " + artist + " — " + title
 }
 
-// TrackCaption is how a sent track is captioned.
 func TrackCaption(artist, title string) string {
 	return "🎧 " + trackLine(artist, title)
 }

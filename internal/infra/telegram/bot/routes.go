@@ -61,7 +61,7 @@ func (h *Handler) handleCallbackQuery(ctx context.Context, _ *bot.Bot, update *m
 		}
 	}
 	action, trackID, ok := parseCallback(query.Data)
-	if handle := h.trackAction(action); ok && handle != nil {
+	if handle := h.feedAction(action); ok && handle != nil {
 		handle(ctx, query, trackID)
 		return
 	}
@@ -98,17 +98,9 @@ func (h *Handler) windowAction(action string) func(context.Context, windowCallba
 	}
 }
 
-// trackAction returns nil for a button that is not about a Track.
-func (h *Handler) trackAction(action string) func(context.Context, *models.CallbackQuery, uint) {
+// feedAction returns nil for a button that is not the feed's.
+func (h *Handler) feedAction(action string) func(context.Context, *models.CallbackQuery, uint) {
 	switch action {
-	case actionShareTrack:
-		return h.Sharing.shareTrack
-	case actionShareAlbum:
-		return h.Sharing.shareAlbum
-	case actionUnshareTrack:
-		return h.Sharing.unshareTrack
-	case actionUnshareAlbum:
-		return h.Sharing.unshareAlbum
 	case actionTake:
 		return h.Feed.handleTake
 	case actionSendFile:

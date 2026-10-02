@@ -9,7 +9,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 )
 
-// NavidromeAccounts keeps Navidrome Account passwords sealed at rest.
+// Navidrome keeps Navidrome Account passwords sealed at rest.
 type Navidrome struct {
 	Repo repositories.NavidromeAccounts
 	Box  common.SecretBox

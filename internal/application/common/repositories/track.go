@@ -21,8 +21,8 @@ type Tracks interface {
 	FindByMetadata(ctx context.Context, libraryIDs []uint, ms []library.Metadata) ([]*library.Track, error)
 	// SaveTrack saves the Track's new Sources along with it.
 	SaveTrack(ctx context.Context, track *library.Track) error
-	// SaveTracks saves many Tracks in a few statements.
-	SaveTracks(ctx context.Context, tracks []*library.Track) error
+	// Replace saves the Tracks and deletes the gone ones in a few statements.
+	Replace(ctx context.Context, save, gone []*library.Track) error
 	Get(ctx context.Context, id uint) (*library.Track, error)
 	// GetMany leaves out the Tracks that are gone.
 	GetMany(ctx context.Context, ids []uint) ([]library.Track, error)
@@ -65,7 +65,6 @@ type Tracks interface {
 	CountIn(ctx context.Context, libraryIDs []uint) (int64, error)
 	// Weigh maps each of the libraries to the sum of its Tracks' sizes.
 	Weigh(ctx context.Context, libraryIDs []uint) (map[uint]int64, error)
-	Delete(ctx context.Context, ids []uint) error
 }
 
 // AlbumSummary stands for an Album by one of its Tracks, TrackID.

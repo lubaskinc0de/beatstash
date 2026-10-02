@@ -99,7 +99,6 @@ func worthRetry(err error) error {
 	return err
 }
 
-// RefreshImports redraws the windows on the Imports whose text changed.
 func (ch *Chats) RefreshImports(ctx context.Context) error {
 	chatIDs, err := ch.Telegram.Windows.On(ctx, string(screenImports))
 	if err != nil || len(chatIDs) == 0 {

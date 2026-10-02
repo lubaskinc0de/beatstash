@@ -26,7 +26,7 @@ type SyncCollection struct {
 	Accounts  repositories.ProviderAccounts
 	Providers *providers.Registry
 	Queue     repositories.IngestQueue
-	BatchRepo repositories.IngestBatches
+	Batches   repositories.IngestBatches
 	Waker     common.Waker
 	Interval  time.Duration
 	Clock     func() time.Time
@@ -62,7 +62,7 @@ func (i *SyncCollection) syncIfDue(ctx context.Context, account *provider.Provid
 	if !account.SyncDue(i.Clock(), i.Interval) {
 		return nil
 	}
-	running, err := i.BatchRepo.Running(ctx, account.UserID, account.Provider, ingest.IngestBatchImport)
+	running, err := i.Batches.Running(ctx, account.UserID, account.Provider, ingest.IngestBatchImport)
 	if err != nil || running {
 		return err
 	}
@@ -104,7 +104,7 @@ func (i *SyncCollection) try(ctx context.Context, account *provider.ProviderAcco
 }
 
 func (i *SyncCollection) remember(ctx context.Context, userID uint, providerName provider.ProviderName, collection *providers.Collection) error {
-	account, err := accounts.LockIdle(ctx, i.Accounts, i.BatchRepo, userID, providerName)
+	account, err := accounts.LockIdle(ctx, i.Accounts, i.Batches, userID, providerName)
 	if errors.Is(err, accounts.ErrBatchRunning) {
 		return nil
 	}

@@ -20,7 +20,6 @@ func NewFileChanges(disk common.Disk) *FileChanges {
 	return &FileChanges{disk: disk}
 }
 
-// Place moves the staged file to target.
 func (c *FileChanges) Place(staged, target string) error {
 	if err := c.disk.Place(staged, target); err != nil {
 		return err
@@ -29,7 +28,6 @@ func (c *FileChanges) Place(staged, target string) error {
 	return nil
 }
 
-// Link hardlinks from to target.
 func (c *FileChanges) Link(from, target string) error {
 	if err := c.disk.Link(from, target); err != nil {
 		return err

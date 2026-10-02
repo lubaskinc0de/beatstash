@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
@@ -71,8 +70,6 @@ func (i *AttachLibraries) Execute(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-// detach takes the libraries gone from Navidrome off the bot's books, with
-// their Tracks.
 func (i *AttachLibraries) detach(ctx context.Context, ids []uint) error {
 	if len(ids) == 0 {
 		return nil
@@ -114,7 +111,7 @@ func (i *AttachLibraries) attach(ctx context.Context, lib *library.Library, nd n
 			indexed = append(indexed, songOf(song))
 		}
 		save, gone := lib.Follow(tracks, indexed)
-		return libraries.ReplaceTracks(ctx, i.Tracks, save, gone)
+		return i.Tracks.Replace(ctx, save, gone)
 	})
 }
 

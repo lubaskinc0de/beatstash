@@ -17,13 +17,12 @@ import (
 
 var navidromeLoginPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{3,32}$`)
 
-// RegisterNavidromeAccount creates a Navidrome Account for a User who has none.
 type RegisterNavidromeAccount struct {
-	IDs       common.IDProvider
-	Navidrome navidrome.Client
-	Accounts  *accounts.Navidrome
-	Libraries *libraries.Navidrome
-	Admin     navidrome.Credentials
+	IDs                common.IDProvider
+	Navidrome          navidrome.Client
+	Accounts           *accounts.Navidrome
+	NavidromeLibraries *libraries.Navidrome
+	Admin              navidrome.Credentials
 }
 
 var (
@@ -59,7 +58,7 @@ func (i *RegisterNavidromeAccount) register(ctx context.Context, user *access.Us
 		return navidrome.Credentials{}, err
 	}
 	// The account already exists: failing here would strand it, and the next start grants again.
-	if _, err := i.Libraries.Grant(ctx, user, creds.Login); err != nil {
+	if _, err := i.NavidromeLibraries.Grant(ctx, user, creds.Login); err != nil {
 		slog.Error("grant_navidrome_libraries", "user_id", user.ID, "error", err)
 	}
 	return creds, nil

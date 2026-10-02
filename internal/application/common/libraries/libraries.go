@@ -10,18 +10,19 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
-// Libraries creates a library's row and directory on first use.
+// Libraries are created, row and directory, when the server starts and when
+// a User joins; every other request finds them there.
 type Libraries struct {
 	Repo     repositories.Libraries
 	Disk     common.Disk
 	MusicDir string
 }
 
-func (l *Libraries) Shared(ctx context.Context) (*library.Library, error) {
+func (l *Libraries) EnsureShared(ctx context.Context) (*library.Library, error) {
 	return l.ensure(ctx, library.SharedLibrary())
 }
 
-func (l *Libraries) Personal(ctx context.Context, owner *access.User) (*library.Library, error) {
+func (l *Libraries) EnsurePersonal(ctx context.Context, owner *access.User) (*library.Library, error) {
 	return l.ensure(ctx, library.PersonalLibrary(owner))
 }
 
@@ -39,14 +40,12 @@ func (l *Libraries) FilePath(ctx context.Context, track *library.Track) (string,
 	return TrackPath(ctx, l.Repo, l.MusicDir, track)
 }
 
-// Of returns the user's Personal Library and the Shared Library, creating
-// either one (row and directory) if it does not exist yet.
 func (l *Libraries) Of(ctx context.Context, user *access.User) (ManagedLibraries, error) {
-	personal, err := l.Personal(ctx, user)
+	personal, err := l.Repo.Personal(ctx, user.ID)
 	if err != nil {
 		return ManagedLibraries{}, err
 	}
-	shared, err := l.Shared(ctx)
+	shared, err := l.Repo.Shared(ctx)
 	if err != nil {
 		return ManagedLibraries{}, err
 	}
@@ -76,27 +75,17 @@ func (u ManagedLibraries) IDs() []uint {
 	return []uint{u.Personal.ID, u.Shared.ID}
 }
 
-func CurrentManaged(ctx context.Context, ids common.IDProvider, libraries *Libraries) (*access.User, ManagedLibraries, error) {
-	user, err := ids.CurrentUser(ctx)
-	if err != nil {
-		return nil, ManagedLibraries{}, err
-	}
-	libs, err := libraries.Of(ctx, user)
-	if err != nil {
-		return nil, ManagedLibraries{}, err
-	}
-	return user, libs, nil
-}
-
-// CurrentKept also returns the user's Kept Libraries. It calls Navidrome, so
-// use CurrentManaged when they are not needed.
 func CurrentKept(
 	ctx context.Context,
 	ids common.IDProvider,
 	libraries *Libraries,
 	attached *Attached,
 ) (*access.User, ManagedLibraries, []*library.Library, error) {
-	user, libs, err := CurrentManaged(ctx, ids, libraries)
+	user, err := ids.CurrentUser(ctx)
+	if err != nil {
+		return nil, ManagedLibraries{}, nil, err
+	}
+	libs, err := libraries.Of(ctx, user)
 	if err != nil {
 		return nil, ManagedLibraries{}, nil, err
 	}

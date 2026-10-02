@@ -14,7 +14,6 @@ type IngestQueue interface {
 	// GetOf leaves out the jobs that are not the user's.
 	GetOf(ctx context.Context, userID uint, ids []uint) ([]ingest.IngestJob, error)
 	CountUnfinished(ctx context.Context) (int64, error)
-	// BatchProgress maps each batch to its progress.
 	BatchProgress(ctx context.Context, batchIDs []uint) (map[uint]BatchProgress, error)
 	// Failures maps each batch to its failed jobs, oldest first.
 	Failures(ctx context.Context, batchIDs []uint) (map[uint][]Failure, error)

@@ -29,7 +29,7 @@ type RecentlyPlayed struct {
 type GetRecentlyPlayed struct {
 	IDs         common.IDProvider
 	Client      navidrome.Client
-	Repo        repositories.Tracks
+	Tracks      repositories.Tracks
 	Accounts    *accounts.Navidrome
 	Libraries   *libraries.Libraries
 	Attached    *libraries.Attached
@@ -55,7 +55,6 @@ func (i *GetRecentlyPlayed) Execute(
 
 	played, err := i.Client.RecentlyPlayed(ctx, creds, limit)
 	if err != nil {
-		slog.Error("Cannot get recently played", "error", err)
 		return nil, err
 	}
 
@@ -68,7 +67,7 @@ func (i *GetRecentlyPlayed) Execute(
 	for _, p := range played {
 		songs = append(songs, p.Track)
 	}
-	found, err := findTracks(ctx, i.Repo, libs.IDs(), attached, songs)
+	found, err := findTracks(ctx, i.Tracks, libs.IDs(), attached, songs)
 	if err != nil {
 		slog.Error("find_track", "error", err)
 		found = make([]*library.Track, len(played))

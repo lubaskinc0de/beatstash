@@ -65,13 +65,13 @@ func TestZvukTracks(t *testing.T) {
 		s.AddZvukSong("103", "Better Song", true)
 		s.LikeOnZvuk("103")
 		audio := s.UploadAudioFile(betterSongMP3(t))
-		upload := s.Uploaded(alice, audio)
+		s.Uploaded(alice, audio)
 
 		s.ImportZvuk(alice)
 		s.WaitIngest()
 
 		assert.Equal(t, []string{"Zvuk Band/Zvuk Album/01 - Better Song.flac"}, s.PersonalFiles(alice))
-		s.Share(alice, upload, s.Catalog(alice).ShareTrack())
+		s.ShareTrack(alice, "Zvuk Band — Better Song")
 		query := s.InlineQuery(bob, "shared")
 
 		s.Send(query)

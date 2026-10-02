@@ -29,17 +29,26 @@ type ShareAlbum struct {
 }
 
 func (i *ShareAlbum) Execute(ctx context.Context, trackID uint) (*ShareResult, error) {
-	result := &ShareResult{}
-	s := &sharer{
-		tracks: i.Tracks, shared: i.Shared, lock: i.Lock, disk: i.Disk,
-		navidrome: i.Navidrome, admin: i.Admin, musicDir: i.MusicDir,
+	user, libs, kept, err := libraries.CurrentKept(ctx, i.IDs, i.Libraries, i.Attached)
+	if err != nil {
+		return nil, err
 	}
-	err := s.within(ctx, i.IDs, i.Libraries, i.Attached, i.Tx, i.Quotas, i.Clock(), func(ctx context.Context) error {
-		track, err := keptTrack(ctx, i.Tracks, s.kept, trackID)
+	result := &ShareResult{}
+	err = libraries.Within(ctx, i.Tx, i.Lock, i.Disk, libs, func(ctx context.Context, changes *libraries.FileChanges) error {
+		usage, err := i.Quotas.UsageOf(ctx, libs.Shared)
 		if err != nil {
 			return err
 		}
-		albumTracks, err := album(ctx, i.Tracks, s.kept, track)
+		s := &sharer{
+			tracks: i.Tracks, shared: i.Shared, lock: i.Lock, disk: i.Disk,
+			navidrome: i.Navidrome, admin: i.Admin, musicDir: i.MusicDir,
+			user: user, libs: libs, kept: kept, usage: usage, changes: changes, now: i.Clock(),
+		}
+		track, err := keptTrack(ctx, i.Tracks, kept, trackID)
+		if err != nil {
+			return err
+		}
+		albumTracks, err := album(ctx, i.Tracks, kept, track)
 		if err != nil {
 			return err
 		}
@@ -52,8 +61,7 @@ func (i *ShareAlbum) Execute(ctx context.Context, trackID uint) (*ShareResult, e
 				return err
 			}
 		}
-		result.State, err = shareState(ctx, i.Shared, track, albumTracks)
-		return err
+		return nil
 	})
 	return result, err
 }

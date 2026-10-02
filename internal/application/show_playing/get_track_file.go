@@ -11,7 +11,7 @@ import (
 
 type GetTrackFile struct {
 	IDs       common.IDProvider
-	Repo      repositories.Tracks
+	Tracks    repositories.Tracks
 	Libraries *libraries.Libraries
 	Attached  *libraries.Attached
 }
@@ -21,7 +21,7 @@ func (i *GetTrackFile) Execute(ctx context.Context, trackID uint) (*library.Trac
 	if err != nil {
 		return nil, "", err
 	}
-	track, err := i.Repo.Get(ctx, trackID)
+	track, err := i.Tracks.Get(ctx, trackID)
 	if err != nil {
 		return nil, "", err
 	}

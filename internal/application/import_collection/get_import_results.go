@@ -21,7 +21,6 @@ type ImportResult struct {
 	OverQuota   int
 }
 
-// GetImportResults tells the User how their Imports went.
 type GetImportResults struct {
 	IDs     common.IDProvider
 	Queue   repositories.IngestQueue

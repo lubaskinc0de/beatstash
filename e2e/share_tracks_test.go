@@ -4,11 +4,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/share_tracks"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 )
@@ -19,38 +17,21 @@ func TestShare(t *testing.T) {
 	t.Run("shared track is found by another user", func(t *testing.T) {
 		s := harness.New(t)
 		bobAccount := s.LinkNewAccount(bob)
-		upload := s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 
-		s.Share(alice, upload, s.Catalog(alice).ShareTrack())
+		s.ShareTrack(alice, fixtureButton)
 
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.SharedFiles())
 		s.Navidrome.IndexedTrack(t, bobAccount, s.Library, audiofile.FixtureTitle)
-		c := s.Catalog(alice)
-		assert.Contains(t, s.LastCallbackAnswer(), c.ShareResult(&share_tracks.ShareResult{Created: 1}))
-		assert.Equal(t, []string{c.UnshareTrack(), c.UnshareAlbum()}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
-	})
-
-	t.Run("shared album puts all its tracks into the Shared Library", func(t *testing.T) {
-		s := harness.New(t)
-		uploads := s.UploadAlbum(alice, "Album", 3)
-
-		s.Share(alice, uploads[0], s.Catalog(alice).ShareAlbum())
-
-		assert.Equal(t, []string{
-			"Artist/Album/01 - Song 1.mp3",
-			"Artist/Album/02 - Song 2.mp3",
-			"Artist/Album/03 - Song 3.mp3",
-		}, s.SharedFiles())
-		c := s.Catalog(alice)
-		assert.Equal(t, []string{c.UnshareTrack(), c.UnshareAlbum()}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
+		assert.Contains(t, s.LastCallbackAnswer(), s.Catalog(alice).ShareResult(&share_tracks.ShareResult{Created: 1}))
 	})
 
 	t.Run("unsharing an album removes its tracks from the Shared Library", func(t *testing.T) {
 		s := harness.New(t)
-		uploads := s.UploadAlbum(alice, "Album", 3)
-		s.Share(alice, uploads[1], s.Catalog(alice).ShareAlbum())
+		s.UploadAlbum(alice, "Album", 3)
+		s.ShareAlbum(alice, uploadedAlbum("Album"))
 
-		s.Press(alice, s.Button(s.Catalog(alice).UnshareAlbum()))
+		s.UnshareAlbum(alice, uploadedAlbum("Album"))
 
 		assert.Empty(t, s.SharedFiles())
 		assert.Equal(t, []string{
@@ -58,19 +39,16 @@ func TestShare(t *testing.T) {
 			"Artist/Album/02 - Song 2.mp3",
 			"Artist/Album/03 - Song 3.mp3",
 		}, s.PersonalFiles(alice))
-		c := s.Catalog(alice)
-		assert.Equal(t, []string{c.ShareTrack(), c.ShareAlbum()}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
 	})
 
 	t.Run("unsharing an album keeps a track shared by another user", func(t *testing.T) {
 		s := harness.New(t)
-		aliceAlbum := s.UploadAlbum(alice, "Album", 3)
-		s.Share(alice, aliceAlbum[0], s.Catalog(alice).ShareAlbum())
-		unshareAlbum := s.Button(s.Catalog(alice).UnshareAlbum())
-		bobAlbum := s.UploadAlbum(bob, "Album", 3)
-		s.Share(bob, bobAlbum[0], s.Catalog(bob).ShareTrack())
+		s.UploadAlbum(alice, "Album", 3)
+		s.ShareAlbum(alice, uploadedAlbum("Album"))
+		s.UploadAlbum(bob, "Album", 3)
+		s.ShareTrack(bob, "Artist — Song 1")
 
-		s.Press(alice, unshareAlbum)
+		s.UnshareAlbum(alice, uploadedAlbum("Album"))
 
 		assert.Equal(t, []string{"Artist/Album/01 - Song 1.mp3"}, s.SharedFiles())
 		assert.Equal(t, []string{
@@ -87,11 +65,11 @@ func TestShare(t *testing.T) {
 
 	t.Run("sharing an album reports tracks already shared by another user", func(t *testing.T) {
 		s := harness.New(t)
-		bobAlbum := s.UploadAlbum(bob, "Album", 3)
-		s.Share(bob, bobAlbum[1], s.Catalog(bob).ShareTrack())
-		aliceAlbum := s.UploadAlbum(alice, "Album", 3)
+		s.UploadAlbum(bob, "Album", 3)
+		s.ShareTrack(bob, "Artist — Song 2")
+		s.UploadAlbum(alice, "Album", 3)
 
-		s.Share(alice, aliceAlbum[0], s.Catalog(alice).ShareAlbum())
+		s.ShareAlbum(alice, uploadedAlbum("Album"))
 
 		assert.Contains(t, s.LastCallbackAnswer(), s.Catalog(alice).ShareResult(&share_tracks.ShareResult{Created: 2, AlreadyShared: 1}))
 		assert.Equal(t, []string{
@@ -104,26 +82,25 @@ func TestShare(t *testing.T) {
 	t.Run("unshared track disappears for others", func(t *testing.T) {
 		s := harness.New(t)
 		bobAccount := s.LinkNewAccount(bob)
-		upload := s.Uploaded(alice, s.UploadAudio("track.mp3"))
-		s.Share(alice, upload, s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.ShareTrack(alice, fixtureButton)
 		s.Navidrome.IndexedTrack(t, bobAccount, s.Library, audiofile.FixtureTitle)
 
-		s.Press(alice, s.Button(s.Catalog(alice).UnshareTrack()))
+		s.UnshareTrack(alice, fixtureButton)
 
 		assert.Empty(t, s.SharedFiles())
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.PersonalFiles(alice))
 		s.Navidrome.UntilGone(t, bobAccount, s.Library, audiofile.FixtureTitle)
-		c := s.Catalog(alice)
-		assert.Equal(t, []string{c.ShareTrack(), c.ShareAlbum()}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
 	})
 
 	t.Run("second sharer learns who shared first", func(t *testing.T) {
 		s := harness.New(t)
 		mp3 := audiofile.Generate(t, "song.mp3", audiofile.Spec{Tags: audiofile.SongTags})
-		s.Share(alice, s.Uploaded(alice, s.UploadAudioFile(mp3)), s.Catalog(alice).ShareTrack())
-		bobUpload := s.Uploaded(bob, s.UploadAudioFile(mp3))
+		s.Uploaded(alice, s.UploadAudioFile(mp3))
+		s.ShareTrack(alice, dupSongButton)
+		s.Uploaded(bob, s.UploadAudioFile(mp3))
 
-		s.Share(bob, bobUpload, s.Catalog(bob).ShareTrack())
+		s.ShareTrack(bob, dupSongButton)
 
 		assert.Contains(t, s.LastCallbackAnswer(), s.Catalog(bob).ShareResult(&share_tracks.ShareResult{
 			AlreadyShared: 1, Author: &access.User{Username: alice.Username},
@@ -134,37 +111,36 @@ func TestShare(t *testing.T) {
 	t.Run("track stays shared while its second sharer keeps it", func(t *testing.T) {
 		s := harness.New(t)
 		mp3 := audiofile.Generate(t, "song.mp3", audiofile.Spec{Tags: audiofile.SongTags})
-		s.Share(alice, s.Uploaded(alice, s.UploadAudioFile(mp3)), s.Catalog(alice).ShareTrack())
-		aliceButtons := s.Telegram.Buttons(t)
-		s.Share(bob, s.Uploaded(bob, s.UploadAudioFile(mp3)), s.Catalog(bob).ShareTrack())
+		s.Uploaded(alice, s.UploadAudioFile(mp3))
+		s.ShareTrack(alice, dupSongButton)
+		s.Uploaded(bob, s.UploadAudioFile(mp3))
+		s.ShareTrack(bob, dupSongButton)
 
-		s.Press(alice, telegram.ButtonNamed(t, aliceButtons, s.Catalog(alice).UnshareTrack()))
+		s.UnshareTrack(alice, dupSongButton)
 
 		assert.Equal(t, []string{"Artist/Album/01 - Dup Song.mp3"}, s.SharedFiles())
 	})
 
-	t.Run("Inbox track cannot be shared", func(t *testing.T) {
+	t.Run("Inbox track goes by its file name and cannot be shared", func(t *testing.T) {
 		s := harness.New(t)
-		upload := s.Uploaded(alice, s.UploadAudioFile(audiofile.Generate(t, "audio_1.mp3", audiofile.Spec{})))
+		s.Uploaded(alice, s.UploadAudioFile(audiofile.Generate(t, "audio_1.mp3", audiofile.Spec{})))
 
-		s.Send(s.ReplyCommand(alice, "/share", upload))
+		s.ShareTrack(alice, "audio_1.mp3")
 
-		assert.Contains(t, s.LastReply().Text, s.Catalog(alice).InboxNotShareable())
-		assert.Empty(t, s.Telegram.Buttons(t))
+		assert.Contains(t, s.WindowText(), "🎧 audio_1.mp3")
+		assert.Equal(t, s.Catalog(alice).InboxNotShareable(), s.LastCallbackAnswer())
 		assert.Empty(t, s.SharedFiles())
 	})
 
-	t.Run("share without own audio explains how to use it", func(t *testing.T) {
+	t.Run("share command is gone", func(t *testing.T) {
 		s := harness.New(t)
-		bobUpload := s.Uploaded(bob, s.UploadAudio("track.mp3"))
+		upload := s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.Telegram.Forget()
+		share := s.ReplyCommand(alice, "/share", upload)
 
-		s.Send(s.TextMessage(alice, "/share"))
-		s.Send(s.ReplyCommand(alice, "/share", bobUpload))
+		s.Send(share)
 
-		replies := s.Telegram.Replies(t)
-		require.Len(t, replies, 2)
-		assert.Contains(t, replies[0].Text, s.Catalog(alice).ShareUsage())
-		assert.Contains(t, replies[1].Text, s.Catalog(alice).ShareUsage())
-		assert.Empty(t, s.Telegram.Buttons(t))
+		assertOnlyDeleted(t, s, share)
+		assert.Empty(t, s.SharedFiles())
 	})
 }

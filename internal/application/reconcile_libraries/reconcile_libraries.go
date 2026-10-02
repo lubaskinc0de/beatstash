@@ -81,7 +81,7 @@ func (i *ReconcileLibraries) reconcile(ctx context.Context, lib *library.Library
 		if plan.Empty() {
 			return nil
 		}
-		if err := libraries.ReplaceTracks(ctx, i.Tracks, plan.Save, plan.Delete); err != nil {
+		if err := i.Tracks.Replace(ctx, plan.Save, plan.Delete); err != nil {
 			return err
 		}
 		slog.Info("library_reconciled", "library_id", lib.ID, "saved", len(plan.Save), "deleted", len(plan.Delete))

@@ -18,10 +18,7 @@ type Invite struct {
 	UsedAt    *time.Time
 }
 
-var (
-	ErrNotAdmin      = errors.New("not an admin")
-	ErrInviteInvalid = errors.New("invite is unknown, used or expired")
-)
+var ErrInviteInvalid = errors.New("invite is unknown, used or expired")
 
 func NewInvite(code string, creator *User, now time.Time, ttl time.Duration) (*Invite, error) {
 	if err := creator.RequireAdmin(); err != nil {

@@ -206,6 +206,6 @@ func sharedZvukSong(t *testing.T, s *harness.Scenario, user harness.User, title 
 	t.Helper()
 
 	importZvukSong(s, user, title)
-	s.ShareOnScreen(user, "Zvuk Band — "+title)
+	s.ShareTrack(user, "Zvuk Band — "+title)
 	require.Len(t, s.SharedFiles(), 1)
 }

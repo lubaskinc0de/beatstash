@@ -261,13 +261,6 @@ func (s *Scenario) LastCallbackAnswer() string {
 	return answers[len(answers)-1]
 }
 
-// BotAudio is the audio the bot sent to the user, as the user's client shows it.
-func (s *Scenario) BotAudio(to User, audio models.Audio) *models.Update {
-	update := s.AudioMessage(to, audio)
-	update.Message.From = &models.User{ID: 123456, IsBot: true, Username: telegram.BotUsername}
-	return update
-}
-
 func (s *Scenario) SentMessagesContaining(to User, text string) []string {
 	chatID := strconv.FormatInt(to.ID, 10)
 	var texts []string

@@ -160,5 +160,5 @@ type windowInput struct {
 
 // isText takes unknown commands too: they are deleted like any text.
 func isText(update *models.Update) bool {
-	return update.Message != nil && update.Message.Text != "" && !isCommand("start")(update) && !isCommand("share")(update)
+	return update.Message != nil && update.Message.Text != "" && !isCommand("start")(update)
 }

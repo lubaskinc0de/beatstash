@@ -3,15 +3,37 @@ package harness
 import (
 	"slices"
 
-	"github.com/go-telegram/bot/models"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 )
 
-// Share answers the upload with /Share and presses the named button.
-func (s *Scenario) Share(from User, upload *models.Update, name string) {
+// ShareTrack shares the user's track from its card; track is its button,
+// "Artist — Title".
+func (s *Scenario) ShareTrack(user User, track string) {
 	s.t.Helper()
 
-	s.Send(s.ReplyCommand(from, "/share", upload))
-	s.Press(from, s.Button(name))
+	c := s.Catalog(user)
+	s.Open(user, c.MusicButton(), c.MineTab(), track, c.ShareCardButton())
+}
+
+func (s *Scenario) UnshareTrack(user User, track string) {
+	s.t.Helper()
+
+	c := s.Catalog(user)
+	s.Open(user, c.MusicButton(), c.MineTab(), track, c.UnshareCardButton())
+}
+
+func (s *Scenario) ShareAlbum(user User, album repositories.AlbumSummary) {
+	s.t.Helper()
+
+	c := s.Catalog(user)
+	s.Open(user, c.MusicButton(), c.MineTab(), c.AlbumsMode(), c.OwnAlbumButton(album), c.ShareAlbumButton())
+}
+
+func (s *Scenario) UnshareAlbum(user User, album repositories.AlbumSummary) {
+	s.t.Helper()
+
+	c := s.Catalog(user)
+	s.Open(user, c.MusicButton(), c.MineTab(), c.AlbumsMode(), c.OwnAlbumButton(album), c.UnshareAlbumButton())
 }
 
 // Take presses "Take" on the card of the n-th Share of the feed.
@@ -40,11 +62,4 @@ func (s *Scenario) OpenShared(user User, n int) {
 		}
 	}
 	s.t.Fatalf("the feed has no Share #%d", n)
-}
-
-func (s *Scenario) ShareOnScreen(user User, track string) {
-	s.t.Helper()
-
-	c := s.Catalog(user)
-	s.Open(user, c.MusicButton(), c.MineTab(), track, c.ShareCardButton())
 }

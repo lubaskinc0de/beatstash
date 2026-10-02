@@ -65,7 +65,8 @@ func TestServerQuotas(t *testing.T) {
 		s.Open(admin, c.AdminButton(), c.QuotasButton(), c.EditSharedQuota())
 		s.SendText(admin, "20 KB")
 
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.ShareTrack(alice, fixtureButton)
 
 		assert.Equal(t, s.Catalog(alice).SharedLibraryFull(""), s.LastCallbackAnswer())
 		assert.Empty(t, s.SharedFiles())

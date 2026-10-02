@@ -14,7 +14,8 @@ func TestMusic(t *testing.T) {
 
 	t.Run("music opens on the shared tab", func(t *testing.T) {
 		s := harness.New(t)
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.ShareTrack(alice, fixtureButton)
 
 		s.Open(bob, s.Catalog(bob).MusicButton())
 
@@ -27,7 +28,8 @@ func TestMusic(t *testing.T) {
 
 	t.Run("shared track opens its card", func(t *testing.T) {
 		s := harness.New(t)
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.ShareTrack(alice, fixtureButton)
 
 		s.Open(bob, s.Catalog(bob).MusicButton(), fixtureButton)
 
@@ -38,7 +40,8 @@ func TestMusic(t *testing.T) {
 
 	t.Run("card leads back to the shared tab", func(t *testing.T) {
 		s := harness.New(t)
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
+		s.Uploaded(alice, s.UploadAudio("track.mp3"))
+		s.ShareTrack(alice, fixtureButton)
 
 		s.Open(bob, s.Catalog(bob).MusicButton(), fixtureButton, s.Catalog(bob).Back())
 

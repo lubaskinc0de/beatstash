@@ -184,7 +184,8 @@ func TestAttachedLibraryDuplicates(t *testing.T) {
 	t.Run("Take of a track the attached library has says it is there", func(t *testing.T) {
 		s, account, _ := newWithOwnLibrary(t, []string{audiofile.Fixture("track.mp3")})
 		s.Link(alice, account)
-		s.Share(bob, s.Uploaded(bob, s.UploadAudio("track.mp3")), s.Catalog(bob).ShareTrack())
+		s.Uploaded(bob, s.UploadAudio("track.mp3"))
+		s.ShareTrack(bob, fixtureButton)
 		s.OpenShared(alice, 1)
 
 		s.Press(alice, s.Button(s.Catalog(alice).InLibraryButton()))
@@ -216,7 +217,7 @@ func TestShareFromAttachedLibrary(t *testing.T) {
 		s.Link(alice, account)
 		before := harness.FilesWithContent(t, own.Dir)
 
-		s.ShareOnScreen(alice, fixtureButton)
+		s.ShareTrack(alice, fixtureButton)
 
 		assert.Contains(t, s.LastCallbackAnswer(), s.Catalog(alice).ShareResult(&share_tracks.ShareResult{Created: 1}))
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.SharedFiles())
@@ -229,7 +230,7 @@ func TestShareFromAttachedLibrary(t *testing.T) {
 		s, account, _ := newWithOwnLibrary(t, []string{audiofile.Fixture("track.mp3")}, harness.WithSharedQuota(20*kb))
 		s.Link(alice, account)
 
-		s.ShareOnScreen(alice, fixtureButton)
+		s.ShareTrack(alice, fixtureButton)
 
 		assert.Equal(t, s.Catalog(alice).SharedLibraryFull(""), s.LastCallbackAnswer())
 		assert.Empty(t, s.SharedFiles())
@@ -256,7 +257,7 @@ func TestAttachedLibraryRefresh(t *testing.T) {
 			harness.WithAttachInterval(100*time.Millisecond),
 		)
 		s.Link(alice, account)
-		s.ShareOnScreen(alice, fixtureButton)
+		s.ShareTrack(alice, fixtureButton)
 
 		require.NoError(t, os.Remove(filepath.Join(own.Dir, "track.mp3")))
 		s.Navidrome.UntilSongs(t, own.ID, 1)
@@ -290,7 +291,7 @@ func TestAttachedLibraryChanges(t *testing.T) {
 		s.Navidrome.UntilSongs(t, own.ID, 1)
 		s.Navidrome.IndexedTrack(t, account, moved.Path, audiofile.FixtureTitle)
 
-		s.ShareOnScreen(alice, fixtureButton)
+		s.ShareTrack(alice, fixtureButton)
 
 		assert.Contains(t, s.LastCallbackAnswer(), s.Catalog(alice).ShareResult(&share_tracks.ShareResult{Created: 1}))
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.SharedFiles())
@@ -315,7 +316,7 @@ func TestAttachedLibraryChanges(t *testing.T) {
 		s.Link(alice, account)
 
 		assert.Contains(t, s.WindowText(), s.Catalog(alice).Linked(account.Login, 1))
-		s.ShareOnScreen(alice, fixtureButton)
+		s.ShareTrack(alice, fixtureButton)
 		assert.Contains(t, s.LastCallbackAnswer(), s.Catalog(alice).ShareResult(&share_tracks.ShareResult{Created: 1}))
 	})
 }

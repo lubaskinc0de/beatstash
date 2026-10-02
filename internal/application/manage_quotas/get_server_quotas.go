@@ -9,7 +9,6 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
-// ServerQuotas are the Quotas that hold for the whole server.
 type ServerQuotas struct {
 	Default  ServerQuota
 	Shared   ServerQuota

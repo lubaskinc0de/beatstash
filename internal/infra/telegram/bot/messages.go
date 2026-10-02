@@ -77,18 +77,6 @@ func (t *Telegram) answerCallback(ctx context.Context, id, text string) {
 	}
 }
 
-// editKeyboard ignores a message too old for Telegram to tell.
-func (t *Telegram) editKeyboard(ctx context.Context, query *models.CallbackQuery, markup *models.InlineKeyboardMarkup) {
-	msg := query.Message.Message
-	if msg == nil {
-		return
-	}
-	params := &bot.EditMessageReplyMarkupParams{ChatID: msg.Chat.ID, MessageID: msg.ID, ReplyMarkup: markup}
-	if _, err := t.Bot.EditMessageReplyMarkup(ctx, params); err != nil {
-		slog.Error("edit_reply_markup", "error", err)
-	}
-}
-
 func (t *Telegram) sendKeyboard(ctx context.Context, chatID int64, text string, markup models.ReplyMarkup) error {
 	_, err := t.Bot.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      chatID,

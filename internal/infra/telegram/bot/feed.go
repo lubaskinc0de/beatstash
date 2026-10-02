@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"strconv"
+	"strings"
 
 	"github.com/go-telegram/bot/models"
 
@@ -112,7 +113,7 @@ func (f *Feed) handleTake(ctx context.Context, query *models.CallbackQuery, shar
 		f.Telegram.answerCallback(ctx, query.ID, c.NoRoom(full.Usage, f.Telegram.AdminContact))
 	case err == nil:
 		f.Telegram.answerCallback(ctx, query.ID, c.Taken())
-	case errors.Is(err, library.ErrAlreadyInLibrary):
+	case errors.Is(err, browse_shared.ErrAlreadyInLibrary):
 		f.Telegram.answerCallback(ctx, query.ID, c.AlreadyInLibrary())
 	case errors.Is(err, sharing.ErrNotShared):
 		f.Telegram.answerCallback(ctx, query.ID, c.NotShared())
@@ -162,4 +163,20 @@ func (f *Feed) topView(ctx context.Context) window.View {
 		return window.View{Text: c.TopFailed(), Rows: [][]models.InlineKeyboardButton{back}}
 	}
 	return window.View{Text: c.Top(top), Rows: [][]models.InlineKeyboardButton{back}}
+}
+
+func callbackData(action string, id uint) string {
+	return action + ":" + strconv.FormatUint(uint64(id), 10)
+}
+
+func parseCallback(data string) (action string, id uint, ok bool) {
+	i := strings.LastIndexByte(data, ':')
+	if i < 0 {
+		return "", 0, false
+	}
+	n, err := strconv.ParseUint(data[i+1:], 10, 64)
+	if err != nil {
+		return "", 0, false
+	}
+	return data[:i], uint(n), true
 }

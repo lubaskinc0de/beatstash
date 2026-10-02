@@ -465,16 +465,9 @@ func (c Catalog) decimal(x float64) string {
 func (c Catalog) StoredInInbox() string { return c.t("upload.inbox", nil) }
 func (c Catalog) AlreadyExists() string { return c.t("upload.already_exists", nil) }
 
-func (c Catalog) ShareUsage() string        { return c.t("share.usage", nil) }
-func (c Catalog) ShareWhat() string         { return c.t("share.what", nil) }
-func (c Catalog) ShareTrack() string        { return c.t("share.track", nil) }
-func (c Catalog) ShareAlbum() string        { return c.t("share.album", nil) }
-func (c Catalog) UnshareTrack() string      { return c.t("share.unshare_track", nil) }
-func (c Catalog) UnshareAlbum() string      { return c.t("share.unshare_album", nil) }
 func (c Catalog) InboxNotShareable() string { return c.t("share.inbox", nil) }
 func (c Catalog) NotOwnTrack() string       { return c.t("share.not_own", nil) }
 func (c Catalog) Unshared() string          { return c.t("share.unshared", nil) }
-func (c Catalog) TrackNotFound() string     { return c.t("share.not_found", nil) }
 
 func (c Catalog) ShareResult(result *share_tracks.ShareResult) string {
 	switch {

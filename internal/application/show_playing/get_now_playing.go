@@ -25,7 +25,7 @@ type NowPlaying struct {
 type GetNowPlaying struct {
 	IDs         common.IDProvider
 	Client      navidrome.Client
-	Repo        repositories.Tracks
+	Tracks      repositories.Tracks
 	Accounts    *accounts.Navidrome
 	Libraries   *libraries.Libraries
 	Attached    *libraries.Attached
@@ -50,7 +50,6 @@ func (i *GetNowPlaying) Execute(
 
 	track, err := i.Client.NowPlaying(ctx, creds)
 	if err != nil {
-		slog.Error("Cannot get now playing", "error", err)
 		return nil, err
 	}
 	if track == nil {
@@ -64,7 +63,7 @@ func (i *GetNowPlaying) Execute(
 	attached := libraries.IDs(visible)
 	nowPlaying := &NowPlaying{PlayingTrack: *track}
 
-	found, err := findTracks(ctx, i.Repo, libs.IDs(), attached, []navidrome.Track{track.Track})
+	found, err := findTracks(ctx, i.Tracks, libs.IDs(), attached, []navidrome.Track{track.Track})
 	if err != nil {
 		slog.Error("find_track", "error", err)
 		return nowPlaying, nil
