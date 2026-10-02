@@ -100,7 +100,7 @@ func TestInlineHints(t *testing.T) {
 
 	t.Run("hints follow the user's language", func(t *testing.T) {
 		s := harness.New(t)
-		s.Open(alice, s.Catalog(harness.User{LanguageCode: "en"}).LanguageButton())
+		s.Open(alice, s.Catalog(alice).SettingsButton(), s.Catalog(harness.User{LanguageCode: "en"}).LanguageButton())
 		query := s.InlineQuery(alice, "")
 
 		s.Send(query)

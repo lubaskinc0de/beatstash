@@ -60,9 +60,13 @@ func (c Catalog) BotDescription() string      { return c.t("bot.about", nil) }
 func (c Catalog) BotShortDescription() string { return c.t("bot.short_description", nil) }
 func (c Catalog) StartCommand() string        { return c.t("bot.start_command", nil) }
 
-func (c Catalog) FeedButton() string      { return c.t("button.feed", nil) }
+func (c Catalog) MusicButton() string     { return c.t("button.music", nil) }
+func (c Catalog) SharedTab() string       { return c.t("music.shared_tab", nil) }
+func (c Catalog) MineTab() string         { return c.t("music.mine_tab", nil) }
 func (c Catalog) TopButton() string       { return c.t("button.top", nil) }
 func (c Catalog) ImportButton() string    { return c.t("button.import", nil) }
+func (c Catalog) HelpButton() string      { return c.t("button.help", nil) }
+func (c Catalog) SettingsButton() string  { return c.t("button.settings", nil) }
 func (c Catalog) AccountsButton() string  { return c.t("button.accounts", nil) }
 func (c Catalog) ListenButton() string    { return c.t("button.listen", nil) }
 func (c Catalog) InviteButton() string    { return c.t("button.invite", nil) }
@@ -75,18 +79,15 @@ func (c Catalog) ChooseLanguage() string  { return c.t("languages", nil) }
 
 // Home tells the Usage only under a limited Quota.
 func (c Catalog) Home(name, bot string, usage library.Usage) string {
-	greeting := c.t("home.greeting", nil)
+	text := c.t("home.greeting", nil)
 	if name != "" {
-		greeting = c.t("home.greeting_named", args{"Name": esc(name)})
+		text = c.t("home.greeting_named", args{"Name": esc(name)})
 	}
+	text += "\n\n" + c.t("home.text", args{"Bot": esc(bot)})
 	if usage.Quota.Limited() {
-		greeting += "\n" + c.t("home.usage", c.usageArgs(usage))
+		text += "\n\n" + c.t("home.usage", c.usageArgs(usage))
 	}
-	var commands strings.Builder
-	for _, command := range inlineCommands {
-		fmt.Fprintf(&commands, "\n%s — %s", inlineUsage(bot, command.name), c.t("home."+command.name, nil))
-	}
-	return greeting + "\n\n" + c.t("home.text", nil) + commands.String() + "\n\n" + c.footer()
+	return text + "\n\n" + c.t("home.more", nil) + "\n" + c.footer()
 }
 
 func (c Catalog) StrangerHome(users, sharedTracks int64, contact string) string {
@@ -101,8 +102,27 @@ func (c Catalog) footer() string {
 	return footer(c.t("footer.source", nil), c.t("footer.author", nil))
 }
 
-func (c Catalog) HowTo() string  { return c.t("how_to", nil) }
-func (c Catalog) Listen() string { return c.t("listen", nil) }
+func (c Catalog) Settings() string { return c.t("settings.title", nil) }
+
+func (c Catalog) Help() string             { return c.t("help.text", nil) }
+func (c Catalog) InlineHelpButton() string { return c.t("help.inline_button", nil) }
+func (c Catalog) SpaceHelpButton() string  { return c.t("help.space_button", nil) }
+func (c Catalog) HowTo() string            { return c.t("how_to", nil) }
+func (c Catalog) Listen() string           { return c.t("listen", nil) }
+
+func (c Catalog) InlineHelp(bot string) string {
+	var b strings.Builder
+	b.WriteString(c.t("help.inline", nil))
+	for _, command := range inlineCommands {
+		fmt.Fprintf(&b, "\n%s — %s", inlineUsage(bot, command.name), c.t("help."+command.name, nil))
+	}
+	b.WriteString("\n\n" + c.t("help.search", args{"Usage": inlineUsage(bot, "queen")}))
+	return b.String()
+}
+
+func (c Catalog) SpaceHelp(contact string) string {
+	return c.withContact(c.t("help.space", nil), esc(contact))
+}
 
 func (c Catalog) InviteInvalid() string { return c.t("invite.invalid", nil) }
 func (c Catalog) InviteFailed() string  { return c.t("invite.failed", nil) }
@@ -157,8 +177,33 @@ func (c Catalog) withSongs(text string, songs int) string {
 }
 
 func (c Catalog) Feed(entries []browse_shared.FeedEntry) string {
-	return feed(entries, c.t("feed.title", nil), c.SharedBy)
+	return feed(entries, c.FeedTitle(), c.SharedBy)
 }
+
+func (c Catalog) FeedTitle() string { return c.t("feed.title", nil) }
+
+func (c Catalog) FeedScreen() string {
+	return "🔗 <b>" + c.FeedTitle() + "</b>\n\n" + c.t("feed.choose", nil)
+}
+
+// SharedTrackButton is plain text.
+func (c Catalog) SharedTrackButton(entry *browse_shared.FeedEntry) string {
+	label := entry.Track.Artist + " — " + entry.Track.Title
+	if entry.InLibrary {
+		return "✅ " + label
+	}
+	return label
+}
+
+func (c Catalog) SharedTrackCard(entry *browse_shared.FeedEntry) string {
+	text := TrackCaption(entry.Track.Artist, entry.Track.Title)
+	if !entry.Track.Single() {
+		text += "\n💿 " + esc(entry.Track.Album)
+	}
+	return text + "\n\n🔗 " + esc(c.SharedBy(&entry.Author))
+}
+
+func (c Catalog) OpenTab(tab string) string { return "✓ " + tab }
 
 func (c Catalog) FeedEmpty() string        { return c.t("feed.empty", nil) }
 func (c Catalog) FeedFailed() string       { return c.t("feed.failed", nil) }
@@ -167,9 +212,9 @@ func (c Catalog) AlreadyInLibrary() string { return c.t("feed.already_in_library
 func (c Catalog) NotShared() string        { return c.t("feed.not_shared", nil) }
 func (c Catalog) FileTooLarge() string     { return c.t("feed.file_too_large", nil) }
 
-func (c Catalog) TakeButton(n int) string      { return c.t("feed.take", args{"N": n}) }
-func (c Catalog) SendFileButton(n int) string  { return c.t("feed.send_file", args{"N": n}) }
-func (c Catalog) InLibraryButton(n int) string { return c.t("feed.in_library", args{"N": n}) }
+func (c Catalog) TakeButton() string      { return c.t("feed.take", nil) }
+func (c Catalog) SendFileButton() string  { return c.t("feed.send_file", nil) }
+func (c Catalog) InLibraryButton() string { return c.t("feed.in_library", nil) }
 
 // SharedBy is plain text: callers escape it for HTML.
 func (c Catalog) SharedBy(author *access.User) string {
@@ -189,7 +234,7 @@ func (c Catalog) authorName(user *access.User) string {
 
 func (c Catalog) Top(t *view_top.Top) string {
 	return top(t, topLabels{
-		title: c.t("top.title", nil), shared: c.TopSharedLabel(), taken: c.TopTakenLabel(),
+		title: c.t("top.title", nil), about: c.t("top.about", nil), shared: c.TopSharedLabel(), taken: c.TopTakenLabel(),
 		allTime: c.TopAllTimeLabel(), thisMonth: c.TopThisMonthLabel(), nobody: c.TopNobody(),
 	}, c.authorName)
 }

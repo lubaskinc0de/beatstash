@@ -47,7 +47,7 @@ func (s *Scenario) IssuedAccount() navidrome.Account {
 func (s *Scenario) Link(from User, account navidrome.Account) *models.Update {
 	s.t.Helper()
 
-	s.Open(from, s.Catalog(from).AccountsButton())
+	s.Open(from, s.Catalog(from).SettingsButton(), s.Catalog(from).AccountsButton())
 	link := s.Catalog(from).Link()
 	if !slices.Contains(telegram.ButtonTexts(s.Telegram.Buttons(s.t)), link) {
 		link = s.Catalog(from).LinkAnother()

@@ -96,12 +96,14 @@ func (s *ShareScreen) shareView(ctx context.Context, arg string) window.View {
 	if err != nil {
 		slog.Error("share_query", "error", err)
 	}
-	rows, more, err := s.ownRows(ctx, c, list, query)
+	tabs := musicTabs(c, screenShare)
+	found, more, err := s.ownRows(ctx, c, list, query)
 	if err != nil {
 		slog.Error("find_own_music", "error", err)
-		return window.View{Text: c.TryLater(), Rows: [][]models.InlineKeyboardButton{back}}
+		return window.View{Text: c.TryLater(), Rows: [][]models.InlineKeyboardButton{tabs, back}}
 	}
-	text := c.ShareScreen(query, len(rows) > 0)
+	text := c.ShareScreen(query, len(found) > 0)
+	rows := append([][]models.InlineKeyboardButton{tabs}, found...)
 	if pages := pageRow(c, list.page, more, func(page int) place { return ownList{albums: list.albums, page: page}.place() }); pages != nil {
 		rows = append(rows, pages)
 	}
@@ -157,9 +159,7 @@ func modeRow(c i18n.Catalog, list ownList) []models.InlineKeyboardButton {
 	}
 }
 
-// typeQuery deletes the message: the window shows what it found.
 func (s *ShareScreen) typeQuery(ctx context.Context, in windowInput) {
-	s.Telegram.deleteMessage(ctx, in.chatID, in.messageID)
 	if err := s.Users.SetShareQuery(ctx, in.chatID, in.text); err != nil {
 		slog.Error("save_share_query", "error", err)
 	}
@@ -179,9 +179,9 @@ func (s *ShareScreen) trackCardView(ctx context.Context, arg string) window.View
 		slog.Error("view_track_card", "error", err)
 		return window.View{Text: c.TryLater(), Rows: [][]models.InlineKeyboardButton{backRow(ctx, back)}}
 	}
-	share := models.InlineKeyboardButton{Text: c.ShareCardButton(), CallbackData: actionShareCard + ":" + arg}
+	share := models.InlineKeyboardButton{Text: c.ShareCardButton(), CallbackData: actionShareCard + ":" + arg, Style: stylePrimary}
 	if card.Shared {
-		share = models.InlineKeyboardButton{Text: c.UnshareCardButton(), CallbackData: actionUnshareCard + ":" + arg}
+		share = models.InlineKeyboardButton{Text: c.UnshareCardButton(), CallbackData: actionUnshareCard + ":" + arg, Style: styleDanger}
 	}
 	rows := [][]models.InlineKeyboardButton{{share}}
 	// An Attached Library's file lies out of the bot's reach.
@@ -206,10 +206,10 @@ func (s *ShareScreen) albumCardView(ctx context.Context, arg string) window.View
 	}
 	var share []models.InlineKeyboardButton
 	if !card.AllShared() {
-		share = append(share, models.InlineKeyboardButton{Text: c.ShareAlbumButton(), CallbackData: actionShareAlbumCard + ":" + arg})
+		share = append(share, models.InlineKeyboardButton{Text: c.ShareAlbumButton(), CallbackData: actionShareAlbumCard + ":" + arg, Style: stylePrimary})
 	}
 	if card.SharedCount() > 0 {
-		share = append(share, models.InlineKeyboardButton{Text: c.UnshareAlbumButton(), CallbackData: actionUnshareAlbumCard + ":" + arg})
+		share = append(share, models.InlineKeyboardButton{Text: c.UnshareAlbumButton(), CallbackData: actionUnshareAlbumCard + ":" + arg, Style: styleDanger})
 	}
 	rows := [][]models.InlineKeyboardButton{share}
 	if card.Linkable {

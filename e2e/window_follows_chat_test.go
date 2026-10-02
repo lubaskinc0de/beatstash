@@ -4,11 +4,10 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/go-telegram/bot/models"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
 func TestWindowFollowsChat(t *testing.T) {
@@ -19,7 +18,7 @@ func TestWindowFollowsChat(t *testing.T) {
 		s.Open(alice)
 		old := s.Telegram.Window().MessageID
 
-		s.Go(alice, s.Catalog(alice).FeedButton())
+		s.Go(alice, s.Catalog(alice).MusicButton())
 
 		c := s.Catalog(alice)
 		window := s.Telegram.Window()
@@ -34,13 +33,13 @@ func TestWindowFollowsChat(t *testing.T) {
 		old := s.Telegram.Window().MessageID
 		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 
-		s.Go(alice, s.Catalog(alice).FeedButton())
+		s.Go(alice, s.Catalog(alice).MusicButton())
 
 		window := s.Telegram.Window()
 		assert.Equal(t, "sendMessage", window.Method)
 		assert.Greater(t, window.MessageID, old)
 		assert.Contains(t, s.WindowText(), s.Catalog(alice).FeedEmpty())
-		assert.Contains(t, s.Telegram.StrippedMessages(), old)
+		assert.Contains(t, s.Telegram.DeletedMessages(), strconv.Itoa(old))
 		assert.NotContains(t, s.Telegram.EditedMessages(), strconv.Itoa(old))
 	})
 
@@ -48,14 +47,14 @@ func TestWindowFollowsChat(t *testing.T) {
 		s := harness.New(t)
 		s.Open(alice)
 		old := s.Telegram.Window().MessageID
-		feed := s.Button(s.Catalog(alice).FeedButton())
+		feed := s.Button(s.Catalog(alice).MusicButton())
 		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 		s.Restart()
 
 		s.PressOn(alice, feed, old)
 
 		assert.Equal(t, "sendMessage", s.Telegram.Window().Method)
-		assert.Contains(t, s.Telegram.StrippedMessages(), old)
+		assert.Contains(t, s.Telegram.DeletedMessages(), strconv.Itoa(old))
 	})
 
 	t.Run("moved window shows the result of the press", func(t *testing.T) {
@@ -87,7 +86,7 @@ func TestWindowFollowsChat(t *testing.T) {
 		s := harness.New(t, harness.WithTranslations(translations(t, map[string]string{
 			"de.yaml": "language:\n  name: Deutsch\n",
 		})))
-		s.Open(alice)
+		s.Open(alice, s.Catalog(alice).SettingsButton())
 		old := s.Telegram.Window().MessageID
 		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 
@@ -95,7 +94,7 @@ func TestWindowFollowsChat(t *testing.T) {
 
 		moved := s.Telegram.Window().MessageID
 		assert.Equal(t, "sendMessage", s.Telegram.Window().Method)
-		assert.Contains(t, s.Telegram.StrippedMessages(), old)
+		assert.Contains(t, s.Telegram.DeletedMessages(), strconv.Itoa(old))
 		assert.Contains(t, s.WindowText(), s.Catalog(alice).ChooseLanguage())
 
 		s.Go(alice, s.Catalog(harness.User{LanguageCode: "en"}).LanguageButton())
@@ -103,7 +102,7 @@ func TestWindowFollowsChat(t *testing.T) {
 		assert.Equal(t, moved, s.Telegram.Window().MessageID)
 		english := alice
 		english.LanguageCode = "en"
-		assert.Contains(t, s.WindowText(), s.Catalog(english).Home(alice.Username, telegram.BotUsername, library.Usage{}))
+		assert.Contains(t, s.WindowText(), s.Catalog(english).Settings())
 	})
 
 	t.Run("press on an old window opens a new one below", func(t *testing.T) {
@@ -123,18 +122,28 @@ func TestWindowFollowsChat(t *testing.T) {
 		assert.Empty(t, s.Telegram.EditedMessages())
 	})
 
-	t.Run("text answer shows the result below it", func(t *testing.T) {
+	t.Run("text answer is deleted and the window redrawn in place", func(t *testing.T) {
 		s := harness.New(t)
 		carol := harness.Newcomer("carol")
 		s.Send(s.TextMessage(carol, "/start "+s.Invite()))
 		old := s.Telegram.Window().MessageID
 
-		s.SendText(carol, "carol")
+		login := s.SendText(carol, "carol")
 
 		window := s.Telegram.Window()
-		assert.Equal(t, "sendMessage", window.Method)
-		assert.Greater(t, window.MessageID, old)
-		assert.Contains(t, s.Telegram.StrippedMessages(), old)
+		assert.Equal(t, "editMessageText", window.Method)
+		assert.Equal(t, old, window.MessageID)
+		assert.Contains(t, s.Telegram.DeletedMessages(), strconv.Itoa(login.Message.ID))
+	})
+
+	t.Run("unreadable quota is deleted", func(t *testing.T) {
+		s := harness.New(t)
+		s.Open(admin, s.Catalog(admin).AdminButton(), s.Catalog(admin).QuotasButton(), s.Catalog(admin).EditDefaultQuota())
+
+		size := s.SendText(admin, "много")
+
+		assert.Contains(t, s.Telegram.DeletedMessages(), strconv.Itoa(size.Message.ID))
+		assert.Contains(t, s.WindowText(), s.Catalog(admin).QuotaUnreadable())
 	})
 
 	t.Run("deleted secret leaves the window in place", func(t *testing.T) {
@@ -151,6 +160,30 @@ func TestWindowFollowsChat(t *testing.T) {
 		assert.Contains(t, s.WindowText(), s.Catalog(alice).Connected("zvuk"))
 	})
 
+	t.Run("text the window does not await is deleted", func(t *testing.T) {
+		s := harness.New(t)
+		s.Open(alice)
+		old := s.Telegram.Window().MessageID
+
+		stray := s.SendText(alice, "привет")
+		s.Go(alice, s.Catalog(alice).MusicButton())
+
+		window := s.Telegram.Window()
+		assert.Contains(t, s.Telegram.DeletedMessages(), strconv.Itoa(stray.Message.ID))
+		assert.Equal(t, "editMessageText", window.Method)
+		assert.Equal(t, old, window.MessageID)
+	})
+
+	t.Run("unknown command is deleted and is no answer to the window", func(t *testing.T) {
+		s := harness.New(t)
+		s.Open(alice, s.Catalog(alice).MusicButton(), s.Catalog(alice).MineTab())
+
+		command := s.SendText(alice, "/foo")
+
+		assert.Contains(t, s.Telegram.DeletedMessages(), strconv.Itoa(command.Message.ID))
+		assert.NotContains(t, s.WindowText(), "foo")
+	})
+
 	t.Run("uploads alone move no window", func(t *testing.T) {
 		s := harness.New(t)
 		s.Open(alice)
@@ -160,7 +193,7 @@ func TestWindowFollowsChat(t *testing.T) {
 		s.Uploaded(alice, s.UploadAudio("track.flac"))
 
 		assert.Equal(t, old, s.Telegram.Window().MessageID)
-		assert.NotContains(t, s.Telegram.StrippedMessages(), old)
+		assert.NotContains(t, s.Telegram.DeletedMessages(), strconv.Itoa(old))
 	})
 
 	t.Run("Poller redraws the Imports in place under an upload and a summary", func(t *testing.T) {
@@ -180,4 +213,15 @@ func TestWindowFollowsChat(t *testing.T) {
 		assert.Equal(t, imports, window.MessageID)
 		assert.Contains(t, s.WindowText(), s.Catalog(alice).Imports(nil))
 	})
+}
+
+func assertOnlyDeleted(t *testing.T, s *harness.Scenario, messages ...*models.Update) {
+	t.Helper()
+
+	ids := make([]string, 0, len(messages))
+	for _, msg := range messages {
+		ids = append(ids, strconv.Itoa(msg.Message.ID))
+	}
+	assert.Equal(t, ids, s.Telegram.DeletedMessages())
+	assert.Len(t, s.Telegram.AllCalls(), len(messages))
 }

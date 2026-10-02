@@ -9,7 +9,6 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
 
-func (c Catalog) ShareScreenButton() string { return c.t("button.share", nil) }
 func (c Catalog) TracksMode() string        { return c.t("share_screen.tracks", nil) }
 func (c Catalog) AlbumsMode() string        { return c.t("share_screen.albums", nil) }
 func (c Catalog) ShareCardButton() string   { return c.t("share_screen.share", nil) }

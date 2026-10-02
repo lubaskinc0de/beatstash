@@ -214,6 +214,8 @@ func (a *API) AnsweredCallbacks() []string {
 type Button struct {
 	Text string `json:"text"`
 	Data string `json:"callback_data"`
+	// Style is the button's color: primary, success or danger.
+	Style string `json:"style"`
 	// SwitchInline is the query the button puts into the input field.
 	SwitchInline string `json:"switch_inline_query_current_chat"`
 }
@@ -361,12 +363,15 @@ func (a *API) WaitCalls(method string, n int, within time.Duration) bool {
 }
 
 // MessagesWithButtons lists the messages the bot sent with buttons and did
-// not strip since.
+// not strip or delete since.
 func (a *API) MessagesWithButtons() []int {
 	stripped := a.StrippedMessages()
+	deleted := a.DeletedMessages()
 	var ids []int
 	for _, call := range a.CallsTo("sendMessage") {
-		if buttons, _ := keyboardOf(call); len(buttons) > 0 && !slices.Contains(stripped, call.MessageID) {
+		buttons, _ := keyboardOf(call)
+		gone := slices.Contains(stripped, call.MessageID) || slices.Contains(deleted, strconv.Itoa(call.MessageID))
+		if len(buttons) > 0 && !gone {
 			ids = append(ids, call.MessageID)
 		}
 	}

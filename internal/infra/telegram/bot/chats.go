@@ -84,7 +84,7 @@ func (ch *Chats) NoticeRejectedToken(ctx context.Context, chatID int64, provider
 	c := texts(ctx)
 	logUnsent(ch.Telegram.sendKeyboard(ctx, chatID, c.TokenRejected(providerName), &models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{{
-			goButton(c.Reconnect(), place{screen: screenProvider, arg: string(providerName)}),
+			styled(goButton(c.Reconnect(), place{screen: screenProvider, arg: string(providerName)}), stylePrimary),
 		}},
 	}))
 }

@@ -60,16 +60,16 @@ func (s *Sharing) handleShare(ctx context.Context, _ *bot.Bot, update *models.Up
 }
 
 func shareKeyboard(c i18n.Catalog, state *share_tracks.ShareState) *models.InlineKeyboardMarkup {
-	track := models.InlineKeyboardButton{Text: c.ShareTrack(), CallbackData: callbackData(actionShareTrack, state.TrackID)}
+	track := models.InlineKeyboardButton{Text: c.ShareTrack(), CallbackData: callbackData(actionShareTrack, state.TrackID), Style: stylePrimary}
 	if state.Shared {
-		track = models.InlineKeyboardButton{Text: c.UnshareTrack(), CallbackData: callbackData(actionUnshareTrack, state.TrackID)}
+		track = models.InlineKeyboardButton{Text: c.UnshareTrack(), CallbackData: callbackData(actionUnshareTrack, state.TrackID), Style: styleDanger}
 	}
 	row := []models.InlineKeyboardButton{track}
 
 	if state.HasAlbum {
 		album := models.InlineKeyboardButton{Text: c.ShareAlbum(), CallbackData: callbackData(actionShareAlbum, state.TrackID)}
 		if state.AlbumShared {
-			album = models.InlineKeyboardButton{Text: c.UnshareAlbum(), CallbackData: callbackData(actionUnshareAlbum, state.TrackID)}
+			album = models.InlineKeyboardButton{Text: c.UnshareAlbum(), CallbackData: callbackData(actionUnshareAlbum, state.TrackID), Style: styleDanger}
 		}
 		row = append(row, album)
 	}

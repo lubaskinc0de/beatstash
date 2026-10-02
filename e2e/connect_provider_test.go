@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/go-telegram/bot/models"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
@@ -88,11 +89,16 @@ func TestZvukAccount(t *testing.T) {
 		s := harness.New(t)
 		s.Zvuk.AddAccount(harness.ZvukToken, true)
 
-		s.Send(s.TextMessage(alice, "/zvuk "+harness.ZvukToken))
-		s.Send(s.TextMessage(alice, "/zvuk_import"))
-		s.Send(s.TextMessage(alice, "/zvuk_off"))
+		commands := []*models.Update{
+			s.TextMessage(alice, "/zvuk "+harness.ZvukToken),
+			s.TextMessage(alice, "/zvuk_import"),
+			s.TextMessage(alice, "/zvuk_off"),
+		}
+		for _, command := range commands {
+			s.Send(command)
+		}
 
-		assert.Empty(t, s.Telegram.AllCalls())
+		assertOnlyDeleted(t, s, commands...)
 	})
 }
 

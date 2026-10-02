@@ -34,7 +34,7 @@ var inviteLink = regexp.MustCompile(`https://t\.me/` + telegram.BotUsername + `\
 func (s *Scenario) Invite() string {
 	s.t.Helper()
 
-	s.Open(Admin, s.Catalog(Admin).InviteButton())
+	s.Open(Admin, s.Catalog(Admin).AdminButton(), s.Catalog(Admin).InviteButton())
 	return s.InviteCode()
 }
 

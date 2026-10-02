@@ -64,11 +64,11 @@ func (i *Imports) providerView(ctx context.Context, arg string) window.View {
 			status = source.Status
 		}
 	}
-	actions := []models.InlineKeyboardButton{goButton(c.Connect(), place{screen: screenConnect, arg: arg})}
+	actions := []models.InlineKeyboardButton{styled(goButton(c.Connect(), place{screen: screenConnect, arg: arg}), stylePrimary)}
 	if status == import_collection.SourceConnected {
 		actions = []models.InlineKeyboardButton{
-			goButton(c.ImportCollection(), place{screen: screenPlan, arg: arg}),
-			{Text: c.Disconnect(), CallbackData: actionDisconnect + ":" + arg},
+			styled(goButton(c.ImportCollection(), place{screen: screenPlan, arg: arg}), stylePrimary),
+			{Text: c.Disconnect(), CallbackData: actionDisconnect + ":" + arg, Style: styleDanger},
 		}
 	}
 	return window.View{Text: c.Provider(name, status), Rows: [][]models.InlineKeyboardButton{actions, back}}
@@ -77,15 +77,13 @@ func (i *Imports) providerView(ctx context.Context, arg string) window.View {
 func (i *Imports) connectView(ctx context.Context, arg string) window.View {
 	c := texts(ctx)
 	return window.View{Text: c.TokenPrompt(provider.ProviderName(arg)), Rows: [][]models.InlineKeyboardButton{
-		{goButton(c.Cancel(), place{screen: screenProvider, arg: arg})},
+		{styled(goButton(c.Cancel(), place{screen: screenProvider, arg: arg}), styleDanger)},
 	}}
 }
 
-// connectProvider deletes the message at once: it holds a token.
 func (i *Imports) connectProvider(ctx context.Context, in windowInput) {
 	c := texts(ctx)
 	name := provider.ProviderName(in.arg)
-	i.Telegram.deleteMessage(ctx, in.chatID, in.messageID)
 	here := place{screen: screenConnect, arg: in.arg}
 
 	err := i.ConnectProviderAccount.Execute(ctx, name, in.text)
@@ -136,7 +134,7 @@ func (i *Imports) planView(ctx context.Context, arg string) window.View {
 		return window.View{Text: c.AllImported(name, plan.Total), Rows: [][]models.InlineKeyboardButton{back}}
 	}
 	return window.View{Text: c.Plan(name, plan), Rows: [][]models.InlineKeyboardButton{
-		{{Text: c.StartImport(), CallbackData: actionStartImport + ":" + arg}},
+		{{Text: c.StartImport(), CallbackData: actionStartImport + ":" + arg, Style: stylePrimary}},
 		back,
 	}}
 }

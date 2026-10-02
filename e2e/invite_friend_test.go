@@ -70,7 +70,7 @@ func TestInvite(t *testing.T) {
 
 	t.Run("admin gets another working invite", func(t *testing.T) {
 		s := harness.New(t)
-		s.Open(admin, s.Catalog(admin).InviteButton())
+		s.Open(admin, s.Catalog(admin).AdminButton(), s.Catalog(admin).InviteButton())
 		first := s.InviteCode()
 
 		s.Go(admin, s.Catalog(admin).AnotherInvite())
@@ -86,7 +86,7 @@ func TestInvite(t *testing.T) {
 	t.Run("invite says how long it lasts", func(t *testing.T) {
 		s := harness.New(t)
 
-		s.Open(admin, s.Catalog(admin).InviteButton())
+		s.Open(admin, s.Catalog(admin).AdminButton(), s.Catalog(admin).InviteButton())
 
 		link := "https://t.me/" + telegram.BotUsername + "?start=" + s.InviteCode()
 		assert.Contains(t, s.WindowText(), s.Catalog(admin).Invite(link, 7*24*time.Hour))
@@ -98,18 +98,19 @@ func TestInvite(t *testing.T) {
 		s.Restart(harness.WithAdmins(alice))
 		s.Open(admin)
 		adminButtons := telegram.ButtonTexts(s.Telegram.Buttons(t))
-		s.Open(alice, s.Catalog(alice).InviteButton())
+		s.Open(alice, s.Catalog(alice).AdminButton(), s.Catalog(alice).InviteButton())
 
-		assert.NotContains(t, adminButtons, s.Catalog(admin).InviteButton())
+		assert.NotContains(t, adminButtons, s.Catalog(admin).AdminButton())
 		assert.Contains(t, s.WindowText(), "?start=")
 	})
 
 	t.Run("invite command is gone", func(t *testing.T) {
 		s := harness.New(t)
 
-		s.Send(s.TextMessage(admin, "/invite"))
+		invite := s.TextMessage(admin, "/invite")
+		s.Send(invite)
 
-		assert.Empty(t, s.Telegram.AllCalls())
+		assertOnlyDeleted(t, s, invite)
 	})
 
 	t.Run("stranger gets no answer but to start", func(t *testing.T) {

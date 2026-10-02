@@ -59,8 +59,8 @@ func TestReconciliation(t *testing.T) {
 		s.Share(alice, upload, s.Catalog(alice).ShareTrack())
 
 		assert.Equal(t, []string{"Inbox/audio_1.mp3"}, s.SharedFiles())
-		s.Open(bob, s.Catalog(bob).FeedButton())
-		assert.Contains(t, s.WindowText(), "Hand Title")
+		s.Open(bob, s.Catalog(bob).MusicButton())
+		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), "Hand Artist — Hand Title")
 	})
 
 	t.Run("file replaced by hand brings its Quality and size", func(t *testing.T) {
@@ -90,8 +90,8 @@ func TestReconciliation(t *testing.T) {
 		s.WriteByHand(s.PersonalPath(alice, "Artist/Album/01 - Dup Song.mp3"), high)
 
 		s.Restart()
-		s.Open(bob, s.Catalog(bob).FeedButton())
-		s.Press(bob, s.Button(s.Catalog(bob).SendFileButton(1)))
+		s.OpenShared(bob, 1)
+		s.Press(bob, s.Button(s.Catalog(bob).SendFileButton()))
 
 		sent := s.Telegram.CallsTo("sendAudio")
 		require.Len(t, sent, 1)
@@ -214,7 +214,7 @@ func TestReconciliation(t *testing.T) {
 
 		s.Restart()
 
-		s.Open(bob, s.Catalog(bob).FeedButton())
+		s.Open(bob, s.Catalog(bob).MusicButton())
 		assert.Contains(t, s.WindowText(), s.Catalog(bob).FeedEmpty())
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.PersonalFiles(bob))
 		assert.Equal(t, []string{"1. @alice — 1"}, topLines(t, top(s, alice), s.Catalog(alice).TopTakenLabel(), s.Catalog(alice).TopAllTimeLabel()))
@@ -239,7 +239,7 @@ func TestReconciliation(t *testing.T) {
 		s.Restart()
 
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.SharedFiles())
-		s.Open(bob, s.Catalog(bob).FeedButton())
-		assert.Contains(t, s.WindowText(), audiofile.FixtureTitle)
+		s.Open(bob, s.Catalog(bob).MusicButton())
+		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), fixtureButton)
 	})
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/navidrome"
+	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/zvuk"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/share_tracks"
 )
@@ -184,9 +185,9 @@ func TestAttachedLibraryDuplicates(t *testing.T) {
 		s, account, _ := newWithOwnLibrary(t, []string{audiofile.Fixture("track.mp3")})
 		s.Link(alice, account)
 		s.Share(bob, s.Uploaded(bob, s.UploadAudio("track.mp3")), s.Catalog(bob).ShareTrack())
-		s.Open(alice, s.Catalog(alice).FeedButton())
+		s.OpenShared(alice, 1)
 
-		s.Press(alice, s.Button(s.Catalog(alice).InLibraryButton(1)))
+		s.Press(alice, s.Button(s.Catalog(alice).InLibraryButton()))
 
 		assert.Equal(t, s.Catalog(alice).AlreadyInLibrary(), s.LastCallbackAnswer())
 		assert.Empty(t, s.PersonalFiles(alice))
@@ -220,8 +221,8 @@ func TestShareFromAttachedLibrary(t *testing.T) {
 		assert.Contains(t, s.LastCallbackAnswer(), s.Catalog(alice).ShareResult(&share_tracks.ShareResult{Created: 1}))
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.SharedFiles())
 		assert.Equal(t, before, harness.FilesWithContent(t, own.Dir))
-		s.Open(bob, s.Catalog(bob).FeedButton())
-		assert.Contains(t, s.WindowText(), audiofile.FixtureTitle)
+		s.Open(bob, s.Catalog(bob).MusicButton())
+		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), fixtureButton)
 	})
 
 	t.Run("song over the Shared Library's Quota is not shared", func(t *testing.T) {
@@ -264,8 +265,8 @@ func TestAttachedLibraryRefresh(t *testing.T) {
 		s.Link(alice, account)
 		assert.Contains(t, s.WindowText(), s.Catalog(alice).Linked(account.Login, 1))
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.SharedFiles())
-		s.Open(bob, s.Catalog(bob).FeedButton())
-		assert.Contains(t, s.WindowText(), audiofile.FixtureTitle)
+		s.Open(bob, s.Catalog(bob).MusicButton())
+		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), fixtureButton)
 	})
 }
 

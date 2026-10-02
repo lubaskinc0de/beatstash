@@ -23,7 +23,7 @@ type Navidrome struct {
 
 func (n *Navidrome) navidromeView(ctx context.Context) window.View {
 	c := texts(ctx)
-	back := backRow(ctx, place{screen: screenHome})
+	back := backRow(ctx, place{screen: screenSettings})
 	account, err := n.GetNavidromeAccount.Execute(ctx)
 	if err != nil {
 		slog.Error("get_navidrome_account", "error", err)
@@ -31,7 +31,7 @@ func (n *Navidrome) navidromeView(ctx context.Context) window.View {
 	}
 	link := place{screen: screenLink}
 	if account == nil {
-		return window.View{Text: c.NavidromeNotLinked(), Rows: [][]models.InlineKeyboardButton{{goButton(c.Link(), link)}, back}}
+		return window.View{Text: c.NavidromeNotLinked(), Rows: [][]models.InlineKeyboardButton{{styled(goButton(c.Link(), link), stylePrimary)}, back}}
 	}
 	return window.View{Text: c.NavidromeLinked(account.Login), Rows: [][]models.InlineKeyboardButton{{goButton(c.LinkAnother(), link)}, back}}
 }
@@ -42,7 +42,7 @@ func (n *Navidrome) linkView(ctx context.Context, arg string) window.View {
 	if arg == argJoin {
 		cancel = place{screen: screenRegister}
 	}
-	return window.View{Text: texts(ctx).LinkPrompt(), Rows: [][]models.InlineKeyboardButton{{goButton(texts(ctx).Cancel(), cancel)}}}
+	return window.View{Text: texts(ctx).LinkPrompt(), Rows: [][]models.InlineKeyboardButton{{styled(goButton(texts(ctx).Cancel(), cancel), styleDanger)}}}
 }
 
 func (n *Navidrome) registerView(ctx context.Context) window.View {
@@ -52,10 +52,8 @@ func (n *Navidrome) registerView(ctx context.Context) window.View {
 	}}
 }
 
-// linkNavidrome deletes the message at once: it holds a password.
 func (n *Navidrome) linkNavidrome(ctx context.Context, in windowInput) {
 	c := texts(ctx)
-	n.Telegram.deleteMessage(ctx, in.chatID, in.messageID)
 	here := place{screen: screenLink, arg: in.arg}
 	done := place{screen: screenNavidrome}
 	if in.arg == argJoin {

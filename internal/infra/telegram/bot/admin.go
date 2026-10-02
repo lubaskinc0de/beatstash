@@ -33,6 +33,7 @@ func (a *Admin) adminView(ctx context.Context) window.View {
 	}
 	return window.View{Text: c.Overview(overview), Rows: [][]models.InlineKeyboardButton{
 		{goButton(c.UsersButton(), place{screen: screenUsers}), goButton(c.QuotasButton(), place{screen: screenQuotas})},
+		{goButton(c.InviteButton(), place{screen: screenInvite})},
 		backRow(ctx, place{screen: screenHome}),
 	}}
 }

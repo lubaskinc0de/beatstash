@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strconv"
 
 	"github.com/go-telegram/bot/models"
 
@@ -11,18 +12,20 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/sharing"
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/trackfile"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/window"
 )
 
-// Feed is the Shared feed and the top, with Take and the file.
+// Feed is the Shared feed, its cards and the top, with Take and the file.
 type Feed struct {
-	Telegram      *Telegram
-	ViewFeed      *browse_shared.ViewFeed
-	GetTop        *view_top.GetTop
-	TakeTrack     *browse_shared.TakeTrack
-	GetTrackAudio *browse_shared.GetTrackAudio
-	Files         *trackfile.Files
+	Telegram        *Telegram
+	ViewFeed        *browse_shared.ViewFeed
+	ViewSharedTrack *browse_shared.ViewSharedTrack
+	GetTop          *view_top.GetTop
+	TakeTrack       *browse_shared.TakeTrack
+	GetTrackAudio   *browse_shared.GetTrackAudio
+	Files           *trackfile.Files
 }
 
 const feedLimit = 10
@@ -34,28 +37,70 @@ const (
 
 func (f *Feed) feedView(ctx context.Context) window.View {
 	c := texts(ctx)
-	back := backRow(ctx, place{screen: screenHome})
+	rows := [][]models.InlineKeyboardButton{musicTabs(c, screenFeed)}
+	tail := [][]models.InlineKeyboardButton{
+		{goButton(c.TopButton(), place{screen: screenTop})},
+		backRow(ctx, place{screen: screenHome}),
+	}
 	entries, err := f.ViewFeed.Execute(ctx, feedLimit)
 	if err != nil {
 		slog.Error("shared_feed", "error", err)
-		return window.View{Text: c.FeedFailed(), Rows: [][]models.InlineKeyboardButton{back}}
+		return window.View{Text: c.FeedFailed(), Rows: append(rows, tail...)}
 	}
 	if len(entries) == 0 {
-		return window.View{Text: c.FeedEmpty(), Rows: [][]models.InlineKeyboardButton{back}}
+		return window.View{Text: c.FeedEmpty(), Rows: append(rows, tail...)}
 	}
-
-	rows := make([][]models.InlineKeyboardButton, 0, len(entries)+1)
-	for i, entry := range entries {
-		take := models.InlineKeyboardButton{Text: c.TakeButton(i + 1), CallbackData: callbackData(actionTake, entry.Track.ID)}
-		if entry.InLibrary {
-			take.Text = c.InLibraryButton(i + 1)
-		}
+	for i := range entries {
+		entry := &entries[i]
 		rows = append(rows, []models.InlineKeyboardButton{
-			take,
-			{Text: c.SendFileButton(i + 1), CallbackData: callbackData(actionSendFile, entry.Track.ID)},
+			goButton(c.SharedTrackButton(entry), sharedTrackPlace(entry.Track.ID)),
 		})
 	}
-	return window.View{Text: c.Feed(entries), Rows: append(rows, back)}
+	return window.View{Text: c.FeedScreen(), Rows: append(rows, tail...)}
+}
+
+func sharedTrackPlace(sharedTrackID uint) place {
+	return place{screen: screenSharedTrack, arg: strconv.FormatUint(uint64(sharedTrackID), 10)}
+}
+
+// sharedTrackView shows the feed for a Track no longer shared.
+func (f *Feed) sharedTrackView(ctx context.Context, arg string) window.View {
+	c := texts(ctx)
+	id, _ := strconv.ParseUint(arg, 10, 64)
+	sharedTrackID := uint(id)
+	back := backRow(ctx, place{screen: screenFeed})
+	entry, err := f.ViewSharedTrack.Execute(ctx, sharedTrackID)
+	if errors.Is(err, sharing.ErrNotShared) {
+		return f.feedView(ctx).WithNotice(c.NotShared())
+	}
+	if err != nil {
+		slog.Error("view_shared_track", "error", err)
+		return window.View{Text: c.TryLater(), Rows: [][]models.InlineKeyboardButton{back}}
+	}
+	take := models.InlineKeyboardButton{Text: c.TakeButton(), CallbackData: callbackData(actionTake, sharedTrackID), Style: styleSuccess}
+	if entry.InLibrary {
+		take = models.InlineKeyboardButton{Text: c.InLibraryButton(), CallbackData: take.CallbackData}
+	}
+	return window.View{Text: c.SharedTrackCard(entry), Rows: [][]models.InlineKeyboardButton{
+		{take},
+		{{Text: c.SendFileButton(), CallbackData: callbackData(actionSendFile, sharedTrackID)}},
+		back,
+	}}
+}
+
+func musicTabs(c i18n.Catalog, open screen) []models.InlineKeyboardButton {
+	tabs := make([]models.InlineKeyboardButton, 0, 2)
+	for _, tab := range []struct {
+		name string
+		to   screen
+	}{{c.SharedTab(), screenFeed}, {c.MineTab(), screenShare}} {
+		b := goButton(tab.name, place{screen: tab.to})
+		if tab.to == open {
+			b.Text, b.Style = c.OpenTab(tab.name), stylePrimary
+		}
+		tabs = append(tabs, b)
+	}
+	return tabs
 }
 
 func (f *Feed) handleTake(ctx context.Context, query *models.CallbackQuery, sharedTrackID uint) {
@@ -77,7 +122,7 @@ func (f *Feed) handleTake(ctx context.Context, query *models.CallbackQuery, shar
 		return
 	}
 	if msg := query.Message.Message; msg != nil {
-		f.Telegram.show(ctx, msg.Chat.ID, msg.ID, place{screen: screenFeed}, "")
+		f.Telegram.show(ctx, msg.Chat.ID, msg.ID, sharedTrackPlace(sharedTrackID), "")
 	}
 }
 
@@ -110,7 +155,7 @@ func (f *Feed) sendFile(ctx context.Context, chatID int64, sharedTrackID uint) e
 
 func (f *Feed) topView(ctx context.Context) window.View {
 	c := texts(ctx)
-	back := backRow(ctx, place{screen: screenHome})
+	back := backRow(ctx, place{screen: screenFeed})
 	top, err := f.GetTop.Execute(ctx)
 	if err != nil {
 		slog.Error("get_top", "error", err)

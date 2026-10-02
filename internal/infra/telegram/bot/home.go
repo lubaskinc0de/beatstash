@@ -33,9 +33,11 @@ type Home struct {
 }
 
 // handleStart with an invite code lets a stranger in and asks for a
-// Navidrome login.
+// Navidrome login. The command goes once the window is up: only the window
+// stays in the chat.
 func (h *Home) handleStart(ctx context.Context, _ *bot.Bot, update *models.Update) {
 	chatID := update.Message.Chat.ID
+	defer h.Telegram.deleteMessage(ctx, chatID, update.Message.ID)
 	_, code, _ := command(update)
 	if _, err := h.IDs.CurrentUser(ctx); err != nil && code != "" {
 		if !errors.Is(err, common.ErrNotAuthenticated) {
@@ -100,22 +102,14 @@ func (h *Home) homeView(ctx context.Context) window.View {
 		home = &view_home.Home{}
 	}
 
-	accounts := []models.InlineKeyboardButton{goButton(c.AccountsButton(), place{screen: screenNavidrome})}
-	if home.Admin {
-		accounts = append(accounts, goButton(c.InviteButton(), place{screen: screenInvite}))
-	}
 	rows := [][]models.InlineKeyboardButton{
-		{goButton(c.ListenButton(), place{screen: screenListen})},
+		{goButton(c.MusicButton(), place{screen: screenFeed})},
 		{goButton(c.ImportButton(), place{screen: screenSources})},
-		{goButton(c.HowToButton(), place{screen: screenHowTo})},
-		{goButton(c.FeedButton(), place{screen: screenFeed}), goButton(c.ShareScreenButton(), place{screen: screenShare})},
-		{goButton(c.TopButton(), place{screen: screenTop})},
-		accounts,
+		{goButton(c.HelpButton(), place{screen: screenHelp}), goButton(c.SettingsButton(), place{screen: screenSettings})},
 	}
 	if home.Admin {
 		rows = append(rows, []models.InlineKeyboardButton{goButton(c.AdminButton(), place{screen: screenAdmin})})
 	}
-	rows = append(rows, []models.InlineKeyboardButton{h.languageButton(c)})
 	return window.View{Text: c.Home(senderName(ctx), h.Telegram.BotName, home.Usage), Rows: rows}
 }
 
@@ -161,7 +155,8 @@ func (h *Home) languagesView(ctx context.Context) window.View {
 	return window.View{Text: c.ChooseLanguage(), Rows: append(rows, []models.InlineKeyboardButton{back})}
 }
 
-// chooseLanguage lists the languages when lang is empty, else sets it.
+// chooseLanguage lists the languages when lang is empty, else sets it and
+// returns to the settings, or Home for a stranger, who has none.
 func (h *Home) chooseLanguage(ctx context.Context, cb windowCallback, lang string) {
 	h.Telegram.answerCallback(ctx, cb.query.ID, "")
 	if lang == "" {
@@ -172,7 +167,11 @@ func (h *Home) chooseLanguage(ctx context.Context, cb windowCallback, lang strin
 	if err := h.Users.SetLanguage(ctx, cb.query.From.ID, string(c.Language())); err != nil {
 		slog.Error("save_language", "error", err)
 	}
-	h.Telegram.show(withTexts(ctx, c), cb.chatID, cb.messageID, place{screen: screenHome}, "")
+	back := place{screen: screenSettings}
+	if _, err := h.IDs.CurrentUser(ctx); err != nil {
+		back = place{screen: screenHome}
+	}
+	h.Telegram.show(withTexts(ctx, c), cb.chatID, cb.messageID, back, "")
 }
 
 func senderName(ctx context.Context) string {
@@ -189,26 +188,57 @@ func senderName(ctx context.Context) string {
 // inviteView gives out a new invite each time it is drawn.
 func (h *Home) inviteView(ctx context.Context) window.View {
 	c := texts(ctx)
-	home := place{screen: screenHome}
+	admin := place{screen: screenAdmin}
 	code, err := h.CreateInvite.Execute(ctx)
 	if errors.Is(err, access.ErrNotAdmin) {
 		return h.homeView(ctx).WithNotice(c.NotAdmin())
 	}
 	if err != nil {
 		slog.Error("create_invite", "error", err)
-		return window.View{Text: c.InviteFailed(), Rows: [][]models.InlineKeyboardButton{backRow(ctx, home)}}
+		return window.View{Text: c.InviteFailed(), Rows: [][]models.InlineKeyboardButton{backRow(ctx, admin)}}
 	}
 	link := "https://t.me/" + h.Telegram.BotName + "?start=" + code
 	return window.View{Text: c.Invite(link, h.CreateInvite.TTL), Rows: [][]models.InlineKeyboardButton{
 		{goButton(c.AnotherInvite(), place{screen: screenInvite})},
-		backRow(ctx, home),
+		backRow(ctx, admin),
 	}}
 }
 
-func (h *Home) listenView(ctx context.Context) window.View {
-	return window.View{Text: texts(ctx).Listen(), Rows: [][]models.InlineKeyboardButton{backRow(ctx, place{screen: screenHome})}}
+func (h *Home) settingsView(ctx context.Context) window.View {
+	c := texts(ctx)
+	return window.View{Text: c.Settings(), Rows: [][]models.InlineKeyboardButton{
+		{goButton(c.AccountsButton(), place{screen: screenNavidrome})},
+		{h.languageButton(c)},
+		backRow(ctx, place{screen: screenHome}),
+	}}
+}
+
+func (h *Home) helpView(ctx context.Context) window.View {
+	c := texts(ctx)
+	return window.View{Text: c.Help(), Rows: [][]models.InlineKeyboardButton{
+		{goButton(c.HowToButton(), place{screen: screenHowTo}), goButton(c.ListenButton(), place{screen: screenListen})},
+		{goButton(c.InlineHelpButton(), place{screen: screenInlineHelp})},
+		{goButton(c.SpaceHelpButton(), place{screen: screenSpaceHelp})},
+		backRow(ctx, place{screen: screenHome}),
+	}}
+}
+
+func helpSection(ctx context.Context, text string) window.View {
+	return window.View{Text: text, Rows: [][]models.InlineKeyboardButton{backRow(ctx, place{screen: screenHelp})}}
 }
 
 func (h *Home) howToView(ctx context.Context) window.View {
-	return window.View{Text: texts(ctx).HowTo(), Rows: [][]models.InlineKeyboardButton{backRow(ctx, place{screen: screenHome})}}
+	return helpSection(ctx, texts(ctx).HowTo())
+}
+
+func (h *Home) listenView(ctx context.Context) window.View {
+	return helpSection(ctx, texts(ctx).Listen())
+}
+
+func (h *Home) inlineHelpView(ctx context.Context) window.View {
+	return helpSection(ctx, texts(ctx).InlineHelp(h.Telegram.BotName))
+}
+
+func (h *Home) spaceHelpView(ctx context.Context) window.View {
+	return helpSection(ctx, texts(ctx).SpaceHelp(h.Telegram.AdminContact))
 }

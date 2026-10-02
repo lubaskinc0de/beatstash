@@ -54,6 +54,8 @@ func (h *Handler) view(ctx context.Context, s screen, arg string) window.View {
 	switch s {
 	case screenFeed:
 		return h.Feed.feedView(ctx)
+	case screenSharedTrack:
+		return h.Feed.sharedTrackView(ctx, arg)
 	case screenTop:
 		return h.Feed.topView(ctx)
 	case screenSources:
@@ -74,10 +76,18 @@ func (h *Handler) view(ctx context.Context, s screen, arg string) window.View {
 		return h.Navidrome.registerView(ctx)
 	case screenInvite:
 		return h.Home.inviteView(ctx)
+	case screenHelp:
+		return h.Home.helpView(ctx)
 	case screenHowTo:
 		return h.Home.howToView(ctx)
 	case screenListen:
 		return h.Home.listenView(ctx)
+	case screenInlineHelp:
+		return h.Home.inlineHelpView(ctx)
+	case screenSpaceHelp:
+		return h.Home.spaceHelpView(ctx)
+	case screenSettings:
+		return h.Home.settingsView(ctx)
 	case screenLanguages:
 		return h.Home.languagesView(ctx)
 	case screenAdmin:

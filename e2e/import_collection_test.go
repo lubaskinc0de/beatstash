@@ -206,7 +206,7 @@ func TestImports(t *testing.T) {
 		s.Zvuk.HoldStreams(0)
 		s.ImportZvuk(alice)
 
-		s.Open(alice, s.Catalog(alice).FeedButton())
+		s.Open(alice, s.Catalog(alice).MusicButton())
 		s.Zvuk.ReleaseStreams()
 		s.WaitIngest()
 

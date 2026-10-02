@@ -18,49 +18,49 @@ language:
 
 bot:
   about: >-
-    {{.Service}} moves your music library from cloud services to your own storage on Navidrome
-    and lets you add to it right from Telegram. It also makes sharing music with friends easy,
-    in any chat with inline mode. Access is invite-only.
-  short_description: Your personal music library in Navidrome, filled from Telegram and streaming services
+    {{.Service}} is your music library on Navidrome. Send tracks right in Telegram,
+    bring over your collection from streaming services and share music in any chat. Invite only.
+  short_description: "A music library on Navidrome: fill it from Telegram and streaming services"
   start_command: Open the bot
 
 button:
-  share: 📤 Share
+  music: 🎵 Music
+  import: 📥 Import from a service
+  help: ❓ Help
+  settings: ⚙️ Settings
   admin: 🛠 Admin
-  feed: 🎵 Feed
-  top: 🏆 Top
-  import: 📥 Import from a streaming service
-  accounts: 👤 Accounts
+  top: 🏆 Who shares the most
+  accounts: 🎧 Navidrome account
+  how_to: 📥 Uploading
   listen: 📱 How to listen
   invite: 🎟 Invite
-  how_to: ❓ How to upload
   back: ← Back
-  cancel: ✖️ Cancel
+  cancel: Cancel
   languages: 🌐 Language
 
-try_later: ️️ Something went wrong, try again later
+try_later: Something went wrong, try again later
 
 home:
   greeting: 👋 Hi!
   greeting_named: 👋 Hi, {{.Name}}!
-  usage: 📦 {{.Used}} of {{.Quota}}
+  # {{.Bot}} is the bot's username.
   text: |-
-    {{.Service}} moves your music library from cloud services to your own storage on <a href="https://www.navidrome.org">Navidrome</a> and lets you add to it right from Telegram: just send an audio file.
+    {{.Service}} is your music library on <a href="https://www.navidrome.org">Navidrome</a>. You can fill it right from here.
 
-    🔎 To find a track, download it in Telegram with @yv2t_bot or @murglar_bot and forward it here: I'll save it to your library.
-
-    You can also share music with friends — here and in any chat with inline mode:
-  np: now playing
-  recent: recently played
-  shared: fresh shares
-  top: top sharers
+    1. Send an audio file or forward it from any chat — it lands in your library.
+    2. Listen in a browser or in a player on your phone.
+    3. Share tracks in «🎵 Music» or in any chat with <code>@{{.Bot}}</code>.
+  usage: "📦 Space for music: {{.Used}} of {{.Quota}} used"
+  more: How to set up a player and everything else is in «❓ Help».
 
 stranger:
   text: |-
-    🎧 {{.Service}} is a private music service on <a href="https://www.navidrome.org">Navidrome</a>. Everyone here has a personal library: upload tracks from Telegram and streaming services, listen in any Navidrome client, and share finds with others. Access is invite-only.
+    🎧 {{.Service}} is a private music service on <a href="https://www.navidrome.org">Navidrome</a>: a library for everyone, tracks straight from Telegram.
 
-    👥 Users: {{.Users}} · 🎵 Shared tracks: {{.SharedTracks}}
-  contact: "✉️ Ask for access: {{.Contact}}"
+    Members: {{.Users}} · shared tracks: {{.SharedTracks}}
+
+    Invite only.
+  contact: "Ask for an invite: {{.Contact}}"
 
 footer:
   source: Source code
@@ -68,102 +68,132 @@ footer:
 
 languages: 🌐 Choose the language
 
+settings:
+  title: ⚙️ <b>Settings</b>
+
+help:
+  text: "❓ <b>Help</b>\n\nWhat would you like to know?"
+  inline_button: 💬 In other chats
+  space_button: 📦 Space and the Shared Library
+  inline: "💬 <b>In other chats</b>\n\nType the bot's name and a command in any chat. The bot shows a list and sends what you pick to that chat:\n"
+  np: what you're playing now
+  recent: what you played lately
+  shared: fresh in the Shared Library
+  top: who shares the most
+  # {{.Usage}} is an example search.
+  search: Any other text searches your music, e.g. {{.Usage}}
+  space: |-
+    📦 <b>Space and the Shared Library</b>
+
+    Everyone here has a library and space on the server of their own. If your space is limited, the home screen shows how much is used. Once it runs out, new tracks won't upload.
+
+    Only you and the server's owner see your library. You can share a track or an album: it goes to the Shared Library, and others can take it for themselves. A taken track uses the space of whoever took it.
+
 how_to: |-
-  ❓ <b>How to upload</b>
+  📥 <b>How to upload</b>
 
-  Send an audio file or forward it from any chat: mp3, flac, m4a, ogg, opus, wav.
-  👀 — got it, 👍 — the track is in your library, 👎 — I'll explain what went wrong.
+  Send an audio file or forward it from any chat: mp3, flac, m4a, ogg, opus and wav work.
 
-  The library is yours: other users don't see it, but the files are on the server, and its owner can see them.
+  A reaction tells what happened to it: 👀 — working on it, 👍 — the track is in your library, 👎 — something went wrong, I'll explain.
 
-  🔗 To Share a track or its album with everyone, reply <code>/share</code> to the audio message.
+  Where to get files: find a track in @yv2t_bot or @murglar_bot and forward it here.
+
+  To share a track, reply <code>/share</code> to it or find it in «🎵 Music» on the «Mine» tab.
 
 listen: |-
   📱 <b>How to listen</b>
 
-  <b>1. Account.</b> Your Navidrome login and password are the ones the bot gave you when you joined. If you had an account already, link it on the «👤 Accounts» screen.
+  <b>In a browser.</b> {{if .NavidromeURL}}Open <a href="{{.NavidromeURL}}">{{.NavidromeURL}}</a>{{else}}Open the Navidrome address the admin gave you{{end}} and sign in with your login and password. The bot sent them when you joined. If you had an account already, link it: «⚙️ Settings» → «🎧 Navidrome account».
 
-  <b>2. In a browser.</b> {{if .NavidromeURL}}Open <a href="{{.NavidromeURL}}">{{.NavidromeURL}}</a>{{else}}Open the Navidrome address the admin gave you{{end}} and sign in with that login and password.
-
-  <b>3. On the phone.</b> Install a Subsonic player:
+  <b>On the phone.</b> Install a Subsonic player:
   • Android: Symfonium, Tempo, Ultrasonic
   • iPhone: Amperfy, play:Sub, substreamer
 
-  <b>4. Connect.</b> In the player add a Subsonic or Navidrome server: address {{if .NavidromeURL}}<code>{{.NavidromeURL}}</code>{{else}}of your Navidrome{{end}}, your login and password. Your library, the Shared one, stars and playlists show up there.
+  In the player add a Subsonic or Navidrome server: address {{if .NavidromeURL}}<code>{{.NavidromeURL}}</code>{{else}}of your Navidrome{{end}}, your login and password. Your library, the Shared one, stars and playlists show up there.
 
 invite:
-  invalid: "⛔ The invite is not valid: it was used or has expired"
-  failed: ️️ Could not create an invite, try again later
-  link: "🎟 One-time invite, valid for {{.Days}}:\n{{.Link}}"
-  another: 🎟 Another one
-  not_admin: ⛔ Only the admin gives out invites
+  invalid: "❌ The invite doesn't work: it was used or has expired"
+  failed: Could not create an invite, try again later
+  link: "🎟 An invite for one person, valid for {{.Days}}:\n{{.Link}}"
+  another: 🎟 New invite
+  not_admin: Only the admin gives out invites
 
 days:
   one: "{{.Count}} day"
   other: "{{.Count}} days"
 
 register:
-  choose: "✏️ Choose a Navidrome login and send it as a message: 3 to 32 characters: latin letters, digits, dot, hyphen or underscore"
-  invalid: "✏️ That login won't do. Choose another: 3 to 32 characters: latin letters, digits, dot, hyphen or underscore"
-  taken: ✏️ The login <b>{{.Login}}</b> is taken in Navidrome. Choose another and send it as a message
-  failed: ️️ Could not create a Navidrome account. Send the login again a bit later
+  choose: |-
+    👋 Welcome!
+
+    Choose a Navidrome login — you'll sign in to players with it. Send it as a message.
+
+    3 to 32 characters: latin letters, digits, dot, hyphen, underscore.
+  invalid: "❌ That login won't do. It needs 3 to 32 characters: latin letters, digits, dot, hyphen, underscore. Send another one."
+  taken: ❌ The login <b>{{.Login}}</b> is taken. Send another one.
+  failed: Could not create the account. Send the login again a bit later.
   have_account: 🔗 I already have an account
   done: |-
-    🎧 Your Navidrome account is ready, sign in with any Navidrome or Subsonic client{{if .NavidromeURL}}: {{.NavidromeURL}}{{end}}
+    ✅ Your Navidrome account is ready{{if .NavidromeURL}}: {{.NavidromeURL}}{{end}}
 
     Login: <code>{{.Login}}</code>
     Password: <tg-spoiler>{{.Password}}</tg-spoiler>
 
-    Save the password and delete this message: the bot shows the password only once
+    Save the password and delete this message: the bot won't show it again. How to set up a player is in «❓ Help».
 
 navidrome:
-  linked: "🎧 <b>Navidrome</b>\n\nLinked account: <b>{{.Login}}</b>"
-  not_linked: "🎧 <b>Navidrome</b>\n\nNo Navidrome account is linked: inline mode can't show what you're listening to without one"
+  linked: "🎧 <b>Navidrome account</b>\n\nLinked account: <b>{{.Login}}</b>"
+  not_linked: "🎧 <b>Navidrome account</b>\n\nNo account is linked. Without one the bot can't show in other chats what you're listening to."
   link: 🔗 Link
   link_another: 🔗 Link another
-  prompt: "🔗 Send your Navidrome login and password in one message, separated by a space: <code>login password</code>. I'll delete the message right away"
-  malformed: ✏️ I need a login and a password separated by a space. The message is deleted, send it again
-  done: ✅ Navidrome account <b>{{.Login}}</b> is linked. In Navidrome it now sees your Personal Library and the Shared one, but not other users' Personal Libraries. The message with the password is deleted
-  sees_songs: 🎶 The bot sees {{.Songs}} from your Navidrome libraries
-  done_admin: ✅ Navidrome account <b>{{.Login}}</b> is linked. It is a Navidrome admin, so it sees every library. The message with the password is deleted
-  taken: ⛔ This Navidrome account is linked to another user. The message with the password is deleted
-  wrong_password: ❌ Wrong Navidrome login or password. The message with the password is deleted, try again
-  failed: "️️ Could not check the account: Navidrome is unavailable, try again later. The message with the password is deleted"
+  prompt: "Send your Navidrome login and password in one message, separated by a space: <code>login password</code>\n\nI'll delete the message right away."
+  malformed: ❌ I need a login and a password separated by a space. Send them again.
+  done: ✅ Account <b>{{.Login}}</b> is linked. In Navidrome it sees your library and the Shared one, but not other people's.
+  sees_songs: "The bot sees in your Navidrome libraries: {{.Songs}}"
+  done_admin: ✅ Account <b>{{.Login}}</b> is linked. It is a Navidrome admin, so it sees every library.
+  taken: ❌ This account is linked to another user
+  wrong_password: ❌ Wrong login or password. Send them again.
+  failed: Navidrome is unavailable, try again later
+
+music:
+  shared_tab: 🔗 Shared
+  mine_tab: 🎧 Mine
 
 feed:
   title: Fresh in the Shared Library
-  empty: 💤 Nobody has shared anything yet. Reply /share to an audio message with your track to be the first
-  failed: ️️ Could not load the Feed, try again later
-  take: "{{.N}}. ➕ Take"
-  send_file: "{{.N}}. ▶️ Send the file"
-  in_library: "{{.N}}. ✅ You have it"
-  taken: ➕ The track is in your library
+  empty: 💤 The Shared Library is empty so far
+  failed: Could not load the Shared Library, try again later
+  take: ➕ Take
+  send_file: ▶️ Send the file
+  in_library: ✅ Already yours
+  choose: Pick a track to take it or get its file.
+  taken: The track is added to your library
   already_in_library: You already have this track
-  not_shared: The track is no longer in the Shared Library
-  file_too_large: "The file is too big: Telegram won't let the bot send it"
+  not_shared: This track was removed from the Shared Library
+  file_too_large: "The file is too large: Telegram won't let the bot send it"
   shared_by: shared by {{.Author}}
-  list_title: "🔗 Fresh shares: {{.Tracks}}"
+  list_title: "🔗 Fresh in the Shared Library: {{.Tracks}}"
   list_description: Send the whole list in one message
-  empty_title: 💤 Nothing shared yet
-  empty_description: Share a track with /share
-  failed_title: ️️ The Feed is unavailable
-  failed_description: Could not get the shares
+  empty_title: 💤 The Shared Library is empty so far
+  empty_description: Share a track through the bot
+  failed_title: The Shared Library is unavailable
+  failed_description: Could not load the Shared Library
 
 author:
-  unknown: someone earlier
+  unknown: an unknown user
   no_username: a user without a username
 
 top:
-  title: Top
+  title: Who shares the most
+  about: How many tracks people added to the Shared Library and how often others took them
   shared: Shared the most
-  taken: Taken the most
+  taken: Most taken from
   all_time: all time
   this_month: this month
   nobody: Nobody yet
-  failed: ️️ Could not count the Top, try again later
-  about: Who shared the most and whose shares are taken the most
-  failed_title: ️️ The Top is unavailable
-  failed_description: Could not count the Top
+  failed: Could not count the rating, try again later
+  failed_title: The rating is unavailable
+  failed_description: Could not count the rating
 
 tracks:
   one: "{{.Count}} track"
@@ -185,71 +215,74 @@ provider:
     # The name inside a phrase: "of <name>", "from <name>".
     of: Zvuk
     button: 🟣 Zvuk
-    token_howto: "Where to get it: sign in to zvuk.com in a browser, open https://zvuk.com/api/tiny/profile and copy the <code>token</code> field. A subscription is required"
+    token_howto: "Where to get it: sign in to zvuk.com in a browser, open https://zvuk.com/api/tiny/profile and copy the <code>token</code> field. A Zvuk subscription is required."
 
 sources:
-  text: "📥 <b>Import from a streaming service</b>\n\nConnect a service, and I'll bring its likes, saved albums and playlists into your library and keep pulling in what's new"
-  imports: 📊 Imports
+  text: "📥 <b>Import from a service</b>\n\nConnect a streaming service — I'll bring its likes, saved albums and playlists into your library and then keep adding what's new."
+  imports: 📊 Import progress
   status: "📥 <b>{{.Name}}</b>\n\nStatus: {{.Status}}"
   not_connected: not connected
   connected: connected
-  token_rejected: no longer accepts the token, connect it again
+  token_rejected: the token no longer works, connect again
   connect: 🔌 Connect
   import: 📥 Import
-  disconnect: 🚫 Disconnect
-  token_prompt: 🔌 Send your {{.Name}} token as a message. I'll delete the message right away
-  connected_notice: ✅ {{.Name}} is connected. The message with the token is deleted
-  token_invalid: ❌ {{.Name}} rejected the token. The message with the token is deleted, check it and send it again
-  no_subscription: ❌ This {{.Name}} account has no subscription, and tracks can't be downloaded without one. The message with the token is deleted
-  down: ️️ {{.Name}} is unavailable, try again later
-  connect_first: 🔌 Connect {{.Name}} to import your collection
-  disconnected: "🔌 {{.Name}} is disconnected: the token is deleted and the collection no longer syncs. The downloaded tracks stay in your library"
-  token_rejected_notice: 🔌 {{.Name}} stopped accepting the token, so new likes and playlist tracks no longer come in. Connect it again
+  disconnect: Disconnect
+  token_prompt: "Send your {{.Of}} token as a message. I'll delete the message right away."
+  connected_notice: ✅ {{.Name}} is connected
+  token_invalid: ❌ {{.Name}} rejected the token. Check it and send it again.
+  no_subscription: ❌ This {{.Of}} account has no subscription, and tracks can't be downloaded without one
+  down: "{{.Name}} is unavailable, try again later"
+  connect_first: Connect {{.Name}} first
+  disconnected: "{{.Name}} is disconnected, the token is deleted. The tracks you got stay in your library."
+  token_rejected_notice: "{{.Name}} stopped accepting the token, so new likes and playlist tracks no longer come in. Connect it again."
   reconnect: 🔌 Connect again
 
 plan:
   usage: "📦 {{.Free}} free of {{.Quota}}"
   size: "{{.Tracks}}, about {{.Size}}"
-  size_partly: "{{.Total}}, of which your library lacks {{.Missing}}, about {{.Size}}"
-  text: "🎧 Your {{.Name}} collection has {{.Size}}. Likes, saved albums and playlists will go to your Personal Library: likes become stars, and playlists become Navidrome playlists. Tracks download with pauses, so it takes a while"
-  nothing: 💤 Your {{.Name}} collection has no tracks, albums or playlists
-  all_imported: ✅ Your whole {{.Name}} collection ({{.Tracks}}) is in your library already
-  start: ▶️ Start
-  running: The Import is already running
-  all_in_library: The whole collection is in your library already
+  size_partly: "{{.Total}}, {{.Missing}} of them not in your library, about {{.Size}}"
+  text: |-
+    The {{.Of}} collection: {{.Size}}.
+
+    Likes, albums and playlists go to your library: likes become stars, and playlists become Navidrome playlists. Tracks download with pauses, so it takes a while.
+  nothing: 💤 The {{.Of}} collection is empty
+  all_imported: ✅ The whole {{.Of}} collection ({{.Tracks}}) is already in your library
+  start: ▶️ Start the import
+  running: The import is already running
+  all_in_library: The whole collection is already in your library
 
 imports:
-  over_quota: "📦 Over the quota: {{.Tracks}}"
-  title: 📊 <b>Imports</b>
+  over_quota: "Didn't fit in your space: {{.Tracks}}"
+  title: 📊 <b>Import progress</b>
   nothing: Nothing is being imported now
   errors: errors
-  summary: "✅ Import from {{.Name}}: {{.Done}} of {{.Total}} in your library"
-  failed: Could not download
+  summary: "✅ Import from {{.Of}} is done: {{.Done}} of {{.Total}} in your library"
+  failed: Failed to download
   more: …and
 
 upload:
-  unsupported_format: "The track is not uploaded: the format is not supported. Use mp3, flac, m4a, ogg, opus or wav"
-  corrupt_file: "The track is not uploaded: the file is damaged or not audio"
-  fetch_failed: "The track is not uploaded: Telegram did not give the file, send it again"
-  internal: "The track is not uploaded: internal error, try again later"
-  inbox: "The track went to the Inbox: could not tell its artist or title"
+  unsupported_format: "The track is not uploaded: this format won't do. mp3, flac, m4a, ogg, opus and wav work."
+  corrupt_file: "The track is not uploaded: the file is broken or not audio"
+  fetch_failed: "The track is not uploaded: Telegram didn't hand over the file. Send it again."
+  internal: "The track is not uploaded: something broke, try again later"
+  inbox: The file has no artist or title, so the track is in the «Inbox» folder
   already_exists: This track is already in your library
 
 share:
-  usage: "Reply /share to an audio message with a track from your library: I'll offer to Share it or its whole album"
-  what: What to Share?
-  track: 🔗 Track
-  album: 💿 Whole album
-  unshare_track: 🔒 Unshare track
-  unshare_album: 🔒 Unshare album
-  inbox: "🗂 An Inbox track can't be shared: it has no artist or title"
-  not_own: This track is not from your library
-  already: You have shared it already
-  created: "🔗 In the Shared Library: {{.Tracks}}"
-  by_other: The track is shared already, by {{.Author}}
-  created_partly: "🔗 In the Shared Library: {{.Tracks}}, {{.Already}} more were there already"
-  unshared: 🔒 Unshared
-  not_found: ️️ Could not find the track, try again later
+  usage: Reply /share to a message with a track from your library
+  what: What to share?
+  track: 🔗 The track
+  album: 💿 The whole album
+  unshare_track: Remove the track from Shared
+  unshare_album: Remove the album from Shared
+  inbox: "A track from the «Inbox» can't be shared: it has no artist or title"
+  not_own: This track is not in your library
+  already: You've already shared this
+  created: "Added to the Shared Library: {{.Tracks}}"
+  by_other: "{{.Author}} has already shared this track"
+  created_partly: "Added to the Shared Library: {{.Tracks}}, {{.Already}} were there already"
+  unshared: Removed from the Shared Library
+  not_found: Could not find the track, try again later
 
 playing:
   now: Now playing
@@ -257,21 +290,21 @@ playing:
   nothing_title: 💤 Nothing is playing
   nothing_description: Nothing is playing in Navidrome now
   nothing_message: 💤 Nothing is playing now
-  failed_title: ️️ Navidrome is unavailable
-  failed_description: Could not get the current track
-  failed_message: ️️ Could not get the current track
+  failed_title: Navidrome is unavailable
+  failed_description: Could not tell what's playing
+  failed_message: Could not tell what's playing
   file_not_sent: Could not send the file
 
 recent:
   title: 📜 Last {{.Tracks}}
   header: Last {{.Tracks}}
   about: Send the whole list in one message
-  empty_title: 💤 No history
+  empty_title: 💤 The history is empty
   empty_description: Nothing has been played in Navidrome yet
   empty_message: 💤 The listening history is empty
-  failed_title: ️️ Navidrome is unavailable
-  failed_description: Could not get the listening history
-  failed_message: ️️ Could not get the listening history
+  failed_title: Navidrome is unavailable
+  failed_description: Could not load the listening history
+  failed_message: Could not load the listening history
 
 ago:
   now: just now
@@ -281,23 +314,23 @@ ago:
 
 no_account:
   title: 🔗 Link a Navidrome account
-  about: Open the bot → 👤 Accounts
-  message: "🔗 Link a Navidrome account: open @{{.Bot}} and press «👤 Accounts»"
+  about: Open the bot → ⚙️ Settings
+  message: "🔗 Link a Navidrome account: open @{{.Bot}} → «⚙️ Settings» → «🎧 Navidrome account»"
 
 hint:
-  try: Try
+  try: Try it
   np:
-    about: Now playing
+    about: What's playing now
     message: what I'm listening to now
   recent:
-    about: Recently played
+    about: Recent tracks
     message: my recent tracks
   shared:
-    about: Fresh shares
-    message: fresh shares
+    about: Fresh in the Shared Library
+    message: fresh in the Shared Library
   top:
-    about: Top sharers
-    message: top sharers
+    about: Who shares the most
+    message: who shares the most
 
 quota:
   title: 📦 <b>Quotas</b>
@@ -306,35 +339,35 @@ quota:
   from_config: (from the config)
   edit_default: ✏️ Default
   edit_shared: ✏️ Shared Library
-  edit_user: 📦 Quota
+  edit_user: 📦 Change the quota
   prompt: Pick a quota or send a size as a message, e.g. <code>25 GB</code> or <code>500 MB</code>
   unlimited_button: ♾ Unlimited
   from_config_button: ↺ From the config
   default_button: ↺ Default
-  unreadable: ✏️ That is no size. Send, e.g., <code>25 GB</code> or <code>500 MB</code>
-  promised: "promised {{.Promised}}"
-  used: "used {{.Used}}"
-  free: "free on disk {{.Free}}"
-  overcommitted: ️️ The quotas promise more than the disk holds
-  shared_full: The Shared Library is full, nothing can be shared
-  no_room: "Out of space: {{.Used}} of {{.Quota}} used"
-  contact: "✉️ For more space, write to {{.Contact}}"
+  unreadable: ❌ I didn't get the size. Send, e.g., <code>25 GB</code> or <code>500 MB</code>
+  promised: promised {{.Promised}}
+  used: used {{.Used}}
+  free: free on disk {{.Free}}
+  overcommitted: ⚠️ The quotas promise more space than the disk has
+  shared_full: The Shared Library is full, sharing won't work now
+  no_room: "Not enough space: {{.Used}} of {{.Quota}} used"
+  contact: To get more space, write to {{.Contact}}
   unlimited: unlimited
 
 admin:
   user_id: "User #{{.ID}}"
-  only: ⛔ This is for the admin only
+  only: This is for the admin only
   title: 🛠 <b>Admin</b>
-  users: "👥 Users: {{.Users}}, active in 7 days: {{.Active}}"
+  users: "👥 Users: {{.Users}}, active this week: {{.Active}}"
   strangers: "🚪 Came without an invite: {{.Strangers}}"
   tracks: "🎵 Tracks: {{.Tracks}} · shared: {{.Shared}} · taken: {{.Takes}}"
-  jobs: "📥 Uploads in progress: {{.Pending}}, failed: {{.Failed}}"
+  jobs: "📥 Uploads queued: {{.Pending}}, failed: {{.Failed}}"
   users_button: 👥 Users
   quotas_button: 📦 Quotas
   users_title: "👥 <b>Users</b>\n\nThe most recently seen first"
   prev: ◀️
   next: ▶️
-  never_seen: not seen yet
+  never_seen: never came
   profile: profile
   card_dates: "📅 Since {{.Since}} · 👀 {{.Seen}}"
   card_usage: "🎵 Tracks: {{.Tracks}} · 📦 {{.Used}} of {{.Quota}} ({{.Source}})"
@@ -351,43 +384,43 @@ units:
 
 search:
   hint_title: 🔎 Search
-  hint_about: or just type the name of a track, artist or album
+  hint_about: or just type a track, artist or album name
   hint_message: "🔎 {{.Usage}} — find a track or an album in my music"
   nothing_title: 🔎 Nothing found
   nothing_description: Try other words
   nothing_message: 🔎 Nothing found
-  failed_title: ️️ Search is unavailable
+  failed_title: Search is unavailable
   failed_description: Could not search the music
 
 listen_link:
   open: Listen
   not_ready: not ready yet, try again in a minute
-  failed: could not make a link
+  failed: could not create a link
 
 share_screen:
-  title: "📤 <b>Share</b>"
-  prompt: "Write the name of a track, artist or album"
-  newest: "The newest in your library:"
+  title: 🎧 <b>My music</b>
+  prompt: To find a track, artist or album, send its name as a message
+  newest: "Added lately:"
   found: "Found for «{{.Query}}»:"
-  nothing: "Nothing found for «{{.Query}}»"
-  empty: "Your library is empty yet"
-  tracks: "🎵 Tracks"
-  albums: "💿 Albums"
-  share: "🔗 Share"
-  unshare: "🔒 Unshare"
-  send_file: "▶️ Send the file"
-  share_album: "🔗 Share the album"
-  unshare_album: "🔒 Unshare the album"
-  listen_link: "🔗 Listen link"
-  personal: "your library"
-  shared: "🔗 In the Shared Library"
-  shared_by: "🔗 Already in the Shared Library, shared by {{.Author}}"
-  not_shared: "🔒 Not in the Shared Library"
-  album_shared: "🔗 Shared: {{.Shared}} of {{.Tracks}}"
-  sent: "The link is in the chat below"
+  nothing: Nothing found for «{{.Query}}»
+  empty: Your library is empty so far. Send the bot an audio file.
+  tracks: 🎵 Tracks
+  albums: 💿 Albums
+  share: 🔗 Share
+  unshare: Remove from Shared
+  send_file: ▶️ Send the file
+  share_album: 🔗 Share the album
+  unshare_album: Remove the album from Shared
+  listen_link: 🎧 Listening link
+  personal: your library
+  shared: 🔗 In the Shared Library
+  shared_by: 🔗 In the Shared Library, shared by {{.Author}}
+  not_shared: Only in your library
+  album_shared: "🔗 In the Shared Library: {{.Shared}} of {{.Tracks}}"
+  sent: The link is in the message below
 
 unsendable:
-  button: "️️ Some tracks can't be sent — why?"
-  no_account: "️️ A track without a Telegram file is sent as a listening link, and that needs a Navidrome account. Link it on the «👤 Accounts» screen"
-  no_address: "️️ A track without a Telegram file is sent as a listening link, but the admin has not set Navidrome's public address. Such tracks can't be sent yet"
+  button: Why weren't all tracks sent?
+  no_account: A track with no file in Telegram is sent as a listening link, and the link needs a Navidrome account. Link one in «⚙️ Settings».
+  no_address: A track with no file in Telegram is sent as a listening link, but the admin hasn't set a public Navidrome address. Such tracks can't be sent yet.
   ready: "✅ Listening links work now: find the track again"

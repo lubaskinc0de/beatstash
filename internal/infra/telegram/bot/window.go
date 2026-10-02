@@ -15,31 +15,36 @@ import (
 type screen string
 
 const (
-	screenHome       screen = "home"
-	screenFeed       screen = "feed"
-	screenTop        screen = "top"
-	screenSources    screen = "sources"
-	screenProvider   screen = "provider"
-	screenConnect    screen = "connect"
-	screenPlan       screen = "plan"
-	screenImports    screen = "imports"
-	screenNavidrome  screen = "navidrome"
-	screenLink       screen = "link"
-	screenRegister   screen = "register"
-	screenInvite     screen = "invite"
-	screenHowTo      screen = "howto"
-	screenListen     screen = "listen"
-	screenLanguages  screen = "languages"
-	screenAdmin      screen = "admin"
-	screenUsers      screen = "users"
-	screenUser       screen = "user"
-	screenQuotas     screen = "quotas"
-	screenQuota      screen = "quota"
-	screenUserQuota  screen = "user_quota"
-	screenShare      screen = "share"
-	screenShareTrack screen = "share_track"
-	screenShareAlbum screen = "share_album"
-	screenUnsendable screen = "unsendable"
+	screenHome        screen = "home"
+	screenFeed        screen = "feed"
+	screenTop         screen = "top"
+	screenSources     screen = "sources"
+	screenProvider    screen = "provider"
+	screenConnect     screen = "connect"
+	screenPlan        screen = "plan"
+	screenImports     screen = "imports"
+	screenNavidrome   screen = "navidrome"
+	screenLink        screen = "link"
+	screenRegister    screen = "register"
+	screenInvite      screen = "invite"
+	screenHelp        screen = "help"
+	screenHowTo       screen = "howto"
+	screenListen      screen = "listen"
+	screenInlineHelp  screen = "inline_help"
+	screenSpaceHelp   screen = "space_help"
+	screenSettings    screen = "settings"
+	screenLanguages   screen = "languages"
+	screenAdmin       screen = "admin"
+	screenUsers       screen = "users"
+	screenUser        screen = "user"
+	screenQuotas      screen = "quotas"
+	screenQuota       screen = "quota"
+	screenUserQuota   screen = "user_quota"
+	screenShare       screen = "share"
+	screenSharedTrack screen = "shared_track"
+	screenShareTrack  screen = "share_track"
+	screenShareAlbum  screen = "share_album"
+	screenUnsendable  screen = "unsendable"
 )
 
 type place struct {
@@ -68,6 +73,20 @@ func goData(to place) string {
 
 func goButton(text string, to place) models.InlineKeyboardButton {
 	return models.InlineKeyboardButton{Text: text, CallbackData: goData(to)}
+}
+
+// Colors of buttons that act: blue is a screen's main action, green gives
+// the user something, red takes something away or cancels. Navigation stays
+// plain.
+const (
+	stylePrimary = "primary"
+	styleSuccess = "success"
+	styleDanger  = "danger"
+)
+
+func styled(b models.InlineKeyboardButton, style string) models.InlineKeyboardButton {
+	b.Style = style
+	return b
 }
 
 func backRow(ctx context.Context, to place) []models.InlineKeyboardButton {
@@ -106,9 +125,15 @@ func (h *Handler) goTo(ctx context.Context, cb windowCallback, arg string) {
 	h.Telegram.show(ctx, cb.chatID, cb.messageID, place{screen(name), arg}, "")
 }
 
-// handleText ignores text unless the window awaits it.
+// handleText deletes any text: only the window stays in the chat. The text
+// goes before the answer: it may hold a secret, and with nothing below the
+// window is redrawn in place.
 func (h *Handler) handleText(ctx context.Context, _ *bot.Bot, update *models.Update) {
 	msg := update.Message
+	h.Telegram.deleteMessage(ctx, msg.Chat.ID, msg.ID)
+	if _, _, ok := command(update); ok {
+		return
+	}
 	w, err := h.Telegram.Windows.Get(ctx, msg.Chat.ID)
 	if err != nil {
 		slog.Error("read_window", "error", err)
@@ -133,6 +158,7 @@ type windowInput struct {
 	arg  string
 }
 
+// isText takes unknown commands too: they are deleted like any text.
 func isText(update *models.Update) bool {
-	return update.Message != nil && update.Message.Text != "" && !strings.HasPrefix(update.Message.Text, "/")
+	return update.Message != nil && update.Message.Text != "" && !isCommand("start")(update) && !isCommand("share")(update)
 }

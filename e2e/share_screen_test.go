@@ -30,7 +30,7 @@ func TestShareScreenTracks(t *testing.T) {
 		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 		s.Uploaded(alice, s.UploadAudioFile(queenSong(t)))
 
-		s.Open(alice, s.Catalog(alice).ShareScreenButton())
+		s.Open(alice, s.Catalog(alice).MusicButton(), s.Catalog(alice).MineTab())
 
 		assert.Equal(t, s.Catalog(alice).ShareScreen("", true), s.WindowText())
 		assert.Equal(t, []string{queenButton, fixtureButton}, ownButtons(t, s))
@@ -40,7 +40,7 @@ func TestShareScreenTracks(t *testing.T) {
 		s := harness.New(t)
 		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 		s.Uploaded(alice, s.UploadAudioFile(queenSong(t)))
-		s.Open(alice, s.Catalog(alice).ShareScreenButton())
+		s.Open(alice, s.Catalog(alice).MusicButton(), s.Catalog(alice).MineTab())
 
 		query := s.SendText(alice, "queen")
 
@@ -52,7 +52,7 @@ func TestShareScreenTracks(t *testing.T) {
 	t.Run("track the user only sees in the Shared Library is not found", func(t *testing.T) {
 		s := harness.New(t)
 		s.Share(bob, s.Uploaded(bob, s.UploadAudio("track.mp3")), s.Catalog(bob).ShareTrack())
-		s.Open(alice, s.Catalog(alice).ShareScreenButton())
+		s.Open(alice, s.Catalog(alice).MusicButton(), s.Catalog(alice).MineTab())
 
 		s.SendText(alice, audiofile.FixtureTitle)
 
@@ -64,7 +64,7 @@ func TestShareScreenTracks(t *testing.T) {
 		s := harness.New(t)
 		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 		c := s.Catalog(alice)
-		s.Open(alice, c.ShareScreenButton(), fixtureButton)
+		s.Open(alice, c.MusicButton(), c.MineTab(), fixtureButton)
 
 		s.Go(alice, c.ShareCardButton())
 		shared := s.SharedFiles()
@@ -83,7 +83,7 @@ func TestShareScreenTracks(t *testing.T) {
 		s.Share(bob, s.Uploaded(bob, s.UploadAudioFile(mp3)), s.Catalog(bob).ShareTrack())
 		s.Uploaded(alice, s.UploadAudioFile(mp3))
 
-		s.Open(alice, s.Catalog(alice).ShareScreenButton(), "Artist — Dup Song")
+		s.Open(alice, s.Catalog(alice).MusicButton(), s.Catalog(alice).MineTab(), "Artist — Dup Song")
 
 		assert.Contains(t, s.WindowText(), s.Catalog(alice).SharedFirstBy(&access.User{Username: bob.Username}))
 	})
@@ -104,7 +104,7 @@ func TestShareScreenTracks(t *testing.T) {
 		s := harness.New(t)
 		audio := s.UploadAudio("track.mp3")
 		s.Uploaded(alice, audio)
-		s.Open(alice, s.Catalog(alice).ShareScreenButton(), fixtureButton)
+		s.Open(alice, s.Catalog(alice).MusicButton(), s.Catalog(alice).MineTab(), fixtureButton)
 
 		s.Go(alice, s.Catalog(alice).SendOwnFileButton())
 
@@ -118,7 +118,7 @@ func TestShareScreenTracks(t *testing.T) {
 		s := harness.New(t)
 		uploadMany(t, s, alice, 11)
 		c := s.Catalog(alice)
-		s.Open(alice, c.ShareScreenButton(), c.NextPage())
+		s.Open(alice, c.MusicButton(), c.MineTab(), c.NextPage())
 		page := ownButtons(t, s)
 		require.Len(t, page, 1)
 
@@ -148,7 +148,7 @@ func TestShareScreenAlbums(t *testing.T) {
 		s.UploadAlbum(alice, "Opera", 3)
 		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 		c := s.Catalog(alice)
-		s.Open(alice, c.ShareScreenButton())
+		s.Open(alice, c.MusicButton(), c.MineTab())
 		s.SendText(alice, "opera")
 
 		s.Go(alice, c.AlbumsMode())
@@ -164,7 +164,7 @@ func TestShareScreenAlbums(t *testing.T) {
 		s := harness.New(t)
 		s.UploadAlbum(alice, "Opera", 3)
 		c := s.Catalog(alice)
-		s.Open(alice, c.ShareScreenButton(), c.AlbumsMode(), c.OwnAlbumButton(operaAlbum()))
+		s.Open(alice, c.MusicButton(), c.MineTab(), c.AlbumsMode(), c.OwnAlbumButton(operaAlbum()))
 
 		s.Go(alice, c.ShareAlbumButton())
 		shared := s.SharedFiles()
@@ -183,7 +183,7 @@ func TestShareScreenAlbums(t *testing.T) {
 		c := s.Catalog(alice)
 		s.ShareOnScreen(alice, "Artist — Song 2")
 
-		s.Open(alice, c.ShareScreenButton(), c.AlbumsMode(), c.OwnAlbumButton(operaAlbum()))
+		s.Open(alice, c.MusicButton(), c.MineTab(), c.AlbumsMode(), c.OwnAlbumButton(operaAlbum()))
 
 		buttons := telegram.ButtonTexts(s.Telegram.Buttons(t))
 		assert.Contains(t, buttons, c.ShareAlbumButton())
@@ -199,7 +199,7 @@ func TestShareScreenAlbums(t *testing.T) {
 		s := harness.New(t)
 		s.UploadAlbum(alice, "Opera", 3)
 		c := s.Catalog(alice)
-		s.Open(alice, c.ShareScreenButton(), c.AlbumsMode(), c.OwnAlbumButton(operaAlbum()))
+		s.Open(alice, c.MusicButton(), c.MineTab(), c.AlbumsMode(), c.OwnAlbumButton(operaAlbum()))
 		album := s.WindowText()
 
 		s.Go(alice, "Artist — Song 2")
@@ -217,7 +217,7 @@ func TestShareScreenAlbums(t *testing.T) {
 		s := harness.New(t)
 		account := indexedOpera(t, s, alice)
 		c := s.Catalog(alice)
-		s.Open(alice, c.ShareScreenButton(), c.AlbumsMode(), c.OwnAlbumButton(operaAlbum()))
+		s.Open(alice, c.MusicButton(), c.MineTab(), c.AlbumsMode(), c.OwnAlbumButton(operaAlbum()))
 		window := s.WindowText()
 
 		s.Go(alice, c.ListenLinkButton())
@@ -236,7 +236,7 @@ func TestShareScreenAlbums(t *testing.T) {
 		indexedOpera(t, s, alice)
 		c := s.Catalog(alice)
 
-		s.Open(alice, c.ShareScreenButton(), c.AlbumsMode(), c.OwnAlbumButton(operaAlbum()))
+		s.Open(alice, c.MusicButton(), c.MineTab(), c.AlbumsMode(), c.OwnAlbumButton(operaAlbum()))
 
 		assert.NotContains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), c.ListenLinkButton())
 	})

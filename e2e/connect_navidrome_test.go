@@ -49,8 +49,10 @@ func TestNavidromeAccount(t *testing.T) {
 	t.Run("link deletes the password message and confirms", func(t *testing.T) {
 		s := harness.New(t)
 		account := s.Navidrome.CreateAccount(t, "alice")
+		s.Open(alice, s.Catalog(alice).SettingsButton(), s.Catalog(alice).AccountsButton(), s.Catalog(alice).Link())
+		s.Telegram.Forget()
 
-		link := s.Link(alice, account)
+		link := s.SendText(alice, account.Login+" "+account.Password)
 
 		assert.Equal(t, []string{strconv.Itoa(link.Message.ID)}, s.Telegram.DeletedMessages())
 		assert.Contains(t, s.WindowText(), s.Catalog(alice).Linked(account.Login, 0))
@@ -60,16 +62,17 @@ func TestNavidromeAccount(t *testing.T) {
 		s := harness.New(t)
 		account := s.Navidrome.CreateAccount(t, "alice")
 
-		s.Send(s.TextMessage(alice, "/link "+account.Login+" "+account.Password))
+		link := s.TextMessage(alice, "/link "+account.Login+" "+account.Password)
+		s.Send(link)
 
-		assert.Empty(t, s.Telegram.AllCalls())
+		assertOnlyDeleted(t, s, link)
 	})
 
 	t.Run("screen shows the linked login", func(t *testing.T) {
 		s := harness.New(t)
 		account := s.LinkNewAccount(alice)
 
-		s.Open(alice, s.Catalog(alice).AccountsButton())
+		s.Open(alice, s.Catalog(alice).SettingsButton(), s.Catalog(alice).AccountsButton())
 
 		assert.Contains(t, s.WindowText(), s.Catalog(alice).NavidromeLinked(account.Login))
 		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), s.Catalog(alice).LinkAnother())
@@ -78,19 +81,18 @@ func TestNavidromeAccount(t *testing.T) {
 	t.Run("going back stops waiting for the password", func(t *testing.T) {
 		s := harness.New(t)
 		account := s.Navidrome.CreateAccount(t, "alice")
-		s.Open(alice, s.Catalog(alice).AccountsButton(), s.Catalog(alice).Link(), s.Catalog(alice).Cancel())
+		s.Open(alice, s.Catalog(alice).SettingsButton(), s.Catalog(alice).AccountsButton(), s.Catalog(alice).Link(), s.Catalog(alice).Cancel())
 
 		s.SendText(alice, account.Login+" "+account.Password)
-		s.Open(alice, s.Catalog(alice).AccountsButton())
+		s.Open(alice, s.Catalog(alice).SettingsButton(), s.Catalog(alice).AccountsButton())
 
-		assert.Empty(t, s.Telegram.DeletedMessages())
 		assert.Contains(t, s.WindowText(), s.Catalog(alice).NavidromeNotLinked())
 	})
 
 	t.Run("audio while waiting is uploaded and the wait goes on", func(t *testing.T) {
 		s := harness.New(t)
 		account := s.Navidrome.CreateAccount(t, "alice")
-		s.Open(alice, s.Catalog(alice).AccountsButton(), s.Catalog(alice).Link())
+		s.Open(alice, s.Catalog(alice).SettingsButton(), s.Catalog(alice).AccountsButton(), s.Catalog(alice).Link())
 
 		upload := s.Uploaded(alice, s.UploadAudio("track.mp3"))
 		s.SendText(alice, account.Login+" "+account.Password)
@@ -117,8 +119,10 @@ func TestNavidromeAccount(t *testing.T) {
 		s := harness.New(t)
 		account := s.Navidrome.CreateAccount(t, "alice")
 		account.Password = "wrong"
+		s.Open(alice, s.Catalog(alice).SettingsButton(), s.Catalog(alice).AccountsButton(), s.Catalog(alice).Link())
+		s.Telegram.Forget()
 
-		link := s.Link(alice, account)
+		link := s.SendText(alice, account.Login+" "+account.Password)
 		query := s.InlineQuery(alice, "np")
 		s.Send(query)
 
@@ -129,7 +133,8 @@ func TestNavidromeAccount(t *testing.T) {
 
 	t.Run("link with missing password is rejected and the message is deleted", func(t *testing.T) {
 		s := harness.New(t)
-		s.Open(alice, s.Catalog(alice).AccountsButton(), s.Catalog(alice).Link())
+		s.Open(alice, s.Catalog(alice).SettingsButton(), s.Catalog(alice).AccountsButton(), s.Catalog(alice).Link())
+		s.Telegram.Forget()
 
 		input := s.SendText(alice, "alice")
 

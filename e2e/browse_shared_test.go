@@ -18,8 +18,8 @@ func TestTake(t *testing.T) {
 		s := harness.New(t)
 		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
 		unshare := s.Button(s.Catalog(alice).UnshareTrack())
-		s.Open(bob, s.Catalog(bob).FeedButton())
-		take := s.Button(s.Catalog(bob).TakeButton(1))
+		s.OpenShared(bob, 1)
+		take := s.Button(s.Catalog(bob).TakeButton())
 
 		s.Press(alice, unshare)
 		s.Press(bob, take)
@@ -32,8 +32,8 @@ func TestTake(t *testing.T) {
 		s := harness.New(t)
 		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
 		unshare := s.Button(s.Catalog(alice).UnshareTrack())
-		s.Open(bob, s.Catalog(bob).FeedButton())
-		sendFile := s.Button(s.Catalog(bob).SendFileButton(1))
+		s.OpenShared(bob, 1)
+		sendFile := s.Button(s.Catalog(bob).SendFileButton())
 
 		s.Press(alice, unshare)
 		s.Press(bob, sendFile)
@@ -78,8 +78,8 @@ func TestTake(t *testing.T) {
 		s.Share(bob, s.BotAudio(bob, audio), s.Catalog(bob).ShareTrack())
 
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.SharedFiles())
-		assert.Contains(t, feed(s, alice), "@bob")
-		assert.NotContains(t, feed(s, alice), "@alice")
+		assert.Contains(t, newestShare(s, alice), "@bob")
+		assert.NotContains(t, newestShare(s, alice), "@alice")
 	})
 
 	t.Run("upload of a shared file needs no download", func(t *testing.T) {
@@ -145,9 +145,9 @@ func TestTake(t *testing.T) {
 		s := harness.New(t)
 		audio := s.UploadAudio("track.mp3")
 		s.Share(alice, s.Uploaded(alice, audio), s.Catalog(alice).ShareTrack())
-		s.Open(bob, s.Catalog(bob).FeedButton())
+		s.OpenShared(bob, 1)
 
-		s.Press(bob, s.Button(s.Catalog(bob).SendFileButton(1)))
+		s.Press(bob, s.Button(s.Catalog(bob).SendFileButton()))
 
 		sent := s.Telegram.CallsTo("sendAudio")
 		require.Len(t, sent, 1)
@@ -182,15 +182,15 @@ func TestSharedFeed(t *testing.T) {
 		replica := s.StartReplica()
 		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
 
-		replica.Open(bob, s.Catalog(bob).FeedButton())
+		replica.Open(bob, s.Catalog(bob).MusicButton())
 
-		assert.Contains(t, s.WindowText(), audiofile.FixtureTitle)
+		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), fixtureButton)
 	})
 
 	t.Run("empty feed says nobody has shared yet", func(t *testing.T) {
 		s := harness.New(t)
 
-		s.Open(alice, s.Catalog(alice).FeedButton())
+		s.Open(alice, s.Catalog(alice).MusicButton())
 
 		empty := s.Catalog(alice).FeedEmpty()
 		require.NotEmpty(t, empty)
@@ -202,36 +202,36 @@ func TestSharedFeed(t *testing.T) {
 		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
 
 		s.Take(bob, 1)
-		afterTake := telegram.ButtonTexts(s.Telegram.Buttons(t))
-		s.Open(bob, s.Catalog(bob).FeedButton())
 
+		c := s.Catalog(bob)
 		assert.Equal(t, "editMessageText", s.Telegram.Window().Method)
-		assert.Contains(t, afterTake, s.Catalog(bob).InLibraryButton(1))
-		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), s.Catalog(bob).InLibraryButton(1))
+		assert.Equal(t, []string{c.InLibraryButton(), c.SendFileButton(), c.Back()}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
 	})
 
 	t.Run("author sees their own Share as theirs", func(t *testing.T) {
 		s := harness.New(t)
 		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
 
-		s.Open(alice, s.Catalog(alice).FeedButton())
+		s.OpenShared(alice, 1)
 
 		c := s.Catalog(alice)
-		assert.Equal(t, []string{c.InLibraryButton(1), c.SendFileButton(1), c.Back()}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
+		assert.Equal(t, []string{c.InLibraryButton(), c.SendFileButton(), c.Back()}, telegram.ButtonTexts(s.Telegram.Buttons(t)))
 	})
 
 	t.Run("feed and top commands are gone", func(t *testing.T) {
 		s := harness.New(t)
 
-		s.Send(s.TextMessage(alice, "/shared"))
-		s.Send(s.TextMessage(alice, "/top"))
+		shared := s.TextMessage(alice, "/shared")
+		top := s.TextMessage(alice, "/top")
+		s.Send(shared)
+		s.Send(top)
 
-		assert.Empty(t, s.Telegram.AllCalls())
+		assertOnlyDeleted(t, s, shared, top)
 	})
 }
 
-func feed(s *harness.Scenario, user harness.User) string {
-	s.Open(user, s.Catalog(user).FeedButton())
+func newestShare(s *harness.Scenario, user harness.User) string {
+	s.OpenShared(user, 1)
 	return s.WindowText()
 }
 
@@ -242,7 +242,7 @@ func TestAuthorName(t *testing.T) {
 		s := harness.New(t)
 		s.Share(admin, s.Uploaded(admin, s.UploadAudio("track.mp3")), s.Catalog(admin).ShareTrack())
 
-		assert.Contains(t, feed(s, alice), "@"+admin.Username)
+		assert.Contains(t, newestShare(s, alice), "@"+admin.Username)
 	})
 
 	t.Run("renamed user is shown by the new username", func(t *testing.T) {
@@ -252,6 +252,6 @@ func TestAuthorName(t *testing.T) {
 
 		s.Send(s.TextMessage(renamed, "/start"))
 
-		assert.Contains(t, feed(s, bob), "@alice_new")
+		assert.Contains(t, newestShare(s, bob), "@alice_new")
 	})
 }

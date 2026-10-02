@@ -127,12 +127,12 @@ func feed(entries []browse_shared.FeedEntry, header string, sharedBy func(*acces
 }
 
 type topLabels struct {
-	title, shared, taken, allTime, thisMonth, nobody string
+	title, about, shared, taken, allTime, thisMonth, nobody string
 }
 
 func top(t *view_top.Top, labels topLabels, name func(*access.User) string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "🏆 <b>%s</b>", labels.title)
+	fmt.Fprintf(&b, "🏆 <b>%s</b>\n%s", labels.title, labels.about)
 	rating := func(title, period string, entries []repositories.TopEntry) {
 		fmt.Fprintf(&b, "\n\n<b>%s</b>, %s:", title, period)
 		if len(entries) == 0 {

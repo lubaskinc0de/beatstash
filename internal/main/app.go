@@ -287,7 +287,10 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	feed := &tgbot.Feed{
 		Telegram: tg,
 		ViewFeed: viewFeed,
-		GetTop:   getTop,
+		ViewSharedTrack: &browse_shared.ViewSharedTrack{
+			IDs: ids, Shared: sharedTracks, Tracks: tracks, Libraries: libs, Attached: attached,
+		},
+		GetTop: getTop,
 		TakeTrack: &browse_shared.TakeTrack{
 			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks, Takes: takes,
 			Libraries: libs, Attached: attached, Quotas: libraryQuotas, Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,

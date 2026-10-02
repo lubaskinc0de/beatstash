@@ -48,8 +48,8 @@ func (w *Windows) Get(ctx context.Context, chatID int64) (*Window, error) {
 
 // Show makes the view the chat's window. It edits the window in place if on
 // is the window and nothing is below it; otherwise it sends a new window
-// and takes the buttons off the old one. While another redraw of the chat
-// goes on, Show waits for it as long as ctx lives.
+// and then removes the old one. While another redraw of the chat goes on,
+// Show waits for it as long as ctx lives.
 func (w *Windows) Show(ctx context.Context, chatID int64, on int, at Place, v View) {
 	window, err := w.take(ctx, chatID)
 	if err != nil {
@@ -62,10 +62,6 @@ func (w *Windows) Show(ctx context.Context, chatID int64, on int, at Place, v Vi
 	if on != window.MessageID || window.Below > 0 {
 		on = New
 	}
-	if on == New && window.MessageID != 0 {
-		w.stripKeyboard(ctx, chatID, window.MessageID)
-	}
-
 	if on == New {
 		sent, err := w.Bot.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: chatID, Text: v.Text, ParseMode: models.ParseModeHTML,
@@ -77,6 +73,9 @@ func (w *Windows) Show(ctx context.Context, chatID int64, on int, at Place, v Vi
 			return
 		}
 		on = sent.ID
+		if window.MessageID != 0 {
+			w.remove(ctx, chatID, window.MessageID)
+		}
 	} else {
 		w.edit(ctx, chatID, on, v)
 	}
@@ -211,6 +210,15 @@ func (w *Windows) edit(ctx context.Context, chatID int64, messageID int, v View)
 	})
 	if err != nil && !strings.Contains(err.Error(), "message is not modified") {
 		slog.Error("edit_window", "error", err)
+	}
+}
+
+// remove deletes the old window, or takes its buttons off if Telegram keeps
+// it, as it does with a message older than two days.
+func (w *Windows) remove(ctx context.Context, chatID int64, messageID int) {
+	_, err := w.Bot.DeleteMessage(ctx, &bot.DeleteMessageParams{ChatID: chatID, MessageID: messageID})
+	if err != nil && !strings.Contains(err.Error(), "not found") {
+		w.stripKeyboard(ctx, chatID, messageID)
 	}
 }
 

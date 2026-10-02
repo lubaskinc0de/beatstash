@@ -55,7 +55,8 @@ func TestTop(t *testing.T) {
 		s := harness.New(t)
 		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
 
-		s.Open(alice, s.Catalog(alice).FeedButton(), s.Catalog(alice).InLibraryButton(1))
+		s.OpenShared(alice, 1)
+		s.Go(alice, s.Catalog(alice).InLibraryButton())
 
 		assert.Equal(t, []string{s.Catalog(alice).TopNobody()}, topLines(t, top(s, alice), s.Catalog(alice).TopTakenLabel(), s.Catalog(alice).TopAllTimeLabel()))
 	})
@@ -84,7 +85,7 @@ func TestTop(t *testing.T) {
 }
 
 func top(s *harness.Scenario, user harness.User) string {
-	s.Open(user, s.Catalog(user).TopButton())
+	s.Open(user, s.Catalog(user).MusicButton(), s.Catalog(user).TopButton())
 	return s.WindowText()
 }
 
