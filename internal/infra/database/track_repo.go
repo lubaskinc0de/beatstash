@@ -2,6 +2,8 @@ package database
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"strings"
 
 	"gorm.io/gorm"
@@ -84,19 +86,12 @@ func (r *TrackRepository) WithDuplicates(ctx context.Context, libraryIDs []uint,
 	if len(values) == 0 || len(libraryIDs) == 0 {
 		return has, nil
 	}
-	args = append(args, libraryIDs, library.DuplicateToleranceMs)
+	args = append(args, libraryIDs)
 
 	var ids []uint
 	err := dbForContext(ctx, r.DB).Raw(`
 		SELECT c.id FROM (VALUES `+strings.Join(values, ", ")+`) AS c(id, artist, title, album, duration_ms)
-		WHERE EXISTS (
-			SELECT 1 FROM tracks t
-			WHERE t.library_id IN ?
-			AND LOWER(t.artist) = LOWER(c.artist)
-			AND LOWER(t.title) = LOWER(c.title)
-			AND LOWER(t.album) = LOWER(c.album)
-			AND ABS(t.duration_ms - c.duration_ms) <= ?
-		)`, args...).Scan(&ids).Error
+		WHERE EXISTS (SELECT 1 FROM tracks t WHERE t.library_id IN ? AND `+sameRecording("t", "c")+`)`, args...).Scan(&ids).Error
 	for _, id := range ids {
 		has[id] = true
 	}
@@ -122,14 +117,14 @@ func (r *TrackRepository) KnownSources(ctx context.Context, libraryIDs []uint, r
 	return known, err
 }
 
-func (r *TrackRepository) Album(ctx context.Context, libraryID uint, albumArtist, albumTitle string) ([]library.Track, error) {
-	var album []library.Track
+func (r *TrackRepository) Album(ctx context.Context, album library.AlbumKey) ([]library.Track, error) {
+	var found []library.Track
 	err := tracks(ctx, r.DB).
-		Where("library_id = ?", libraryID).
-		Where("LOWER(album_artist) = LOWER(?) AND LOWER(album) = LOWER(?)", albumArtist, albumTitle).
+		Where("library_id = ?", album.LibraryID).
+		Where("LOWER(album_artist) = LOWER(?) AND LOWER(album) = LOWER(?)", album.AlbumArtist, album.Album).
 		Order("track_number, id").
-		Find(&album).Error
-	return album, err
+		Find(&found).Error
+	return found, err
 }
 
 func (r *TrackRepository) FindByMetadata(ctx context.Context, libraryIDs []uint, ms []library.Metadata) ([]*library.Track, error) {
@@ -295,7 +290,50 @@ func (r *TrackRepository) Delete(ctx context.Context, ids []uint) error {
 	return dbForContext(ctx, r.DB).Delete(&library.Track{}, ids).Error
 }
 
+// sameRecording is the Duplicate rule between the rows a and b: artist,
+// title and album match ignoring case, and durations differ by at most
+// library.DuplicateToleranceMs.
+func sameRecording(a, b string) string {
+	return fmt.Sprintf(`lower(%[1]s.artist) = lower(%[2]s.artist) AND lower(%[1]s.title) = lower(%[2]s.title)
+		AND lower(%[1]s.album) = lower(%[2]s.album) AND abs(%[1]s.duration_ms - %[2]s.duration_ms) <= %[3]d`,
+		a, b, library.DuplicateToleranceMs)
+}
+
 // tracks loads Tracks whole, with their Sources.
 func tracks(ctx context.Context, db *gorm.DB) *gorm.DB {
 	return dbForContext(ctx, db).Preload("Sources", func(q *gorm.DB) *gorm.DB { return q.Order("id") })
+}
+
+func (r *TrackRepository) SetSongs(ctx context.Context, songs []library.Track) error {
+	for chunk := range slices.Chunk(songs, saveBatch) {
+		if err := r.setSongs(ctx, chunk); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *TrackRepository) setSongs(ctx context.Context, songs []library.Track) error {
+	values := make([]string, 0, len(songs))
+	args := make([]any, 0, len(songs)*3)
+	for _, t := range songs {
+		values = append(values, "(?::bigint, ?::text, ?::text)")
+		args = append(args, t.ID, t.Path, t.SongID)
+	}
+	return dbForContext(ctx, r.DB).Exec(`
+		UPDATE tracks SET song_id = v.song_id
+		FROM (VALUES `+strings.Join(values, ", ")+`) AS v(id, path, song_id)
+		WHERE tracks.id = v.id AND tracks.path = v.path`, args...).Error
+}
+
+func (r *TrackRepository) Unindexed(ctx context.Context, libraryIDs []uint) (map[uint][]library.Track, error) {
+	var found []library.Track
+	err := dbForContext(ctx, r.DB).Select("id, library_id, path").
+		Where("library_id IN ? AND song_id = ''", libraryIDs).
+		Order("id").Find(&found).Error
+	byLibrary := make(map[uint][]library.Track, len(libraryIDs))
+	for _, track := range found {
+		byLibrary[track.LibraryID] = append(byLibrary[track.LibraryID], track)
+	}
+	return byLibrary, err
 }

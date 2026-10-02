@@ -2,9 +2,12 @@
 // Sources. Path is relative to the Library's Dir; Size is in bytes.
 // FileVersion grows each time the content of the file changes, and a move
 // keeps it. FileModTime and FileInode are the file as the bot last saw it,
-// zero until it records them. SongID is set only on a Track of an Attached
-// Library. A TrackSource copies its Track's LibraryID for the unique index:
-// one Track per Track Ref in a Library.
+// zero until it records them. SongID is the Navidrome song of the Track's
+// file, empty until Navidrome has indexed it and the bot has learned so;
+// a new path forgets it, since the file there may be another song. A Track of
+// an Attached Library follows its song: InAttachedLibrary is set, and the song
+// is what the Track is. A TrackSource copies its Track's LibraryID for the
+// unique index: one Track per Track Ref in a Library.
 
 package library
 
@@ -32,7 +35,8 @@ type Track struct {
 	FileModTime time.Time `gorm:"not null;default:'0001-01-01 00:00:00+00'"`
 	FileInode   uint64    `gorm:"not null;default:0"`
 
-	SongID string `gorm:"index"`
+	SongID            string `gorm:"index"`
+	InAttachedLibrary bool   `gorm:"not null;default:false"`
 
 	Sources []*TrackSource `gorm:"constraint:OnDelete:CASCADE;"`
 
@@ -98,6 +102,7 @@ func NewAttachedTrack(lib *Library, song Song) *Track {
 // tidied so Duplicates match; changed is false if nothing differs.
 func (t *Track) Follow(song Song) (changed bool) {
 	before := *t
+	t.InAttachedLibrary = true
 	t.SongID = song.ID
 	t.Path = song.Path
 	t.Metadata = song.Metadata.Normalize()
@@ -105,7 +110,7 @@ func (t *Track) Follow(song Song) (changed bool) {
 	t.Format = song.Format
 	t.Quality = song.Quality
 	t.Size = song.Size
-	return before.SongID != t.SongID || before.Path != t.Path || before.Metadata != t.Metadata ||
+	return before.InAttachedLibrary != t.InAttachedLibrary || before.SongID != t.SongID || before.Path != t.Path || before.Metadata != t.Metadata ||
 		before.DurationMs != t.DurationMs || before.Format != t.Format || before.Quality != t.Quality ||
 		before.Size != t.Size
 }
@@ -113,6 +118,17 @@ func (t *Track) Follow(song Song) (changed bool) {
 // Attached reports whether the Track is in an Attached Library: the bot
 // never replaces, moves, retags or deletes its file.
 func (t *Track) Attached() bool {
+	return t.InAttachedLibrary
+}
+
+// IndexedAs leaves an Attached Library's Track its own song.
+func (t *Track) IndexedAs(songID string) {
+	if !t.Attached() {
+		t.SongID = songID
+	}
+}
+
+func (t *Track) Indexed() bool {
 	return t.SongID != ""
 }
 
@@ -125,7 +141,7 @@ func (t *Track) Absorb(in Incoming) Outcome {
 	if t.Attached() || !in.Quality.Better(t.Quality) {
 		return AlreadyExists
 	}
-	t.Path = LayoutPath(t.Metadata, in.Format, in.OriginalName)
+	t.moveTo(LayoutPath(t.Metadata, in.Format, in.OriginalName))
 	t.Format = in.Format
 	t.Quality = in.Quality
 	t.DurationMs = in.DurationMs
@@ -139,7 +155,7 @@ func (t *Track) MoveTo(path string) {
 	if t.Attached() {
 		return
 	}
-	t.Path = path
+	t.moveTo(path)
 }
 
 // GrowthTo is how much the Library grows once the Track's file has the
@@ -223,6 +239,11 @@ func (t *Track) Single() bool {
 	return t.Album == ""
 }
 
+// AlbumKey names the Track's Album; a single's names none.
+func (t *Track) AlbumKey() AlbumKey {
+	return AlbumKey{LibraryID: t.LibraryID, AlbumArtist: t.AlbumArtist, Album: t.Album}
+}
+
 // CopyTo copies the Track without Sources: a Track Ref can be used once
 // per Library, and only the caller can check which ones the target Library
 // already has. The copy is the bot's own and follows no song. Its file is
@@ -253,6 +274,13 @@ func (t *Track) takeAudio(file LibraryFile, probe Probe) {
 	t.Quality = probe.Quality
 	t.DurationMs = probe.DurationMs
 	t.RecordFile(file)
+}
+
+func (t *Track) moveTo(path string) {
+	if path != t.Path {
+		t.SongID = ""
+	}
+	t.Path = path
 }
 
 // recorded is false for a Track that never recorded its file.

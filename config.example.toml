@@ -65,8 +65,22 @@ reconcile_interval = "1h"
 [navidrome]
 url = "http://localhost:4533"
 # Address users open Navidrome at, in a browser or a player app; the bot
-# shows it in its instructions. Empty leaves it out.
+# shows it in its instructions. Listen Links lead there too: public links
+# to a track or an album anyone can listen to without an account, sent
+# where Telegram can't take the audio (inline search, np, recent). They need
+# an address reachable from the internet (localhost and private networks
+# don't count) and sharing on in Navidrome: ND_ENABLESHARING=true. Empty
+# leaves the address out and turns Listen Links off.
 public_url = ""
+# How long a Listen Link works. The bot gives a user the same link to the
+# same track or album until it expires.
+listen_link_ttl = "720h"
+# Let a Listen Link's listener download the files too.
+listen_link_downloadable = true
+# How often the bot learns which Navidrome songs its new tracks became:
+# inline search shows an album only once Navidrome has indexed it. "0"
+# turns it off: a track's song is then looked up only when it is sent.
+song_interval = "1m"
 # Navidrome admin: the bot creates accounts for invited users with it.
 user = "admin"
 # Navidrome libraries outside navidrome_music_dir are Attached Libraries:

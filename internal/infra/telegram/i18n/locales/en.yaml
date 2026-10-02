@@ -25,6 +25,7 @@ bot:
   start_command: Open the bot
 
 button:
+  share: 📤 Share
   admin: 🛠 Admin
   feed: 🎵 Feed
   top: 🏆 Top
@@ -37,7 +38,7 @@ button:
   cancel: ✖️ Cancel
   languages: 🌐 Language
 
-try_later: ⚠️ Something went wrong, try again later
+try_later: ️️ Something went wrong, try again later
 
 home:
   greeting: 👋 Hi!
@@ -92,7 +93,7 @@ listen: |-
 
 invite:
   invalid: "⛔ The invite is not valid: it was used or has expired"
-  failed: ⚠️ Could not create an invite, try again later
+  failed: ️️ Could not create an invite, try again later
   link: "🎟 One-time invite, valid for {{.Days}}:\n{{.Link}}"
   another: 🎟 Another one
   not_admin: ⛔ Only the admin gives out invites
@@ -105,7 +106,7 @@ register:
   choose: "✏️ Choose a Navidrome login and send it as a message: 3 to 32 characters: latin letters, digits, dot, hyphen or underscore"
   invalid: "✏️ That login won't do. Choose another: 3 to 32 characters: latin letters, digits, dot, hyphen or underscore"
   taken: ✏️ The login <b>{{.Login}}</b> is taken in Navidrome. Choose another and send it as a message
-  failed: ⚠️ Could not create a Navidrome account. Send the login again a bit later
+  failed: ️️ Could not create a Navidrome account. Send the login again a bit later
   have_account: 🔗 I already have an account
   done: |-
     🎧 Your Navidrome account is ready, sign in with any Navidrome or Subsonic client{{if .NavidromeURL}}: {{.NavidromeURL}}{{end}}
@@ -127,12 +128,12 @@ navidrome:
   done_admin: ✅ Navidrome account <b>{{.Login}}</b> is linked. It is a Navidrome admin, so it sees every library. The message with the password is deleted
   taken: ⛔ This Navidrome account is linked to another user. The message with the password is deleted
   wrong_password: ❌ Wrong Navidrome login or password. The message with the password is deleted, try again
-  failed: "⚠️ Could not check the account: Navidrome is unavailable, try again later. The message with the password is deleted"
+  failed: "️️ Could not check the account: Navidrome is unavailable, try again later. The message with the password is deleted"
 
 feed:
   title: Fresh in the Shared Library
   empty: 💤 Nobody has shared anything yet. Reply /share to an audio message with your track to be the first
-  failed: ⚠️ Could not load the Feed, try again later
+  failed: ️️ Could not load the Feed, try again later
   take: "{{.N}}. ➕ Take"
   send_file: "{{.N}}. ▶️ Send the file"
   in_library: "{{.N}}. ✅ You have it"
@@ -145,7 +146,7 @@ feed:
   list_description: Send the whole list in one message
   empty_title: 💤 Nothing shared yet
   empty_description: Share a track with /share
-  failed_title: ⚠️ The Feed is unavailable
+  failed_title: ️️ The Feed is unavailable
   failed_description: Could not get the shares
 
 author:
@@ -159,9 +160,9 @@ top:
   all_time: all time
   this_month: this month
   nobody: Nobody yet
-  failed: ⚠️ Could not count the Top, try again later
+  failed: ️️ Could not count the Top, try again later
   about: Who shared the most and whose shares are taken the most
-  failed_title: ⚠️ The Top is unavailable
+  failed_title: ️️ The Top is unavailable
   failed_description: Could not count the Top
 
 tracks:
@@ -200,7 +201,7 @@ sources:
   connected_notice: ✅ {{.Name}} is connected. The message with the token is deleted
   token_invalid: ❌ {{.Name}} rejected the token. The message with the token is deleted, check it and send it again
   no_subscription: ❌ This {{.Name}} account has no subscription, and tracks can't be downloaded without one. The message with the token is deleted
-  down: ⚠️ {{.Name}} is unavailable, try again later
+  down: ️️ {{.Name}} is unavailable, try again later
   connect_first: 🔌 Connect {{.Name}} to import your collection
   disconnected: "🔌 {{.Name}} is disconnected: the token is deleted and the collection no longer syncs. The downloaded tracks stay in your library"
   token_rejected_notice: 🔌 {{.Name}} stopped accepting the token, so new likes and playlist tracks no longer come in. Connect it again
@@ -248,8 +249,7 @@ share:
   by_other: The track is shared already, by {{.Author}}
   created_partly: "🔗 In the Shared Library: {{.Tracks}}, {{.Already}} more were there already"
   unshared: 🔒 Unshared
-  not_found: ⚠️ Could not find the track, try again later
-  button: 🔗 Share
+  not_found: ️️ Could not find the track, try again later
 
 playing:
   now: Now playing
@@ -257,9 +257,9 @@ playing:
   nothing_title: 💤 Nothing is playing
   nothing_description: Nothing is playing in Navidrome now
   nothing_message: 💤 Nothing is playing now
-  failed_title: ⚠️ Navidrome is unavailable
+  failed_title: ️️ Navidrome is unavailable
   failed_description: Could not get the current track
-  failed_message: ⚠️ Could not get the current track
+  failed_message: ️️ Could not get the current track
   file_not_sent: Could not send the file
 
 recent:
@@ -269,9 +269,9 @@ recent:
   empty_title: 💤 No history
   empty_description: Nothing has been played in Navidrome yet
   empty_message: 💤 The listening history is empty
-  failed_title: ⚠️ Navidrome is unavailable
+  failed_title: ️️ Navidrome is unavailable
   failed_description: Could not get the listening history
-  failed_message: ⚠️ Could not get the listening history
+  failed_message: ️️ Could not get the listening history
 
 ago:
   now: just now
@@ -315,7 +315,7 @@ quota:
   promised: "promised {{.Promised}}"
   used: "used {{.Used}}"
   free: "free on disk {{.Free}}"
-  overcommitted: ⚠️ The quotas promise more than the disk holds
+  overcommitted: ️️ The quotas promise more than the disk holds
   shared_full: The Shared Library is full, nothing can be shared
   no_room: "Out of space: {{.Used}} of {{.Quota}} used"
   contact: "✉️ For more space, write to {{.Contact}}"
@@ -348,3 +348,46 @@ units:
   mb: MB
   gb: GB
   tb: TB
+
+search:
+  hint_title: 🔎 Search
+  hint_about: or just type the name of a track, artist or album
+  hint_message: "🔎 {{.Usage}} — find a track or an album in my music"
+  nothing_title: 🔎 Nothing found
+  nothing_description: Try other words
+  nothing_message: 🔎 Nothing found
+  failed_title: ️️ Search is unavailable
+  failed_description: Could not search the music
+
+listen_link:
+  open: Listen
+  not_ready: not ready yet, try again in a minute
+  failed: could not make a link
+
+share_screen:
+  title: "📤 <b>Share</b>"
+  prompt: "Write the name of a track, artist or album"
+  newest: "The newest in your library:"
+  found: "Found for «{{.Query}}»:"
+  nothing: "Nothing found for «{{.Query}}»"
+  empty: "Your library is empty yet"
+  tracks: "🎵 Tracks"
+  albums: "💿 Albums"
+  share: "🔗 Share"
+  unshare: "🔒 Unshare"
+  send_file: "▶️ Send the file"
+  share_album: "🔗 Share the album"
+  unshare_album: "🔒 Unshare the album"
+  listen_link: "🔗 Listen link"
+  personal: "your library"
+  shared: "🔗 In the Shared Library"
+  shared_by: "🔗 Already in the Shared Library, shared by {{.Author}}"
+  not_shared: "🔒 Not in the Shared Library"
+  album_shared: "🔗 Shared: {{.Shared}} of {{.Tracks}}"
+  sent: "The link is in the chat below"
+
+unsendable:
+  button: "️️ Some tracks can't be sent — why?"
+  no_account: "️️ A track without a Telegram file is sent as a listening link, and that needs a Navidrome account. Link it on the «👤 Accounts» screen"
+  no_address: "️️ A track without a Telegram file is sent as a listening link, but the admin has not set Navidrome's public address. Such tracks can't be sent yet"
+  ready: "✅ Listening links work now: find the track again"

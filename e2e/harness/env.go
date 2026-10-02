@@ -79,7 +79,7 @@ func Run(m *testing.M) int {
 		return 1
 	}
 
-	nd, container, err := navidrome.Start(ctx, libraryRoot)
+	nd, container, err := navidrome.Start(ctx, libraryRoot, true)
 	defer func() { _ = testcontainers.TerminateContainer(container) }()
 	if err != nil {
 		log.Printf("start navidrome: %v", err)

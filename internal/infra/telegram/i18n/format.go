@@ -42,6 +42,15 @@ func TrackCaption(artist, title string) string {
 	return "🎧 " + trackLine(artist, title)
 }
 
+// AlbumTitle is plain text.
+func AlbumTitle(artist, album string) string {
+	return "💿 " + artist + " — " + album
+}
+
+func AlbumCaption(artist, album string) string {
+	return "💿 " + trackLine(artist, album)
+}
+
 func PendingCaption(artist, title string) string {
 	return "⏳ " + trackLine(artist, title)
 }

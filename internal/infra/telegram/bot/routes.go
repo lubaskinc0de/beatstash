@@ -69,6 +69,18 @@ func (h *Handler) windowAction(action string) func(context.Context, windowCallba
 		return h.Imports.disconnect
 	case actionQuota:
 		return h.Quotas.chooseQuota
+	case actionShareCard:
+		return h.Share.shareCard
+	case actionUnshareCard:
+		return h.Share.unshareCard
+	case actionShareAlbumCard:
+		return h.Share.shareAlbumCard
+	case actionUnshareAlbumCard:
+		return h.Share.unshareAlbumCard
+	case actionSendOwnFile:
+		return h.Share.sendOwnFile
+	case actionSendAlbumLink:
+		return h.Share.sendAlbumLink
 	default:
 		return nil
 	}

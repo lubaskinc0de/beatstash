@@ -16,7 +16,6 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
 	tgprovider "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/provider"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/window"
 )
 
 // Sharing is /share and the Share buttons.
@@ -123,29 +122,25 @@ func (s *Sharing) shared(ctx context.Context, query *models.CallbackQuery, resul
 
 func (s *Sharing) answerShare(ctx context.Context, query *models.CallbackQuery, text string, state *share_tracks.ShareState, err error) {
 	c := texts(ctx)
-	var full *library.QuotaExceededError
-	switch {
-	case errors.As(err, &full):
-		s.Telegram.answerCallback(ctx, query.ID, c.SharedLibraryFull(s.Telegram.AdminContact))
-		return
-	case errors.Is(err, library.ErrNotKeptTrack):
-		s.Telegram.answerCallback(ctx, query.ID, c.NotOwnTrack())
-		return
-	case errors.Is(err, library.ErrInboxTrack):
-		s.Telegram.answerCallback(ctx, query.ID, c.InboxNotShareable())
-		return
-	case err != nil:
-		slog.Error("share_callback", "data", query.Data, "error", err)
-		s.Telegram.answerCallback(ctx, query.ID, c.TryLater())
+	if err != nil {
+		s.Telegram.answerCallback(ctx, query.ID, s.Telegram.shareFailure(c, query.Data, err))
 		return
 	}
 	s.Telegram.answerCallback(ctx, query.ID, text)
-
-	// A message sent through inline mode is seen by the whole chat: its
-	// button goes away instead of offering to unshare.
-	if query.InlineMessageID != "" {
-		s.Telegram.editKeyboard(ctx, query, window.NoKeyboard())
-		return
-	}
 	s.Telegram.editKeyboard(ctx, query, shareKeyboard(c, state))
+}
+
+func (t *Telegram) shareFailure(c i18n.Catalog, data string, err error) string {
+	var full *library.QuotaExceededError
+	switch {
+	case errors.As(err, &full):
+		return c.SharedLibraryFull(t.AdminContact)
+	case errors.Is(err, library.ErrNotKeptTrack):
+		return c.NotOwnTrack()
+	case errors.Is(err, library.ErrInboxTrack):
+		return c.InboxNotShareable()
+	default:
+		slog.Error("share_callback", "data", data, "error", err)
+		return c.TryLater()
+	}
 }

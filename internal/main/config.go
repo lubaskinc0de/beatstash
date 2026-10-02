@@ -3,6 +3,9 @@ package app
 import (
 	"errors"
 	"fmt"
+	"log/slog"
+	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -51,6 +54,13 @@ type Config struct {
 	NavidromeURL      string
 	// NavidromePublicURL is where users open Navidrome; empty hides it.
 	NavidromePublicURL string
+	// ListenLinkTTL is how long a Listen Link lasts; ListenLinkDownloadable
+	// lets its listener download the files too.
+	ListenLinkTTL          time.Duration
+	ListenLinkDownloadable bool
+	// SongInterval is how often the bot learns which Navidrome songs its
+	// new Tracks became; zero leaves it to Listen Links made on demand.
+	SongInterval time.Duration
 	// AttachInterval is how often the bot looks for songs of Attached
 	// Libraries; zero takes no Attached Libraries at all.
 	AttachInterval time.Duration
@@ -113,10 +123,13 @@ type fileConfig struct {
 	} `toml:"library"`
 
 	Navidrome struct {
-		URL            string        `toml:"url"`
-		PublicURL      string        `toml:"public_url"`
-		User           string        `toml:"user"`
-		AttachInterval time.Duration `toml:"attach_interval"`
+		URL                    string        `toml:"url"`
+		PublicURL              string        `toml:"public_url"`
+		User                   string        `toml:"user"`
+		AttachInterval         time.Duration `toml:"attach_interval"`
+		ListenLinkTTL          time.Duration `toml:"listen_link_ttl"`
+		ListenLinkDownloadable bool          `toml:"listen_link_downloadable"`
+		SongInterval           time.Duration `toml:"song_interval"`
 	} `toml:"navidrome"`
 
 	Invites struct {
@@ -154,6 +167,9 @@ func defaultFileConfig() fileConfig {
 	f.Telegram.LeaseTTL = time.Minute
 	f.Telegram.FillStorageChat = true
 	f.Navidrome.AttachInterval = time.Hour
+	f.Navidrome.ListenLinkTTL = 720 * time.Hour
+	f.Navidrome.ListenLinkDownloadable = true
+	f.Navidrome.SongInterval = time.Minute
 	f.Library.ReconcileInterval = time.Hour
 	f.Invites.TTL = 7 * 24 * time.Hour
 	f.Ingest.Workers = 2
@@ -203,27 +219,30 @@ func LoadConfig() (Config, error) {
 	}
 
 	cfg := Config{
-		Token:                secret("BOT_TOKEN"),
-		BotAPIURL:            file.Telegram.BotAPIURL,
-		MaxPostSize:          maxPostSize(file.Telegram.BotAPIURL),
-		StorageChatID:        file.Telegram.StorageChatID,
-		FillStorageChat:      file.Telegram.FillStorageChat,
-		TelegramPollInterval: file.Telegram.PollInterval,
-		TelegramLeaseTTL:     file.Telegram.LeaseTTL,
-		DBDSN:                secret("DB_DSN"),
-		MusicDir:             file.Library.MusicDir,
-		NavidromeMusicDir:    navidromeMusicDir,
-		Admins:               parseIdentities(file.Admins, &problems),
-		AdminContact:         strings.TrimSpace(file.AdminContact),
-		ServiceName:          strings.TrimSpace(file.ServiceName),
-		TranslationsDir:      file.I18n.Dir,
-		DefaultLanguage:      file.I18n.DefaultLanguage,
-		SecretKey:            secret("SECRET_KEY"),
-		NavidromeUser:        file.Navidrome.User,
-		NavidromePassword:    secret("NAVIDROME_PASSWORD"),
-		NavidromeURL:         file.Navidrome.URL,
-		NavidromePublicURL:   strings.TrimSpace(file.Navidrome.PublicURL),
-		AttachInterval:       file.Navidrome.AttachInterval,
+		Token:                  secret("BOT_TOKEN"),
+		BotAPIURL:              file.Telegram.BotAPIURL,
+		MaxPostSize:            maxPostSize(file.Telegram.BotAPIURL),
+		StorageChatID:          file.Telegram.StorageChatID,
+		FillStorageChat:        file.Telegram.FillStorageChat,
+		TelegramPollInterval:   file.Telegram.PollInterval,
+		TelegramLeaseTTL:       file.Telegram.LeaseTTL,
+		DBDSN:                  secret("DB_DSN"),
+		MusicDir:               file.Library.MusicDir,
+		NavidromeMusicDir:      navidromeMusicDir,
+		Admins:                 parseIdentities(file.Admins, &problems),
+		AdminContact:           strings.TrimSpace(file.AdminContact),
+		ServiceName:            strings.TrimSpace(file.ServiceName),
+		TranslationsDir:        file.I18n.Dir,
+		DefaultLanguage:        file.I18n.DefaultLanguage,
+		SecretKey:              secret("SECRET_KEY"),
+		NavidromeUser:          file.Navidrome.User,
+		NavidromePassword:      secret("NAVIDROME_PASSWORD"),
+		NavidromeURL:           file.Navidrome.URL,
+		NavidromePublicURL:     strings.TrimSpace(file.Navidrome.PublicURL),
+		AttachInterval:         file.Navidrome.AttachInterval,
+		ListenLinkTTL:          file.Navidrome.ListenLinkTTL,
+		ListenLinkDownloadable: file.Navidrome.ListenLinkDownloadable,
+		SongInterval:           file.Navidrome.SongInterval,
 		Quotas: library.ServerQuotas{
 			Default: parseQuota("quota.default", file.Quota.Default, &problems),
 			Shared:  parseQuota("quota.shared", file.Quota.Shared, &problems),
@@ -276,6 +295,12 @@ func readFile(path string, file *fileConfig) []error {
 	if file.Navidrome.AttachInterval < 0 {
 		problems = append(problems, errors.New("navidrome.attach_interval must not be negative"))
 	}
+	if file.Navidrome.SongInterval < 0 {
+		problems = append(problems, errors.New("navidrome.song_interval must not be negative"))
+	}
+	if file.Navidrome.ListenLinkTTL <= 0 {
+		problems = append(problems, errors.New("navidrome.listen_link_ttl must be positive"))
+	}
 	if file.Telegram.PollInterval <= 0 {
 		problems = append(problems, errors.New("telegram.poll_interval must be positive"))
 	}
@@ -311,6 +336,39 @@ func readFile(path string, file *fileConfig) []error {
 		problems = append(problems, errors.New("zvuk.mirror_retry_interval must be positive"))
 	}
 	return problems
+}
+
+// listenLinkURL is empty for an address a listener outside could not
+// open.
+func listenLinkURL(publicURL string) string {
+	if publicURL == "" {
+		return ""
+	}
+	u, err := url.Parse(publicURL)
+	if err != nil || u.Host == "" {
+		slog.Warn("listen_links_off", "reason", "navidrome.public_url is not a URL", "public_url", publicURL)
+		return ""
+	}
+	host := strings.ToLower(u.Hostname())
+	ip := net.ParseIP(host)
+	local := ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsUnspecified()) ||
+		ip == nil && (!strings.Contains(host, ".") || hasLocalSuffix(host))
+	if local {
+		slog.Warn("listen_links_off", "reason", "navidrome.public_url is not reachable from the internet", "public_url", publicURL)
+		return ""
+	}
+	return strings.TrimSuffix(publicURL, "/")
+}
+
+var localSuffixes = []string{".localhost", ".local", ".lan", ".internal", ".home.arpa"}
+
+func hasLocalSuffix(host string) bool {
+	for _, suffix := range localSuffixes {
+		if strings.HasSuffix(host, suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 // maxPostSize is 50 MB on Telegram's Bot API; a local one takes up to 2 GB.

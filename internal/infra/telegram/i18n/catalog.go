@@ -13,6 +13,7 @@ import (
 	goi18n "github.com/nicksnyder/go-i18n/v2/i18n"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/browse_shared"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/import_collection"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/share_tracks"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/show_playing"
@@ -429,7 +430,6 @@ func (c Catalog) InboxNotShareable() string { return c.t("share.inbox", nil) }
 func (c Catalog) NotOwnTrack() string       { return c.t("share.not_own", nil) }
 func (c Catalog) Unshared() string          { return c.t("share.unshared", nil) }
 func (c Catalog) TrackNotFound() string     { return c.t("share.not_found", nil) }
-func (c Catalog) ShareButton() string       { return c.t("share.button", nil) }
 
 func (c Catalog) ShareResult(result *share_tracks.ShareResult) string {
 	switch {
@@ -455,6 +455,34 @@ func (c Catalog) NowPlayingArticle(track *show_playing.NowPlaying) Article {
 // NotSentCaption replaces PendingCaption when the file cannot be sent.
 func (c Catalog) NotSentCaption(artist, title string, tooLarge bool) string {
 	return TrackCaption(artist, title) + "\n" + c.NotSentNote(tooLarge)
+}
+
+func (c Catalog) AlbumArticle(album repositories.AlbumSummary) Article {
+	return Article{
+		Title:       AlbumTitle(album.AlbumArtist, album.Album),
+		Description: c.tracks(album.Tracks),
+		Message:     "⏳ " + AlbumCaption(album.AlbumArtist, album.Album),
+	}
+}
+
+func (c Catalog) AlbumLinkCaption(artist, album, url string) string {
+	return AlbumCaption(artist, album) + "\n" + c.listenLink(url)
+}
+
+func (c Catalog) ListenLinkCaption(artist, title, url string) string {
+	return TrackCaption(artist, title) + "\n" + c.listenLink(url)
+}
+
+func (c Catalog) listenLink(url string) string {
+	return fmt.Sprintf(`🔗 <a href="%s">%s</a>`, esc(url), esc(c.t("listen_link.open", nil)))
+}
+
+func (c Catalog) NotIndexedCaption(caption string) string {
+	return caption + "\n⏳ " + esc(c.t("listen_link.not_ready", nil))
+}
+
+func (c Catalog) LinkFailedCaption(caption string) string {
+	return caption + "\n⚠️ " + esc(c.t("listen_link.failed", nil))
 }
 
 func (c Catalog) NotSentNote(tooLarge bool) string {
@@ -536,6 +564,18 @@ func (c Catalog) Hints(bot string) []Hint {
 }
 
 func (c Catalog) Try() string { return c.t("hint.try", nil) }
+
+// SearchHint follows the Hints: any other text searches.
+func (c Catalog) SearchHint(bot string) Article {
+	return Article{
+		Title:       c.t("search.hint_title", nil),
+		Description: c.t("search.hint_about", nil),
+		Message:     c.t("search.hint_message", args{"Usage": inlineUsage(bot, "queen")}),
+	}
+}
+
+func (c Catalog) NothingFound() Article        { return c.article("search.nothing") }
+func (c Catalog) SearchFailedArticle() Article { return c.failedArticle("search") }
 
 // article reads <prefix>_title, _description and _message.
 func (c Catalog) article(prefix string) Article {

@@ -29,7 +29,7 @@ type SyncCollection struct {
 	BatchRepo repositories.IngestBatches
 	Waker     common.Waker
 	Interval  time.Duration
-	Clock func() time.Time
+	Clock     func() time.Time
 
 	Libraries         repositories.Libraries
 	Attached          *libraries.Attached

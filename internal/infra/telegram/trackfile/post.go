@@ -51,6 +51,15 @@ func (f *Files) For(ctx context.Context, chatID int64, track *library.Track, pat
 	}
 }
 
+// SendTo posts the Track only if it has no file yet.
+func (f *Files) SendTo(ctx context.Context, chatID int64, track *library.Track, path string) error {
+	file, posted, err := f.For(ctx, chatID, track, path)
+	if err != nil || posted {
+		return err
+	}
+	return f.Sender.Send(ctx, chatID, file)
+}
+
 // PostUnlessBusy posts the Track to the chat, unless somebody else is
 // posting it now: it does not wait for them.
 func (f *Files) PostUnlessBusy(ctx context.Context, chatID int64, track *library.Track, path string) error {

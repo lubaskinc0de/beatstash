@@ -75,7 +75,8 @@ func TestInlineHints(t *testing.T) {
 		s.Send(query)
 
 		results := s.Telegram.InlineAnswerTo(t, query).Results
-		require.Len(t, results, 4)
+		require.Len(t, results, 5)
+		assert.Equal(t, s.Catalog(alice).SearchHint(telegram.BotUsername).Description, results[4].Description)
 		for n, command := range []string{"np", "recent", "shared", "top"} {
 			assert.Contains(t, results[n].Title, command)
 			assert.Contains(t, results[n].Content.Text, "@"+telegram.BotUsername+" "+command)
@@ -85,13 +86,16 @@ func TestInlineHints(t *testing.T) {
 		}
 	})
 
-	t.Run("unknown command teaches the inline commands too", func(t *testing.T) {
+	t.Run("command stays a command", func(t *testing.T) {
 		s := harness.New(t)
-		query := s.InlineQuery(alice, "what")
+		s.Uploaded(alice, s.UploadAudioFile(audiofile.Generate(t, "top.mp3", audiofile.Spec{Tags: map[string]string{
+			"artist": "Top", "album": "Top", "title": "Top", "track": "1",
+		}})))
 
-		s.Send(query)
+		results := s.Search(alice, " TOP ", "").Results
 
-		assert.Len(t, s.Telegram.InlineAnswerTo(t, query).Results, 4)
+		require.Len(t, results, 1)
+		assert.Equal(t, "top", results[0].ID)
 	})
 
 	t.Run("hints follow the user's language", func(t *testing.T) {

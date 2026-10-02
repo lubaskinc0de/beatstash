@@ -33,7 +33,7 @@ type Tracks interface {
 	// Source for.
 	KnownSources(ctx context.Context, libraryIDs []uint, refs []provider.TrackRef) (map[provider.TrackRef]bool, error)
 	// Album lists the library's Tracks of the album, by track number.
-	Album(ctx context.Context, libraryID uint, albumArtist, album string) ([]library.Track, error)
+	Album(ctx context.Context, album library.AlbumKey) ([]library.Track, error)
 	// SourcePaths maps the refs the library has a Track Source for to the
 	// paths of their Tracks.
 	SourcePaths(ctx context.Context, libraryID uint, providerName provider.ProviderName, refs []string) (map[string]string, error)
@@ -50,10 +50,29 @@ type Tracks interface {
 	AtPaths(ctx context.Context, libraryID uint, paths []string) ([]library.Track, error)
 	// BySongs maps the Navidrome songs the libraries have Tracks of to them.
 	BySongs(ctx context.Context, libraryIDs []uint, songIDs []string) (map[string]*library.Track, error)
+	// Search lists the newest first for an empty text. The libraries go in
+	// the order their copy of a Duplicate wins.
+	Search(ctx context.Context, libraryIDs []uint, text string, offset, limit int) ([]library.Track, error)
+	// SearchAlbums: indexedOnly leaves out the Albums Navidrome has indexed
+	// none of the Tracks of.
+	SearchAlbums(
+		ctx context.Context, libraryIDs []uint, text string, indexedOnly bool, offset, limit int,
+	) ([]AlbumSummary, error)
+	// SetSongs keeps the Navidrome song of each Track, by its id; a Track
+	// whose path has changed since keeps none.
+	SetSongs(ctx context.Context, songs []library.Track) error
+	Unindexed(ctx context.Context, libraryIDs []uint) (map[uint][]library.Track, error)
 	CountIn(ctx context.Context, libraryIDs []uint) (int64, error)
 	// Weigh maps each of the libraries to the sum of its Tracks' sizes.
 	Weigh(ctx context.Context, libraryIDs []uint) (map[uint]int64, error)
 	Delete(ctx context.Context, ids []uint) error
+}
+
+// AlbumSummary stands for an Album by one of its Tracks, TrackID.
+type AlbumSummary struct {
+	library.AlbumKey
+	TrackID uint
+	Tracks  int
 }
 
 var (

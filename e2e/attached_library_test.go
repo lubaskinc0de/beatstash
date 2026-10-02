@@ -12,7 +12,6 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/navidrome"
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
 	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/zvuk"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/share_tracks"
 )
@@ -211,14 +210,12 @@ func TestAttachedLibraryDuplicates(t *testing.T) {
 func TestShareFromAttachedLibrary(t *testing.T) {
 	t.Parallel()
 
-	t.Run("np shares a song of the attached library", func(t *testing.T) {
+	t.Run("song of the attached library is shared", func(t *testing.T) {
 		s, account, own := newWithOwnLibrary(t, []string{audiofile.Fixture("track.mp3")})
 		s.Link(alice, account)
 		before := harness.FilesWithContent(t, own.Dir)
-		s.Navidrome.StartPlaying(t, account, s.Navidrome.IndexedTrack(t, account, own.Dir, audiofile.FixtureTitle).ID)
-		share := telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), s.Catalog(alice).ShareButton())
 
-		s.PressInline(alice, share)
+		s.ShareOnScreen(alice, fixtureButton)
 
 		assert.Contains(t, s.LastCallbackAnswer(), s.Catalog(alice).ShareResult(&share_tracks.ShareResult{Created: 1}))
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.SharedFiles())
@@ -228,12 +225,10 @@ func TestShareFromAttachedLibrary(t *testing.T) {
 	})
 
 	t.Run("song over the Shared Library's Quota is not shared", func(t *testing.T) {
-		s, account, own := newWithOwnLibrary(t, []string{audiofile.Fixture("track.mp3")}, harness.WithSharedQuota(20*kb))
+		s, account, _ := newWithOwnLibrary(t, []string{audiofile.Fixture("track.mp3")}, harness.WithSharedQuota(20*kb))
 		s.Link(alice, account)
-		s.Navidrome.StartPlaying(t, account, s.Navidrome.IndexedTrack(t, account, own.Dir, audiofile.FixtureTitle).ID)
-		share := telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), s.Catalog(alice).ShareButton())
 
-		s.PressInline(alice, share)
+		s.ShareOnScreen(alice, fixtureButton)
 
 		assert.Equal(t, s.Catalog(alice).SharedLibraryFull(""), s.LastCallbackAnswer())
 		assert.Empty(t, s.SharedFiles())
@@ -256,12 +251,11 @@ func TestAttachedLibraryRefresh(t *testing.T) {
 
 	t.Run("gone song leaves the bot and its Share stays in the feed", func(t *testing.T) {
 		s, account, own := newWithOwnLibrary(t,
-			[]string{audiofile.Fixture("track.mp3"), audiofile.Fixture("track.flac")},
+			[]string{audiofile.Fixture("track.mp3"), queenSong(t)},
 			harness.WithAttachInterval(100*time.Millisecond),
 		)
 		s.Link(alice, account)
-		s.Navidrome.StartPlaying(t, account, s.Navidrome.SongAt(t, account, audiofile.FixtureTitle, filepath.Join(own.Dir, "track.mp3")).ID)
-		s.PressInline(alice, telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), s.Catalog(alice).ShareButton()))
+		s.ShareOnScreen(alice, fixtureButton)
 
 		require.NoError(t, os.Remove(filepath.Join(own.Dir, "track.mp3")))
 		s.Navidrome.UntilSongs(t, own.ID, 1)
@@ -293,11 +287,9 @@ func TestAttachedLibraryChanges(t *testing.T) {
 		s.Navidrome.MoveLibrary(t, own.ID, moved.Path)
 		s.Restart()
 		s.Navidrome.UntilSongs(t, own.ID, 1)
-		track := s.Navidrome.IndexedTrack(t, account, moved.Path, audiofile.FixtureTitle)
-		s.Navidrome.StartPlaying(t, account, track.ID)
+		s.Navidrome.IndexedTrack(t, account, moved.Path, audiofile.FixtureTitle)
 
-		share := telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), s.Catalog(alice).ShareButton())
-		s.PressInline(alice, share)
+		s.ShareOnScreen(alice, fixtureButton)
 
 		assert.Contains(t, s.LastCallbackAnswer(), s.Catalog(alice).ShareResult(&share_tracks.ShareResult{Created: 1}))
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.SharedFiles())
@@ -322,10 +314,7 @@ func TestAttachedLibraryChanges(t *testing.T) {
 		s.Link(alice, account)
 
 		assert.Contains(t, s.WindowText(), s.Catalog(alice).Linked(account.Login, 1))
-		track := s.Navidrome.IndexedTrack(t, account, own.Path, audiofile.FixtureTitle)
-		s.Navidrome.StartPlaying(t, account, track.ID)
-		share := telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), s.Catalog(alice).ShareButton())
-		s.PressInline(alice, share)
+		s.ShareOnScreen(alice, fixtureButton)
 		assert.Contains(t, s.LastCallbackAnswer(), s.Catalog(alice).ShareResult(&share_tracks.ShareResult{Created: 1}))
 	})
 }

@@ -33,54 +33,6 @@ type ShareResult struct {
 	State         *ShareState
 }
 
-// ShareDeps is what ShareTrack and ShareAlbum need.
-type ShareDeps struct {
-	IDs       common.IDProvider
-	Tx        repositories.TxManager
-	Lock      repositories.LibraryLock
-	Tracks    repositories.Tracks
-	Shared    repositories.SharedTracks
-	Libraries *libraries.Libraries
-	Attached  *libraries.Attached
-	Quotas    *quotas.Quotas
-	Navidrome navidrome.Client
-	// Admin downloads the files of Attached Libraries.
-	Admin    navidrome.Credentials
-	Disk     common.Disk
-	MusicDir string
-	Clock    func() time.Time
-}
-
-// within runs fn in a transaction holding the current user's Managed
-// Libraries, with a sharer for their Kept Libraries.
-func (d *ShareDeps) within(ctx context.Context, fn func(ctx context.Context, s *sharer) error) error {
-	user, libs, kept, err := libraries.CurrentKept(ctx, d.IDs, d.Libraries, d.Attached)
-	if err != nil {
-		return err
-	}
-	return libraries.Within(ctx, d.Tx, d.Lock, d.Disk, libs, func(ctx context.Context, changes *libraries.FileChanges) error {
-		usage, err := d.Quotas.UsageOf(ctx, libs.Shared)
-		if err != nil {
-			return err
-		}
-		return fn(ctx, &sharer{
-			tracks:    d.Tracks,
-			shared:    d.Shared,
-			lock:      d.Lock,
-			disk:      d.Disk,
-			navidrome: d.Navidrome,
-			admin:     d.Admin,
-			musicDir:  d.MusicDir,
-			user:      user,
-			libs:      libs,
-			kept:      kept,
-			usage:     usage,
-			changes:   changes,
-			now:       d.Clock(),
-		})
-	})
-}
-
 // sharer shares Tracks of one user inside one libraries.Within transaction.
 // Call lockAttached before share. A Track over the Shared Library's Quota
 // fails the whole transaction: an album is shared whole or not at all.
@@ -99,6 +51,32 @@ type sharer struct {
 	usage   library.Usage
 	changes *libraries.FileChanges
 	now     time.Time
+}
+
+// within runs fn in a transaction holding the current user's Managed
+// Libraries, with the sharer set for their Kept Libraries.
+func (s *sharer) within(
+	ctx context.Context,
+	ids common.IDProvider,
+	libs *libraries.Libraries,
+	attached *libraries.Attached,
+	tx repositories.TxManager,
+	quotas *quotas.Quotas,
+	now time.Time,
+	fn func(ctx context.Context) error,
+) error {
+	user, managed, kept, err := libraries.CurrentKept(ctx, ids, libs, attached)
+	if err != nil {
+		return err
+	}
+	return libraries.Within(ctx, tx, s.lock, s.disk, managed, func(ctx context.Context, changes *libraries.FileChanges) error {
+		usage, err := quotas.UsageOf(ctx, managed.Shared)
+		if err != nil {
+			return err
+		}
+		s.user, s.libs, s.kept, s.usage, s.changes, s.now = user, managed, kept, usage, changes, now
+		return fn(ctx)
+	})
 }
 
 // lockAttached keeps a refresh of the Attached Library from deleting the
@@ -232,7 +210,7 @@ func album(ctx context.Context, tracks repositories.Tracks, kept []*library.Libr
 	if track.Single() {
 		return []library.Track{*track}, nil
 	}
-	all, err := tracks.Album(ctx, track.LibraryID, track.AlbumArtist, track.Album)
+	all, err := tracks.Album(ctx, track.AlbumKey())
 	if err != nil {
 		return nil, err
 	}
@@ -275,4 +253,13 @@ func shareState(
 		state.AlbumShared = state.AlbumShared && shared[t.ID]
 	}
 	return state, nil
+}
+
+func libraryOf(track *library.Track, kept []*library.Library) *library.Library {
+	for _, lib := range kept {
+		if track.In(lib) {
+			return lib
+		}
+	}
+	return nil
 }

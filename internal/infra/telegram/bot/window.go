@@ -8,33 +8,38 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
+	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/window"
 )
 
 type screen string
 
 const (
-	screenHome      screen = "home"
-	screenFeed      screen = "feed"
-	screenTop       screen = "top"
-	screenSources   screen = "sources"
-	screenProvider  screen = "provider"
-	screenConnect   screen = "connect"
-	screenPlan      screen = "plan"
-	screenImports   screen = "imports"
-	screenNavidrome screen = "navidrome"
-	screenLink      screen = "link"
-	screenRegister  screen = "register"
-	screenInvite    screen = "invite"
-	screenHowTo     screen = "howto"
-	screenListen    screen = "listen"
-	screenLanguages screen = "languages"
-	screenAdmin     screen = "admin"
-	screenUsers     screen = "users"
-	screenUser      screen = "user"
-	screenQuotas    screen = "quotas"
-	screenQuota     screen = "quota"
-	screenUserQuota screen = "user_quota"
+	screenHome       screen = "home"
+	screenFeed       screen = "feed"
+	screenTop        screen = "top"
+	screenSources    screen = "sources"
+	screenProvider   screen = "provider"
+	screenConnect    screen = "connect"
+	screenPlan       screen = "plan"
+	screenImports    screen = "imports"
+	screenNavidrome  screen = "navidrome"
+	screenLink       screen = "link"
+	screenRegister   screen = "register"
+	screenInvite     screen = "invite"
+	screenHowTo      screen = "howto"
+	screenListen     screen = "listen"
+	screenLanguages  screen = "languages"
+	screenAdmin      screen = "admin"
+	screenUsers      screen = "users"
+	screenUser       screen = "user"
+	screenQuotas     screen = "quotas"
+	screenQuota      screen = "quota"
+	screenUserQuota  screen = "user_quota"
+	screenShare      screen = "share"
+	screenShareTrack screen = "share_track"
+	screenShareAlbum screen = "share_album"
+	screenUnsendable screen = "unsendable"
 )
 
 type place struct {
@@ -67,6 +72,19 @@ func goButton(text string, to place) models.InlineKeyboardButton {
 
 func backRow(ctx context.Context, to place) []models.InlineKeyboardButton {
 	return []models.InlineKeyboardButton{goButton(texts(ctx).Back(), to)}
+}
+
+// pageRow leafs back from page, counted from zero, and on if there are
+// more; nil if neither.
+func pageRow(c i18n.Catalog, page int, more bool, at func(page int) place) []models.InlineKeyboardButton {
+	var row []models.InlineKeyboardButton
+	if page > 0 {
+		row = append(row, goButton(c.PrevPage(), at(page-1)))
+	}
+	if more {
+		row = append(row, goButton(c.NextPage(), at(page+1)))
+	}
+	return row
 }
 
 // show draws the screen as the chat's window, on the message the action

@@ -2,15 +2,39 @@ package share_tracks
 
 import (
 	"context"
+	"time"
+
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/quotas"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 )
 
 type ShareAlbum struct {
-	ShareDeps
+	IDs       common.IDProvider
+	Tx        repositories.TxManager
+	Lock      repositories.LibraryLock
+	Tracks    repositories.Tracks
+	Shared    repositories.SharedTracks
+	Libraries *libraries.Libraries
+	Attached  *libraries.Attached
+	Quotas    *quotas.Quotas
+	Navidrome navidrome.Client
+	// Admin downloads the files of Attached Libraries.
+	Admin    navidrome.Credentials
+	Disk     common.Disk
+	MusicDir string
+	Clock    func() time.Time
 }
 
 func (i *ShareAlbum) Execute(ctx context.Context, trackID uint) (*ShareResult, error) {
 	result := &ShareResult{}
-	err := i.within(ctx, func(ctx context.Context, s *sharer) error {
+	s := &sharer{
+		tracks: i.Tracks, shared: i.Shared, lock: i.Lock, disk: i.Disk,
+		navidrome: i.Navidrome, admin: i.Admin, musicDir: i.MusicDir,
+	}
+	err := s.within(ctx, i.IDs, i.Libraries, i.Attached, i.Tx, i.Quotas, i.Clock(), func(ctx context.Context) error {
 		track, err := keptTrack(ctx, i.Tracks, s.kept, trackID)
 		if err != nil {
 			return err

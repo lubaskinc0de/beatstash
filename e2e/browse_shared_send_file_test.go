@@ -200,20 +200,12 @@ func uploadedAudio(s *harness.Scenario, n int) models.Audio {
 	return models.Audio{FileID: id, FileUniqueID: id + "-unique", FileName: "song.mp3", Duration: 2}
 }
 
-// sharedZvukSong has the user import a liked Zvuk track and share it
-// from np, the only place a track without an audio message offers Share.
+// sharedZvukSong has the user import a liked Zvuk track and share it on
+// the Share screen: it comes without an audio message to answer /share.
 func sharedZvukSong(t *testing.T, s *harness.Scenario, user harness.User, title string) {
 	t.Helper()
 
-	account := s.LinkNewAccount(user)
-	s.ConnectZvuk(user, harness.ZvukToken)
-	s.AddZvukSong("110", title, false)
-	s.LikeOnZvuk("110")
-	s.ImportZvuk(user)
-	s.WaitIngest()
-	song := s.Navidrome.IndexedTrack(t, account, s.PersonalPath(user, ""), title)
-	s.Navidrome.StartPlaying(t, account, song.ID)
-
-	s.PressInline(user, telegram.ButtonNamed(t, s.NowPlaying(user).Buttons(), s.Catalog(user).ShareButton()))
+	importZvukSong(s, user, title)
+	s.ShareOnScreen(user, "Zvuk Band — "+title)
 	require.Len(t, s.SharedFiles(), 1)
 }

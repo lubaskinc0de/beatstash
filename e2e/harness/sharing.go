@@ -16,3 +16,10 @@ func (s *Scenario) Take(user User, n int) {
 
 	s.Open(user, s.Catalog(user).FeedButton(), s.Catalog(user).TakeButton(n))
 }
+
+func (s *Scenario) ShareOnScreen(user User, track string) {
+	s.t.Helper()
+
+	c := s.Catalog(user)
+	s.Open(user, c.ShareScreenButton(), track, c.ShareCardButton())
+}

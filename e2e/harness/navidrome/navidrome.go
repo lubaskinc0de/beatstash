@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -41,11 +42,12 @@ type Server struct {
 	URL string
 }
 
-func Start(ctx context.Context, libraryRoot string) (*Server, testcontainers.Container, error) {
+func Start(ctx context.Context, libraryRoot string, sharing bool) (*Server, testcontainers.Container, error) {
 	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		Image:        dockerImage,
 		ExposedPorts: []string{"4533/tcp"},
 		Env: map[string]string{
+			"ND_ENABLESHARING":                  strconv.FormatBool(sharing),
 			"ND_LOGLEVEL":                       "warn",
 			"ND_ENABLEINSIGHTSCOLLECTOR":        "false",
 			"ND_SUBSONIC_DEFAULTREPORTREALPATH": "true",
@@ -196,23 +198,6 @@ func (n *Server) IndexedTrack(t *testing.T, account Account, libraryDir string, 
 	return found
 }
 
-// SongAt finds the account's song with the title in the file at hostPath:
-// other files may hold songs of the same title.
-func (n *Server) SongAt(t *testing.T, account Account, title, hostPath string) Track {
-	t.Helper()
-
-	dir, name := filepath.Base(filepath.Dir(hostPath)), filepath.Base(hostPath)
-	songs, err := n.search(account, dir, title)
-	require.NoError(t, err)
-	for _, song := range songs {
-		if strings.HasSuffix(song.Path, dir+"/"+name) {
-			return song
-		}
-	}
-	t.Fatalf("%s finds no song at %s", account.Login, hostPath)
-	return Track{}
-}
-
 // SearchFor lists songs the account finds in libraryDir; call it after
 // IndexedTrack proved the scan has reached the song.
 func (n *Server) SearchFor(t *testing.T, account Account, libraryDir string, title string) []Track {
@@ -310,7 +295,11 @@ func (n *Server) adminAPIEventually(t *testing.T, method, path string, body, out
 }
 
 func (n *Server) callAdminAPI(method, path string, body, out any) error {
-	token, err := n.login(adminAccount)
+	return n.callAPIAs(adminAccount, method, path, body, out)
+}
+
+func (n *Server) callAPIAs(account Account, method, path string, body, out any) error {
+	token, err := n.login(account)
 	if err != nil {
 		return err
 	}

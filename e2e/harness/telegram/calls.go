@@ -19,8 +19,14 @@ type Call struct {
 }
 
 type InlineAnswer struct {
-	QueryID string
-	Results []InlineResult
+	QueryID    string
+	Results    []InlineResult
+	NextOffset string
+	// Button goes above the results; its Text is empty without one.
+	Button struct {
+		Text           string `json:"text"`
+		StartParameter string `json:"start_parameter"`
+	}
 }
 
 type InlineResult struct {
@@ -148,8 +154,11 @@ func (a *API) InlineAnswers(t *testing.T) []InlineAnswer {
 
 	var answers []InlineAnswer
 	for _, call := range a.CallsTo("answerInlineQuery") {
-		answer := InlineAnswer{QueryID: call.Params["inline_query_id"]}
+		answer := InlineAnswer{QueryID: call.Params["inline_query_id"], NextOffset: call.Params["next_offset"]}
 		mustUnmarshal(t, call.Params["results"], &answer.Results)
+		if button := call.Params["button"]; button != "" {
+			mustUnmarshal(t, button, &answer.Button)
+		}
 		answers = append(answers, answer)
 	}
 	return answers

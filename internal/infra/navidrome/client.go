@@ -35,16 +35,19 @@ type SessionRepository interface {
 const requestTimeout = 30 * time.Second
 
 type Client struct {
-	baseURL  string
-	sessions SessionRepository
-	http     *http.Client
+	baseURL string
+	// publicURL is where listeners outside open Navidrome's links.
+	publicURL string
+	sessions  SessionRepository
+	http      *http.Client
 }
 
-func NewClient(baseURL string, sessions SessionRepository) *Client {
+func NewClient(baseURL, publicURL string, sessions SessionRepository) *Client {
 	return &Client{
-		baseURL:  baseURL,
-		sessions: sessions,
-		http:     &http.Client{Timeout: requestTimeout},
+		baseURL:   baseURL,
+		publicURL: publicURL,
+		sessions:  sessions,
+		http:      &http.Client{Timeout: requestTimeout},
 	}
 }
 
@@ -595,6 +598,67 @@ func (c *Client) LibrarySongs(ctx context.Context, admin appnd.Credentials, libr
 			return songs, nil
 		}
 	}
+}
+
+func (c *Client) SongAt(ctx context.Context, admin appnd.Credentials, libraryID int, path string) (string, error) {
+	q := url.Values{}
+	q.Set("library_id", strconv.Itoa(libraryID))
+	q.Set("path", path)
+	q.Set("missing", "false")
+	// The path filter matches the start of a path, ignoring case.
+	var songs []struct {
+		ID   string `json:"id"`
+		Path string `json:"path"`
+	}
+	if err := c.native(ctx, admin, nativeRequest{method: http.MethodGet, path: "/api/song", query: q}, &songs); err != nil {
+		return "", err
+	}
+	for _, song := range songs {
+		if song.Path == path {
+			return song.ID, nil
+		}
+	}
+	return "", nil
+}
+
+func (c *Client) AlbumOf(ctx context.Context, creds appnd.Credentials, songID string) (string, error) {
+	var result struct {
+		Song struct {
+			AlbumID string `json:"albumId"`
+		} `json:"song"`
+	}
+	if err := c.subsonic(ctx, creds, "getSong", url.Values{"id": {songID}}, &result); err != nil {
+		return "", err
+	}
+	return result.Song.AlbumID, nil
+}
+
+func (c *Client) CreateShare(ctx context.Context, creds appnd.Credentials, share appnd.Share) (string, error) {
+	var result struct {
+		Shares struct {
+			Share []struct {
+				URL string `json:"url"`
+			} `json:"share"`
+		} `json:"shares"`
+	}
+	err := c.subsonic(ctx, creds, "createShare", url.Values{
+		"id":           {share.ID},
+		"description":  {share.Description},
+		"expires":      {strconv.FormatInt(share.Expires.UnixMilli(), 10)},
+		"downloadable": {strconv.FormatBool(share.Downloadable)},
+	}, &result)
+	if err != nil {
+		return "", err
+	}
+	if len(result.Shares.Share) == 0 {
+		return "", errors.New("navidrome created no share")
+	}
+	// Navidrome builds the link of the address the bot calls it at.
+	link, err := url.Parse(result.Shares.Share[0].URL)
+	if err != nil {
+		return "", err
+	}
+	return c.publicURL + link.Path, nil
 }
 
 func (c *Client) Download(ctx context.Context, creds appnd.Credentials, songID string) (io.ReadCloser, error) {

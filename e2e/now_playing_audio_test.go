@@ -33,13 +33,14 @@ func TestNowPlayingAudio(t *testing.T) {
 		assert.Equal(t, s.Telegram.UploadedFileID(0), edits[0].Media.Media)
 		assert.Contains(t, edits[0].Media.Caption, "Pending Song")
 		assert.NotContains(t, edits[0].Media.Caption, "⏳")
-		assert.Equal(t, []string{s.Catalog(alice).ShareButton()}, telegram.ButtonTexts(edits[0].Buttons))
+		assert.Empty(t, edits[0].Buttons)
 		assert.Equal(t, "audio", next.Type)
 		assert.Equal(t, s.Telegram.UploadedFileID(0), next.AudioFileID)
 	})
 
-	t.Run("file over the upload limit leaves text with a note", func(t *testing.T) {
-		s := harness.New(t, harness.WithStorageChat(storageChat), harness.WithoutStorageFill(), harness.WithMaxUpload(1024))
+	t.Run("file over the upload limit without Listen Links leaves text with a note", func(t *testing.T) {
+		s := harness.New(t,
+			harness.WithStorageChat(storageChat), harness.WithoutStorageFill(), harness.WithMaxUpload(1024), harness.WithPublicURL(""))
 		playingUnpostedZvukSong(t, s, alice, "Huge Song")
 
 		chosen := s.Choose(alice, s.NowPlaying(alice))

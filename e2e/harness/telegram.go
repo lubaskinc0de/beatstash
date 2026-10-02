@@ -148,6 +148,17 @@ func (s *Scenario) InlineQuery(from User, query string) *models.Update {
 	}
 }
 
+// Search asks inline mode for the text and returns the answer; offset is
+// the next_offset of the previous page.
+func (s *Scenario) Search(from User, text, offset string) telegram.InlineAnswer {
+	s.t.Helper()
+
+	query := s.InlineQuery(from, text)
+	query.InlineQuery.Offset = offset
+	s.Send(query)
+	return s.Telegram.InlineAnswerTo(s.t, query)
+}
+
 func (s *Scenario) Choose(from User, result telegram.InlineResult) *models.Update {
 	update := s.ChosenResult(from, result)
 	s.Send(update)
@@ -180,14 +191,6 @@ func (s *Scenario) PressOn(from User, b telegram.Button, messageID int) *models.
 		Type:    models.MaybeInaccessibleMessageTypeMessage,
 		Message: &models.Message{ID: messageID, Chat: models.Chat{ID: from.ID, Type: models.ChatTypePrivate}},
 	}
-	s.Send(update)
-	return update
-}
-
-// PressInline taps a button of a message the user sent through inline mode.
-func (s *Scenario) PressInline(from User, b telegram.Button) *models.Update {
-	update := s.CallbackQuery(from, b.Data)
-	update.CallbackQuery.InlineMessageID = "inline-message-" + update.CallbackQuery.ID
 	s.Send(update)
 	return update
 }

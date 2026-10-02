@@ -35,6 +35,13 @@ type Client interface {
 	// LibrarySongs lists the songs Navidrome has indexed in the library and
 	// whose files are still there.
 	LibrarySongs(ctx context.Context, admin Credentials, libraryID int) ([]Song, error)
+	// SongAt finds the song Navidrome has indexed at the path relative to
+	// the library; empty if none.
+	SongAt(ctx context.Context, admin Credentials, libraryID int, path string) (string, error)
+	AlbumOf(ctx context.Context, creds Credentials, songID string) (string, error)
+	// CreateShare makes a public link to the song or album and returns it,
+	// at Navidrome's public address.
+	CreateShare(ctx context.Context, creds Credentials, share Share) (string, error)
 	// Download streams the song's file as it is; the caller closes it.
 	Download(ctx context.Context, creds Credentials, songID string) (io.ReadCloser, error)
 	Star(ctx context.Context, creds Credentials, songIDs []string) error
@@ -42,6 +49,14 @@ type Client interface {
 	// SavePlaylist replaces the songs of the playlist, or creates it when
 	// id is empty or the playlist is gone, and returns its id.
 	SavePlaylist(ctx context.Context, creds Credentials, id, name string, songIDs []string) (string, error)
+}
+
+type Share struct {
+	// ID is a song's or an album's.
+	ID           string
+	Description  string
+	Expires      time.Time
+	Downloadable bool
 }
 
 type Library struct {

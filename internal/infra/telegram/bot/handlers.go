@@ -34,6 +34,7 @@ type Handler struct {
 	Uploads   *Uploads
 	Admin     *Admin
 	Quotas    *Quotas
+	Share     *ShareScreen
 }
 
 // Register adds the routes; they never match the same update.
@@ -91,6 +92,14 @@ func (h *Handler) view(ctx context.Context, s screen, arg string) window.View {
 		return h.Quotas.quotaView(ctx, arg)
 	case screenUserQuota:
 		return h.Quotas.userQuotaView(ctx, arg)
+	case screenShare:
+		return h.Share.shareView(ctx, arg)
+	case screenShareTrack:
+		return h.Share.trackCardView(ctx, arg)
+	case screenShareAlbum:
+		return h.Share.albumCardView(ctx, arg)
+	case screenUnsendable:
+		return h.Home.unsendableView(ctx)
 	default:
 		return h.Home.homeView(ctx)
 	}
@@ -107,6 +116,8 @@ func (h *Handler) onText(s screen) func(context.Context, windowInput) {
 		return h.Navidrome.registerNavidrome
 	case screenQuota, screenUserQuota:
 		return h.Quotas.typeQuota(s)
+	case screenShare:
+		return h.Share.typeQuery
 	default:
 		return nil
 	}

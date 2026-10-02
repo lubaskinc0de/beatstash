@@ -53,14 +53,9 @@ func (a *Admin) usersView(ctx context.Context, arg string) window.View {
 			goButton(c.UserButton(user, now), place{screen: screenUser, arg: userArg(user.ID, users.Page)}),
 		})
 	}
-	var pages []models.InlineKeyboardButton
-	if users.Page > 0 {
-		pages = append(pages, goButton(c.PrevPage(), place{screen: screenUsers, arg: strconv.Itoa(users.Page - 1)}))
-	}
-	if users.More {
-		pages = append(pages, goButton(c.NextPage(), place{screen: screenUsers, arg: strconv.Itoa(users.Page + 1)}))
-	}
-	if len(pages) > 0 {
+	if pages := pageRow(c, users.Page, users.More, func(page int) place {
+		return place{screen: screenUsers, arg: strconv.Itoa(page)}
+	}); pages != nil {
 		rows = append(rows, pages)
 	}
 	return window.View{Text: c.UsersTitle(), Rows: append(rows, backRow(ctx, place{screen: screenAdmin}))}

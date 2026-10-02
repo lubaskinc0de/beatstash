@@ -105,11 +105,7 @@ func (f *Feed) sendFile(ctx context.Context, chatID int64, sharedTrackID uint) e
 	if err != nil {
 		return err
 	}
-	file, posted, err := f.Files.For(ctx, chatID, track, path)
-	if err != nil || posted {
-		return err
-	}
-	return f.Files.Sender.Send(ctx, chatID, file)
+	return f.Files.SendTo(ctx, chatID, track, path)
 }
 
 func (f *Feed) topView(ctx context.Context) window.View {

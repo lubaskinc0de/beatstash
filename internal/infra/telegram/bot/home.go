@@ -9,9 +9,11 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/listening"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/greet_stranger"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/invite_friend"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/join_by_invite"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/send_listen_link"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_home"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
@@ -20,13 +22,14 @@ import (
 
 // Home is the home screen, the invites and the language.
 type Home struct {
-	Telegram        *Telegram
-	IDs             common.IDProvider
-	Users           *Users
-	GetHome         *view_home.GetHome
-	CreateInvite    *invite_friend.CreateInvite
-	AcceptInvite    *join_by_invite.AcceptInvite
-	GetServiceStats *greet_stranger.GetServiceStats
+	Telegram         *Telegram
+	IDs              common.IDProvider
+	Users            *Users
+	GetHome          *view_home.GetHome
+	CreateInvite     *invite_friend.CreateInvite
+	AcceptInvite     *join_by_invite.AcceptInvite
+	GetServiceStats  *greet_stranger.GetServiceStats
+	CheckListenLinks *send_listen_link.CheckListenLinks
 }
 
 // handleStart with an invite code lets a stranger in and asks for a
@@ -42,7 +45,34 @@ func (h *Home) handleStart(ctx context.Context, _ *bot.Bot, update *models.Updat
 		h.join(ctx, chatID, code)
 		return
 	}
-	h.Telegram.show(ctx, chatID, window.New, place{screen: screenHome}, "")
+	at := place{screen: screenHome}
+	if code == startUnsendable {
+		at = place{screen: screenUnsendable}
+	}
+	h.Telegram.show(ctx, chatID, window.New, at, "")
+}
+
+// startUnsendable comes from inline mode that left out Tracks it could not
+// send.
+const startUnsendable = "unsendable"
+
+func (h *Home) unsendableView(ctx context.Context) window.View {
+	c := texts(ctx)
+	back := backRow(ctx, place{screen: screenHome})
+	err := h.CheckListenLinks.Execute(ctx)
+	switch {
+	case err == nil:
+		return window.View{Text: c.ListenLinksReady(), Rows: [][]models.InlineKeyboardButton{back}}
+	case errors.Is(err, listening.ErrNoNavidromeAccount):
+		return window.View{Text: c.UnsendableNoAccount(), Rows: [][]models.InlineKeyboardButton{
+			{goButton(c.AccountsButton(), place{screen: screenNavidrome})}, back,
+		}}
+	case errors.Is(err, listening.ErrNoPublicAddress):
+		return window.View{Text: c.UnsendableNoAddress(), Rows: [][]models.InlineKeyboardButton{back}}
+	default:
+		slog.Error("check_listen_links", "error", err)
+		return window.View{Text: c.TryLater(), Rows: [][]models.InlineKeyboardButton{back}}
+	}
 }
 
 func (h *Home) join(ctx context.Context, chatID int64, code string) {
@@ -78,7 +108,8 @@ func (h *Home) homeView(ctx context.Context) window.View {
 		{goButton(c.ListenButton(), place{screen: screenListen})},
 		{goButton(c.ImportButton(), place{screen: screenSources})},
 		{goButton(c.HowToButton(), place{screen: screenHowTo})},
-		{goButton(c.FeedButton(), place{screen: screenFeed}), goButton(c.TopButton(), place{screen: screenTop})},
+		{goButton(c.FeedButton(), place{screen: screenFeed}), goButton(c.ShareScreenButton(), place{screen: screenShare})},
+		{goButton(c.TopButton(), place{screen: screenTop})},
 		accounts,
 	}
 	if home.Admin {

@@ -27,10 +27,6 @@ func WithZvukPerUser(n int) Option {
 	return func(c *app.Config) { c.ZvukPerUser = n }
 }
 
-func WithTelegramPollInterval(d time.Duration) Option {
-	return func(c *app.Config) { c.TelegramPollInterval = d }
-}
-
 func WithLeaseTTL(d time.Duration) Option {
 	return func(c *app.Config) { c.TelegramLeaseTTL = d }
 }
@@ -92,4 +88,8 @@ func WithStallTimeout(d time.Duration) Option {
 
 func WithReconcileInterval(d time.Duration) Option {
 	return func(c *app.Config) { c.ReconcileInterval = d }
+}
+
+func WithPublicURL(url string) Option {
+	return func(c *app.Config) { c.NavidromePublicURL = url }
 }

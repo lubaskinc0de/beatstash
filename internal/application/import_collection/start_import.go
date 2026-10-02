@@ -26,7 +26,7 @@ type StartImport struct {
 	BatchRepo repositories.IngestBatches
 	Quotas    *quotas.Quotas
 	Waker     common.Waker
-	Clock func() time.Time
+	Clock     func() time.Time
 }
 
 // Execute returns a *library.QuotaExceededError when the Personal Library

@@ -7,6 +7,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/accounts"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/listening"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
@@ -18,19 +19,27 @@ type RecentTrack struct {
 	Track *library.Track
 }
 
+type RecentlyPlayed struct {
+	Tracks []RecentTrack
+	// Linkable: the user can send the Tracks' Listen Links; they have a
+	// Navidrome Account, or nothing would be played.
+	Linkable bool
+}
+
 type GetRecentlyPlayed struct {
-	IDs       common.IDProvider
-	Client    navidrome.Client
-	Repo      repositories.Tracks
-	Accounts  *accounts.Navidrome
-	Libraries *libraries.Libraries
-	Attached  *libraries.Attached
+	IDs         common.IDProvider
+	Client      navidrome.Client
+	Repo        repositories.Tracks
+	Accounts    *accounts.Navidrome
+	Libraries   *libraries.Libraries
+	Attached    *libraries.Attached
+	ListenLinks *listening.ListenLinks
 }
 
 func (i *GetRecentlyPlayed) Execute(
 	ctx context.Context,
 	limit int,
-) ([]RecentTrack, error) {
+) (*RecentlyPlayed, error) {
 	user, err := i.IDs.CurrentUser(ctx)
 	if err != nil {
 		return nil, err
@@ -64,10 +73,10 @@ func (i *GetRecentlyPlayed) Execute(
 		slog.Error("find_track", "error", err)
 		found = make([]*library.Track, len(played))
 	}
-	tracks := make([]RecentTrack, 0, len(played))
+	recent := &RecentlyPlayed{Tracks: make([]RecentTrack, 0, len(played))}
 	for n, p := range played {
-		tracks = append(tracks, RecentTrack{PlayedTrack: p, Track: found[n]})
+		recent.Tracks = append(recent.Tracks, RecentTrack{PlayedTrack: p, Track: found[n]})
 	}
-
-	return tracks, nil
+	recent.Linkable = i.ListenLinks.On
+	return recent, nil
 }

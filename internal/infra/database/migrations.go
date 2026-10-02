@@ -1,6 +1,8 @@
 package database
 
 import (
+	"fmt"
+
 	"github.com/go-gormigrate/gormigrate/v2"
 	"gorm.io/gorm"
 
@@ -161,6 +163,60 @@ var migrations = []*gormigrate.Migration{
 				ALTER TABLE takes ADD CONSTRAINT fk_takes_track
 					FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE SET NULL;
 				CREATE INDEX IF NOT EXISTS idx_takes_track_id ON takes (track_id)`).Error
+		},
+	},
+	{
+		ID: "0016_library_search",
+		Migrate: func(tx *gorm.DB) error {
+			if err := tx.Exec(`
+				ALTER TABLE tracks ADD COLUMN IF NOT EXISTS follows_song boolean NOT NULL DEFAULT false;
+				CREATE EXTENSION IF NOT EXISTS pg_trgm;
+				CREATE INDEX IF NOT EXISTS idx_track_recording ON tracks (lower(artist), lower(title))`).Error; err != nil {
+				return err
+			}
+			for _, column := range []string{"artist", "album_artist", "album", "title"} {
+				err := tx.Exec(fmt.Sprintf(`CREATE INDEX IF NOT EXISTS idx_track_search_%s ON tracks USING gin (%s gin_trgm_ops)`,
+					column, searchForm(column))).Error
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	},
+	{
+		ID: "0017_listen_links",
+		Migrate: func(tx *gorm.DB) error {
+			return tx.AutoMigrate(&library.ListenLink{})
+		},
+	},
+	{
+		ID: "0018_telegram_share_query",
+		Migrate: func(tx *gorm.DB) error {
+			return tx.AutoMigrate(&tgbot.User{})
+		},
+	},
+	{
+		// A new database got the column under its new name in 0001, and the
+		// old one in 0016.
+		ID: "0019_track_in_attached_library",
+		Migrate: func(tx *gorm.DB) error {
+			if tx.Migrator().HasColumn(&library.Track{}, "in_attached_library") {
+				return tx.Migrator().DropColumn(&library.Track{}, "follows_song")
+			}
+			return tx.Migrator().RenameColumn(&library.Track{}, "follows_song", "in_attached_library")
+		},
+	},
+	{
+		ID: "0020_listen_links_album_case",
+		Migrate: func(tx *gorm.DB) error {
+			if err := tx.AutoMigrate(&library.ListenLink{}); err != nil {
+				return err
+			}
+			return tx.Exec(`
+				DROP INDEX IF EXISTS idx_listen_link_subject;
+				CREATE UNIQUE INDEX IF NOT EXISTS idx_listen_link_subject
+					ON listen_links (user_id, track_id, library_id, lower(album_artist), lower(album))`).Error
 		},
 	},
 }

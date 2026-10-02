@@ -8,9 +8,11 @@ import (
 )
 
 // User is any Telegram user who wrote to the bot, strangers included.
+// ShareQuery is what they last searched for on the Share screen.
 type User struct {
-	ID       int64  `gorm:"primaryKey;autoIncrement:false"`
-	Language string `gorm:"not null"`
+	ID         int64  `gorm:"primaryKey;autoIncrement:false"`
+	Language   string `gorm:"not null"`
+	ShareQuery string `gorm:"not null;default:''"`
 }
 
 func (User) TableName() string {
@@ -53,4 +55,18 @@ func (u *Users) CountStrangers(ctx context.Context) (int64, error) {
 			WHERE identities.channel = ? AND identities.external_id = telegram_users.id::text
 		)`, Channel).Scan(&count).Error
 	return count, err
+}
+
+// ShareQuery is empty for a user who never wrote to the bot.
+func (u *Users) ShareQuery(ctx context.Context, id int64) (string, error) {
+	var queries []string
+	err := u.DB.WithContext(ctx).Model(&User{}).Where("id = ?", id).Pluck("share_query", &queries).Error
+	if err != nil || len(queries) == 0 {
+		return "", err
+	}
+	return queries[0], nil
+}
+
+func (u *Users) SetShareQuery(ctx context.Context, id int64, query string) error {
+	return u.DB.WithContext(ctx).Model(&User{}).Where("id = ?", id).Update("share_query", query).Error
 }

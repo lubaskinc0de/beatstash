@@ -6,6 +6,7 @@
 //   - Upload: a record that a User sent a Track.
 //   - QuotaSettings: the Default Quota and the Shared Library's Quota the
 //     Admin set.
+//   - ListenLink: a public Navidrome link a User got to a Track or an Album.
 //
 // Two rules apply to a whole Library: no two Duplicates, and one Track per
 // Track Ref. Library cannot check them without loading all its Tracks, so
@@ -28,7 +29,8 @@
 //
 // Value objects: Metadata, Quality, Format, Incoming, Probe, Outcome, Song,
 // Placement, SystemFolders, NavidromeAccess, Quota, Usage, Capacity,
-// ServerQuotas, LibraryFile, Survey, Reading, Reconciliation. Grant decides
+// ServerQuotas, LibraryFile, Survey, Reading, Reconciliation, AlbumKey.
+// Grant decides
 // which libraries a Navidrome Account gets; KeptLibraries, where a user
 // keeps music. LayoutPath chooses the file path.
 //

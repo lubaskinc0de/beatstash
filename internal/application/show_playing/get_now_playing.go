@@ -2,12 +2,12 @@ package show_playing
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/accounts"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/listening"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
@@ -17,19 +17,19 @@ type NowPlaying struct {
 	navidrome.PlayingTrack
 	// Track is nil if the user's libraries hold no such Track.
 	Track *library.Track
-	// ShareableTrackID is the playing Track of the user's Personal Library,
-	// or of an Attached Library they see, that is not in the Shared Library
-	// yet; zero means np offers no Share.
-	ShareableTrackID uint
+	// Linkable: the user can send the Track's Listen Link; they have a
+	// Navidrome Account, or nothing would be playing.
+	Linkable bool
 }
 
 type GetNowPlaying struct {
-	IDs       common.IDProvider
-	Client    navidrome.Client
-	Repo      repositories.Tracks
-	Accounts  *accounts.Navidrome
-	Libraries *libraries.Libraries
-	Attached  *libraries.Attached
+	IDs         common.IDProvider
+	Client      navidrome.Client
+	Repo        repositories.Tracks
+	Accounts    *accounts.Navidrome
+	Libraries   *libraries.Libraries
+	Attached    *libraries.Attached
+	ListenLinks *listening.ListenLinks
 }
 
 func (i *GetNowPlaying) Execute(
@@ -70,27 +70,6 @@ func (i *GetNowPlaying) Execute(
 		return nowPlaying, nil
 	}
 	nowPlaying.Track = found[0]
-
-	nowPlaying.ShareableTrackID, err = i.shareable(ctx, libs.Shared, nowPlaying.Track)
-	if err != nil {
-		slog.Error("find_shareable_track", "error", err)
-	}
+	nowPlaying.Linkable = i.ListenLinks.On
 	return nowPlaying, nil
-}
-
-// shareable is the playing Track unless it is in the Shared Library or has
-// a Duplicate there.
-func (i *GetNowPlaying) shareable(ctx context.Context, shared *library.Library, track *library.Track) (uint, error) {
-	if track == nil || track.In(shared) {
-		return 0, nil
-	}
-	_, err := i.Repo.FindDuplicate(ctx, []uint{shared.ID}, track.Metadata, track.DurationMs)
-	switch {
-	case err == nil:
-		return 0, nil
-	case errors.Is(err, repositories.ErrTrackNotFound):
-		return track.ID, nil
-	default:
-		return 0, err
-	}
 }

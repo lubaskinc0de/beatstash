@@ -55,6 +55,8 @@ services:
       ND_MUSICFOLDER: "/music/shared"
       ND_DATAFOLDER: "/data"
       ND_LOGLEVEL: "info"
+      # Listen Links are Navidrome shares.
+      ND_ENABLESHARING: "true"
     volumes:
       - ./test_data:/music:ro
       - navidrome_data:/data

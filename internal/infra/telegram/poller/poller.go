@@ -166,9 +166,12 @@ func (p *Poller) WaitIdle(ctx context.Context) error {
 }
 
 func (p *Poller) idle(ctx context.Context) (bool, error) {
+	// A window held by a redraw, even by an instance that died amid it,
+	// shows the end only once it is redrawn.
 	var waiting bool
 	err := p.db.WithContext(ctx).Raw(`SELECT
-		EXISTS (SELECT 1 FROM telegram_job_messages) OR EXISTS (SELECT 1 FROM telegram_followed_batches)`,
+		EXISTS (SELECT 1 FROM telegram_job_messages) OR EXISTS (SELECT 1 FROM telegram_followed_batches)
+		OR EXISTS (SELECT 1 FROM telegram_windows WHERE drawing_until >= now())`,
 	).Scan(&waiting).Error
 	if err != nil || waiting || !p.fill {
 		return !waiting, err

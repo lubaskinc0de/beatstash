@@ -13,65 +13,6 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 )
 
-func TestShareNowPlaying(t *testing.T) {
-	t.Parallel()
-
-	t.Run("np shares the user's own playing track", func(t *testing.T) {
-		s := harness.New(t)
-		account := s.LinkNewAccount(alice)
-		s.Uploaded(alice, s.UploadAudio("track.mp3"))
-		s.Navidrome.StartPlaying(t, account, s.Navidrome.IndexedTrack(t, account, s.Library, audiofile.FixtureTitle).ID)
-		share := telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), s.Catalog(alice).ShareButton())
-
-		s.PressInline(alice, share)
-
-		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.SharedFiles())
-		assert.Contains(t, s.LastCallbackAnswer(), s.Catalog(alice).ShareResult(&share_tracks.ShareResult{Created: 1}))
-	})
-
-	t.Run("another user cannot Share a track from Alice's inline np", func(t *testing.T) {
-		s := harness.New(t)
-		account := s.LinkNewAccount(alice)
-		s.Uploaded(alice, s.UploadAudio("track.mp3"))
-		track := s.Navidrome.IndexedTrack(t, account, s.PersonalPath(alice, ""), audiofile.FixtureTitle)
-		s.Navidrome.StartPlaying(t, account, track.ID)
-		share := telegram.ButtonNamed(t, s.NowPlaying(alice).Buttons(), s.Catalog(alice).ShareButton())
-
-		s.PressInline(bob, share)
-
-		assert.Contains(t, s.LastCallbackAnswer(), s.Catalog(bob).NotOwnTrack())
-		assert.Empty(t, s.SharedFiles())
-	})
-
-	t.Run("np of a shared track has no Share button", func(t *testing.T) {
-		s := harness.New(t)
-		account := s.LinkNewAccount(alice)
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
-		s.Navidrome.StartPlaying(t, account, s.Navidrome.IndexedTrack(t, account, s.PersonalPath(alice, ""), audiofile.FixtureTitle).ID)
-		query := s.InlineQuery(alice, "np")
-
-		s.Send(query)
-
-		results := s.Telegram.InlineAnswerTo(t, query).Results
-		require.Len(t, results, 1)
-		assert.Empty(t, results[0].Buttons())
-	})
-
-	t.Run("np of another user's shared track has no Share button", func(t *testing.T) {
-		s := harness.New(t)
-		bobAccount := s.LinkNewAccount(bob)
-		s.Share(alice, s.Uploaded(alice, s.UploadAudio("track.mp3")), s.Catalog(alice).ShareTrack())
-		s.Navidrome.StartPlaying(t, bobAccount, s.Navidrome.IndexedTrack(t, bobAccount, s.Library, audiofile.FixtureTitle).ID)
-		query := s.InlineQuery(bob, "np")
-
-		s.Send(query)
-
-		results := s.Telegram.InlineAnswerTo(t, query).Results
-		require.Len(t, results, 1)
-		assert.Empty(t, results[0].Buttons())
-	})
-}
-
 func TestShare(t *testing.T) {
 	t.Parallel()
 
