@@ -44,7 +44,7 @@ services:
       - telegram_bot_api_data:/var/lib/telegram-bot-api
 
   navidrome:
-    image: deluan/navidrome:0.64.1
+    image: deluan/navidrome:0.64.2
     restart: unless-stopped
     ports:
       - '127.0.0.1:4533:4533'
