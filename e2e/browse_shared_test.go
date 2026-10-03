@@ -245,7 +245,7 @@ func TestSharedFeed(t *testing.T) {
 		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 		s.ShareTrack(alice, fixtureButton)
 
-		replica.Open(bob, s.Catalog(bob).MusicButton())
+		replica.Open(bob, s.Catalog(bob).MusicButton(), s.Catalog(bob).SharedTab())
 
 		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), fixtureButton)
 	})
@@ -253,7 +253,7 @@ func TestSharedFeed(t *testing.T) {
 	t.Run("empty feed says nobody has shared yet", func(t *testing.T) {
 		s := harness.New(t)
 
-		s.Open(alice, s.Catalog(alice).MusicButton())
+		s.Open(alice, s.Catalog(alice).MusicButton(), s.Catalog(alice).SharedTab())
 
 		empty := s.Catalog(alice).FeedEmpty()
 		require.NotEmpty(t, empty)

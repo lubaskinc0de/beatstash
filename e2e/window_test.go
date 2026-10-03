@@ -470,7 +470,7 @@ func TestTranslations(t *testing.T) {
 		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), "🎶 Музыка друзей")
 		s.Go(alice, s.Catalog(alice).MusicButton())
 
-		assert.Contains(t, s.WindowText(), s.Catalog(alice).FeedEmpty())
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).ShareScreen("", false))
 	})
 
 	t.Run("source link and author stay whatever the translation says", func(t *testing.T) {

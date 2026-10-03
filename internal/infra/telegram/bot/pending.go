@@ -89,7 +89,7 @@ func chosenCaption(c i18n.Catalog, track *library.Track, tag string) string {
 	if playing := playingOf(tag, track); playing != nil {
 		return c.NowPlaying(playing)
 	}
-	return c.AudioCaption(track)
+	return c.SharedTrackCaption(c.AudioCaption(track))
 }
 
 // chosenText stands in for the audio: no player tells the artist and the
@@ -98,7 +98,7 @@ func chosenText(c i18n.Catalog, track *library.Track, tag string) string {
 	if playing := playingOf(tag, track); playing != nil {
 		return c.NowPlaying(playing)
 	}
-	return c.TrackText(track)
+	return c.SharedTrackCaption(c.TrackText(track))
 }
 
 // pending tells whether choosing the Track can bring its file: it has one
@@ -108,8 +108,11 @@ func (in *Inline) pending(files trackFiles, track *library.Track) bool {
 	return track != nil && (files.of(track) != nil || !track.Attached() && in.StorageChatID != 0)
 }
 
-func pendingResult(id string, a i18n.Article, track *library.Track) *models.InlineQueryResultArticle {
+func pendingResult(c i18n.Catalog, id string, a i18n.Article, track *library.Track) *models.InlineQueryResultArticle {
 	a.Message = i18n.PendingCaption(track.Artist, track.Title)
+	if !strings.Contains(id, ":np:") {
+		a.Message = c.SharedTrackCaption(a.Message)
+	}
 	result := article(id, a)
 	result.ReplyMarkup = waitKeyboard()
 	return result
@@ -157,8 +160,8 @@ func (in *Inline) sendFeedTrack(ctx context.Context, inlineMessageID string, sha
 		in.editInlineText(ctx, inlineMessageID, c.NotSentNote(false))
 		return
 	}
-	text := c.FeedText(audio.Track, &audio.Author)
-	if tooLarge := in.editToFile(ctx, inlineMessageID, audio.Track, audio.Path, c.FeedCaption(audio.Track, &audio.Author), text); tooLarge {
+	text := c.SharedTrackCaption(c.FeedText(audio.Track, &audio.Author))
+	if tooLarge := in.editToFile(ctx, inlineMessageID, audio.Track, audio.Path, c.SharedTrackCaption(c.FeedCaption(audio.Track, &audio.Author)), text); tooLarge {
 		in.editInlineText(ctx, inlineMessageID, c.NotSentCaption(text, true))
 	}
 }
@@ -229,7 +232,7 @@ func (in *Inline) sendAlbumLink(ctx context.Context, inlineMessageID string, tra
 		in.editInlineText(ctx, inlineMessageID, c.NotSentNote(false))
 		return
 	}
-	in.editInlineText(ctx, inlineMessageID, albumLinkText(c, link, err))
+	in.editInlineText(ctx, inlineMessageID, c.SharedAlbumCaption(albumLinkText(c, link, err)))
 }
 
 func albumLinkText(c i18n.Catalog, link *send_listen_link.AlbumLink, err error) string {

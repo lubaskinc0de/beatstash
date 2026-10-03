@@ -103,7 +103,7 @@ func (h *Home) homeView(ctx context.Context) window.View {
 	}
 
 	rows := [][]models.InlineKeyboardButton{
-		{goButton(c.MusicButton(), place{screen: screenFeed})},
+		{goButton(c.MusicButton(), place{screen: screenShare})},
 		{goButton(c.ImportButton(), place{screen: screenSources})},
 		{goButton(c.HelpButton(), place{screen: screenHelp}), goButton(c.SettingsButton(), place{screen: screenSettings})},
 	}

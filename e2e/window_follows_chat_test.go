@@ -24,7 +24,7 @@ func TestWindowFollowsChat(t *testing.T) {
 		window := s.Telegram.Window()
 		assert.Equal(t, "editMessageText", window.Method)
 		assert.Equal(t, old, window.MessageID)
-		assert.Contains(t, s.WindowText(), c.FeedEmpty())
+		assert.Contains(t, s.WindowText(), c.ShareScreen("", false))
 	})
 
 	t.Run("press after an upload sends the next screen below", func(t *testing.T) {
@@ -38,7 +38,7 @@ func TestWindowFollowsChat(t *testing.T) {
 		window := s.Telegram.Window()
 		assert.Equal(t, "sendMessage", window.Method)
 		assert.Greater(t, window.MessageID, old)
-		assert.Contains(t, s.WindowText(), s.Catalog(alice).FeedEmpty())
+		assert.Contains(t, s.WindowText(), s.Catalog(alice).ShareScreen("", true))
 		assert.Contains(t, s.Telegram.DeletedMessages(), strconv.Itoa(old))
 		assert.NotContains(t, s.Telegram.EditedMessages(), strconv.Itoa(old))
 	})
@@ -176,7 +176,7 @@ func TestWindowFollowsChat(t *testing.T) {
 
 	t.Run("unknown command is deleted and is no answer to the window", func(t *testing.T) {
 		s := harness.New(t)
-		s.Open(alice, s.Catalog(alice).MusicButton(), s.Catalog(alice).MineTab())
+		s.Open(alice, s.Catalog(alice).MusicButton())
 
 		command := s.SendText(alice, "/foo")
 

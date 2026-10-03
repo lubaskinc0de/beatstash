@@ -94,7 +94,7 @@ func musicTabs(c i18n.Catalog, open screen) []models.InlineKeyboardButton {
 	for _, tab := range []struct {
 		name string
 		to   screen
-	}{{c.SharedTab(), screenFeed}, {c.MineTab(), screenShare}} {
+	}{{c.MineTab(), screenShare}, {c.SharedTab(), screenFeed}} {
 		b := goButton(tab.name, place{screen: tab.to})
 		if tab.to == open {
 			b.Text, b.Style = c.OpenTab(tab.name), stylePrimary

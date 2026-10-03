@@ -12,28 +12,28 @@ func (s *Scenario) ShareTrack(user User, track string) {
 	s.t.Helper()
 
 	c := s.Catalog(user)
-	s.Open(user, c.MusicButton(), c.MineTab(), track, c.ShareCardButton())
+	s.Open(user, c.MusicButton(), track, c.ShareCardButton())
 }
 
 func (s *Scenario) UnshareTrack(user User, track string) {
 	s.t.Helper()
 
 	c := s.Catalog(user)
-	s.Open(user, c.MusicButton(), c.MineTab(), track, c.UnshareCardButton())
+	s.Open(user, c.MusicButton(), track, c.UnshareCardButton())
 }
 
 func (s *Scenario) ShareAlbum(user User, album repositories.AlbumSummary) {
 	s.t.Helper()
 
 	c := s.Catalog(user)
-	s.Open(user, c.MusicButton(), c.MineTab(), c.AlbumsMode(), c.OwnAlbumButton(album), c.ShareAlbumButton())
+	s.Open(user, c.MusicButton(), c.AlbumsMode(), c.OwnAlbumButton(album), c.ShareAlbumButton())
 }
 
 func (s *Scenario) UnshareAlbum(user User, album repositories.AlbumSummary) {
 	s.t.Helper()
 
 	c := s.Catalog(user)
-	s.Open(user, c.MusicButton(), c.MineTab(), c.AlbumsMode(), c.OwnAlbumButton(album), c.UnshareAlbumButton())
+	s.Open(user, c.MusicButton(), c.AlbumsMode(), c.OwnAlbumButton(album), c.UnshareAlbumButton())
 }
 
 // Take presses "Take" on the card of the n-th Share of the feed.
@@ -49,7 +49,7 @@ func (s *Scenario) OpenShared(user User, n int) {
 	s.t.Helper()
 
 	c := s.Catalog(user)
-	s.Open(user, c.MusicButton())
+	s.Open(user, c.MusicButton(), c.SharedTab())
 	nav := []string{c.OpenTab(c.SharedTab()), c.MineTab(), c.TopButton(), c.Back()}
 	left := n
 	for _, b := range s.Telegram.Buttons(s.t) {

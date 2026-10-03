@@ -410,11 +410,10 @@ share_screen:
   share_album: 🔗 Share the album
   unshare_album: Remove the album from Shared
   listen_link: 🎧 Listening link
-  personal: your library
   shared: 🔗 In the Shared Library
-  shared_by: 🔗 In the Shared Library, shared by {{.Author}}
-  not_shared: Only in your library
+  shared_by: "🔗 Available in the Shared Library\nShared by: {{.Author}}"
   album_shared: "🔗 In the Shared Library: {{.Shared}} of {{.Tracks}}"
+  album_all_shared: 🔗 The whole album is available in the Shared Library
   sent: The link is in the message below
 
 unsendable:
@@ -422,3 +421,14 @@ unsendable:
   no_account: A track with no file in Telegram is sent as a listening link, and the link needs a Navidrome account. Link one in «⚙️ Settings».
   no_address: A track with no file in Telegram is sent as a listening link, but the admin hasn't set a public Navidrome address. Such tracks can't be sent yet.
   ready: "✅ Listening links work now: find the track again"
+
+share_message:
+  track: Shared a track with you
+  album: Shared an album with you
+
+metadata:
+  year: "Year: {{.Year}}"
+  tracks: "Tracks: {{.Tracks}}"
+  duration: "Duration: {{.Duration}}"
+  genres: "Genres: {{.Genres}}"
+  label: "Label: {{.Label}}"

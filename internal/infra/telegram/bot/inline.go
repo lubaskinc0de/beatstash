@@ -133,10 +133,10 @@ func (in *Inline) unsendableButton(c i18n.Catalog, hidden bool) *models.InlineQu
 // trackResult is not ok for a Track that can be sent no way.
 func (in *Inline) trackResult(c i18n.Catalog, files trackFiles, track *library.Track, linkable bool) (models.InlineQueryResult, bool) {
 	if file := files.cached(track); file != nil {
-		return cachedFileResult("track-"+strconv.FormatUint(uint64(track.ID), 10), file, c.AudioCaption(track)), true
+		return cachedFileResult("track-"+strconv.FormatUint(uint64(track.ID), 10), file, c.SharedTrackCaption(c.AudioCaption(track))), true
 	}
-	a := i18n.Article{Title: i18n.ResultTitle(track.Artist, track.Title), Description: i18n.TrackDescription(track), Message: i18n.TrackCaption(track.Artist, track.Title)}
-	return in.uncachedResult(files, a, track, linkable, "0")
+	a := i18n.Article{Title: i18n.ResultTitle(track.Artist, track.Title), Description: i18n.TrackDescription(track), Message: c.SharedTrackCaption(c.TrackText(track))}
+	return in.uncachedResult(c, files, a, track, linkable, "0")
 }
 
 func (in *Inline) handleNowPlaying(ctx context.Context, queryID string) {
@@ -161,7 +161,7 @@ func (in *Inline) handleNowPlaying(ctx context.Context, queryID string) {
 		return
 	}
 	// What is playing is worth telling even without the file.
-	result, ok := in.uncachedResult(files, c.NowPlayingArticle(track), track.Track, track.Linkable, playingTag(track))
+	result, ok := in.uncachedResult(c, files, c.NowPlayingArticle(track), track.Track, track.Linkable, playingTag(track))
 	if !ok {
 		result = article(track.ID, c.NowPlayingArticle(track))
 	}
@@ -170,6 +170,7 @@ func (in *Inline) handleNowPlaying(ctx context.Context, queryID string) {
 
 // uncachedResult brings the file once chosen, else the Listen Link.
 func (in *Inline) uncachedResult(
+	c i18n.Catalog,
 	files trackFiles,
 	a i18n.Article,
 	track *library.Track,
@@ -178,9 +179,9 @@ func (in *Inline) uncachedResult(
 ) (models.InlineQueryResult, bool) {
 	switch {
 	case in.pending(files, track):
-		return pendingResult(pendingResultID(pendingPrefix, track.ID, tag), a, track), true
+		return pendingResult(c, pendingResultID(pendingPrefix, track.ID, tag), a, track), true
 	case linkable && track != nil:
-		return pendingResult(pendingResultID(linkPrefix, track.ID, tag), a, track), true
+		return pendingResult(c, pendingResultID(linkPrefix, track.ID, tag), a, track), true
 	default:
 		return nil, false
 	}
@@ -215,15 +216,15 @@ func (in *Inline) handleRecentlyPlayed(ctx context.Context, queryID string) {
 	for i := range tracks {
 		track := &tracks[i]
 		if file := files.cached(track.Track); file != nil {
-			results = append(results, cachedFileResult("recent-"+track.ID, file, c.AudioCaption(track.Track)))
+			results = append(results, cachedFileResult("recent-"+track.ID, file, c.SharedTrackCaption(c.AudioCaption(track.Track))))
 			continue
 		}
 		a := i18n.Article{
 			Title:       i18n.ResultTitle(track.Artist, track.Title),
 			Description: c.RecentDescription(track, now),
-			Message:     i18n.TrackCaption(track.Artist, track.Title),
+			Message:     c.SharedTrackCaption(c.TrackText(track.Track)),
 		}
-		result, ok := in.uncachedResult(files, a, track.Track, recent.Linkable, strconv.Itoa(i))
+		result, ok := in.uncachedResult(c, files, a, track.Track, recent.Linkable, strconv.Itoa(i))
 		if !ok {
 			hidden = true
 			continue
@@ -350,16 +351,16 @@ func (in *Inline) handleInlineFeed(ctx context.Context, queryID string) {
 		track := &entries[i].Track
 		id := "shared-" + strconv.FormatUint(uint64(track.ID), 10)
 		if file := files.cached(track); file != nil {
-			results = append(results, cachedFileResult(id, file, c.FeedCaption(track, &entries[i].Author)))
+			results = append(results, cachedFileResult(id, file, c.SharedTrackCaption(c.FeedCaption(track, &entries[i].Author))))
 			continue
 		}
 		a := i18n.Article{
 			Title:       i18n.ResultTitle(track.Artist, track.Title),
 			Description: c.SharedBy(&entries[i].Author),
-			Message:     c.FeedText(track, &entries[i].Author),
+			Message:     c.SharedTrackCaption(c.FeedText(track, &entries[i].Author)),
 		}
 		if in.pending(files, track) {
-			results = append(results, pendingResult(pendingResultID(sharedPrefix, track.ID, strconv.Itoa(i)), a, track))
+			results = append(results, pendingResult(c, pendingResultID(sharedPrefix, track.ID, strconv.Itoa(i)), a, track))
 			continue
 		}
 		results = append(results, article(id, a))

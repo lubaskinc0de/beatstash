@@ -47,8 +47,8 @@ func TestButtonColors(t *testing.T) {
 		s.Open(alice, s.Catalog(alice).MusicButton())
 
 		c := s.Catalog(alice)
-		assert.Equal(t, "primary", s.Button(c.OpenTab(c.SharedTab())).Style)
-		assert.Empty(t, s.Button(c.MineTab()).Style)
+		assert.Equal(t, "primary", s.Button(c.OpenTab(c.MineTab())).Style)
+		assert.Empty(t, s.Button(c.SharedTab()).Style)
 	})
 
 	t.Run("navigation has no color", func(t *testing.T) {

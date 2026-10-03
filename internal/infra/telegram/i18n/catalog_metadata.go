@@ -27,20 +27,23 @@ func (c Catalog) AlbumDescription(album repositories.AlbumSummary) string {
 
 // AlbumText tells the Album with its tracks counted.
 func (c Catalog) AlbumText(album repositories.AlbumSummary) string {
-	return joinParts("\n", AlbumCaption(album.AlbumArtist, album.Album), c.albumFacts(album, album.Tracks))
+	return joinParts("\n\n", musicHeading("💿", album.AlbumArtist, album.Album), c.albumFacts(album, album.Tracks))
 }
 
 // albumFacts leaves out the count of tracks for none: a single has no
 // Album.
 func (c Catalog) albumFacts(album repositories.AlbumSummary, tracks int) string {
-	year, count := "", ""
+	var year, count, duration string
 	if album.Year > 0 {
-		year = "📅 " + yearText(album.Year)
+		year = "📅 " + c.t("metadata.year", args{"Year": album.Year})
 	}
 	if tracks > 0 {
-		count = c.tracks(tracks)
+		count = "🎵 " + c.t("metadata.tracks", args{"Tracks": tracks})
 	}
-	return joinParts("\n", joinParts(" · ", year, count, durationText(album.DurationMs)), genresAndLabel(album.Genres, album.Label))
+	if album.DurationMs > 0 {
+		duration = "⏱ " + c.t("metadata.duration", args{"Duration": durationText(album.DurationMs)})
+	}
+	return joinParts("\n", year, count, duration, c.genresAndLabel(album.Genres, album.Label))
 }
 
 // AudioCaption goes under the Track's audio: the player shows the artist
@@ -55,23 +58,23 @@ func (c Catalog) AudioCaption(track *library.Track) string {
 	case track.Year > 0:
 		album = "📅 " + yearText(track.Year)
 	}
-	return joinParts("\n", album, genresAndLabel(track.Genres, track.Label))
+	return joinParts("\n", album, c.genresAndLabel(track.Genres, track.Label))
 }
 
 // TrackText tells the Track where no player shows its artist and title.
 func (c Catalog) TrackText(track *library.Track) string {
-	return joinParts("\n", TrackCaption(track.Artist, track.Title), c.AudioCaption(track))
+	return joinParts("\n\n", musicHeading("🎧", track.Artist, track.Title), c.AudioCaption(track))
 }
 
-func genresAndLabel(genres []string, label string) string {
+func (c Catalog) genresAndLabel(genres []string, label string) string {
 	var genre, labelText string
 	if list := genreList(genres); list != "" {
-		genre = "🎼 " + esc(list)
+		genre = "🎼 " + c.t("metadata.genres", args{"Genres": esc(list)})
 	}
 	if label != "" {
-		labelText = "🏷 " + esc(label)
+		labelText = "🏷 " + c.t("metadata.label", args{"Label": esc(label)})
 	}
-	return joinParts(" · ", genre, labelText)
+	return joinParts("\n", genre, labelText)
 }
 
 func genreList(genres []string) string {
@@ -100,4 +103,18 @@ func joinParts(sep string, parts ...string) string {
 		}
 	}
 	return strings.Join(kept, sep)
+}
+
+// musicHeading gives the title and artist separate lines in a full card.
+func musicHeading(icon, artist, title string) string {
+	return joinParts("\n", icon+" <b>"+esc(title)+"</b>", esc(artist))
+}
+
+// SharedTrackCaption also works when the player already shows the title.
+func (c Catalog) SharedTrackCaption(caption string) string {
+	return joinParts("\n\n", esc(c.t("share_message.track", nil)), caption)
+}
+
+func (c Catalog) SharedAlbumCaption(caption string) string {
+	return joinParts("\n\n", esc(c.t("share_message.album", nil)), caption)
 }

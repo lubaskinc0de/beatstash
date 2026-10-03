@@ -42,7 +42,7 @@ func TestAlbumListenLink(t *testing.T) {
 		assert.Equal(t, "Artist — Opera", shares[0].Description)
 		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
 		require.Len(t, edits, 1)
-		assert.True(t, strings.HasPrefix(edits[0].Text, "💿 <b>Artist</b> — Opera\n"), edits[0].Text)
+		assert.True(t, strings.HasPrefix(edits[0].Text, s.Catalog(alice).SharedAlbumCaption(s.Catalog(alice).AlbumText(repositories.AlbumSummary{AlbumKey: library.AlbumKey{AlbumArtist: "Artist", Album: "Opera"}}))), edits[0].Text)
 		assert.Contains(t, edits[0].Text, shareURL(shares[0]))
 	})
 

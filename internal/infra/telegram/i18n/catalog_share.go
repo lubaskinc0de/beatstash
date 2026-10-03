@@ -1,7 +1,6 @@
 package i18n
 
 import (
-	"path"
 	"path/filepath"
 
 	"github.com/lubaskinc0de/beatstash/internal/application/common/repositories"
@@ -57,14 +56,13 @@ func (c Catalog) TrackCard(card *share_tracks.TrackCard) string {
 	if !track.Complete() {
 		text = joinParts("\n", "🎧 "+esc(filepath.Base(track.Path)), c.AudioCaption(track))
 	}
-	text += "\n📚 " + esc(c.libraryName(card.Library)) + "\n\n"
 	switch {
 	case card.Author != nil:
-		return text + c.SharedFirstBy(card.Author)
+		return text + "\n\n" + c.SharedFirstBy(card.Author)
 	case card.Shared:
-		return text + c.t("share_screen.shared", nil)
+		return text + "\n\n" + c.t("share_screen.shared", nil)
 	default:
-		return text + c.t("share_screen.not_shared", nil)
+		return text
 	}
 }
 
@@ -73,16 +71,17 @@ func (c Catalog) SharedFirstBy(author *access.User) string {
 }
 
 func (c Catalog) AlbumCard(card *share_tracks.AlbumCard) string {
-	return joinParts("\n", AlbumCaption(card.Album.AlbumArtist, card.Album.Album), c.albumFacts(card.Album, len(card.Tracks))) + "\n📚 " +
-		esc(c.libraryName(card.Library)) + "\n\n" +
-		c.t("share_screen.album_shared", args{"Shared": card.SharedCount(), "Tracks": len(card.Tracks)})
-}
-
-func (c Catalog) libraryName(lib *library.Library) string {
-	if lib == nil || !lib.Attached() {
-		return c.t("share_screen.personal", nil)
+	status := c.t("share_screen.album_shared", args{"Shared": card.SharedCount(), "Tracks": len(card.Tracks)})
+	if card.SharedCount() == 0 {
+		status = ""
+	} else if card.AllShared() {
+		status = c.t("share_screen.album_all_shared", nil)
 	}
-	return path.Base(lib.Dir)
+	return joinParts("\n\n",
+		musicHeading("💿", card.Album.AlbumArtist, card.Album.Album),
+		c.albumFacts(card.Album, len(card.Tracks)),
+		status,
+	)
 }
 
 func (c Catalog) UnsendableButton() string    { return c.t("unsendable.button", nil) }

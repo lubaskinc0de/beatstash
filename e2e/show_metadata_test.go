@@ -12,6 +12,9 @@ import (
 	"github.com/lubaskinc0de/beatstash/e2e/harness"
 	"github.com/lubaskinc0de/beatstash/e2e/harness/audiofile"
 	"github.com/lubaskinc0de/beatstash/e2e/harness/zvuk"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/repositories"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/i18n"
 )
 
 func TestShowMetadata(t *testing.T) {
@@ -25,28 +28,28 @@ func TestShowMetadata(t *testing.T) {
 
 		chosen := s.Choose(alice, results[0])
 
-		assert.Equal(t, "💿 OK Computer · 1997 · Alternative Rock, Art Rock · 00:02", results[0].Description)
+		assert.Equal(t, i18n.TrackDescription(paranoidMetadata()), results[0].Description)
 		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
 		require.Len(t, edits, 1)
-		assert.Equal(t, "💿 OK Computer (1997)\n🎼 Alternative Rock, Art Rock · 🏷 Parlophone", edits[0].Media.Caption)
+		assert.Equal(t, s.Catalog(alice).SharedTrackCaption(s.Catalog(alice).AudioCaption(paranoidMetadata())), edits[0].Media.Caption)
 	})
 
 	t.Run("track card shows metadata and sends the file under it", func(t *testing.T) {
 		s := harness.New(t)
 		importZvukRiffs(s)
 		c := s.Catalog(alice)
-		s.Open(alice, c.MusicButton(), c.MineTab(), "Zvuk Band — Riff")
+		s.Open(alice, c.MusicButton(), "Zvuk Band — Riff")
 		card := s.WindowText()
 		send := s.Button(c.SendOwnFileButton())
 
 		s.Press(alice, send)
 		s.Press(alice, send)
 
-		assert.Contains(t, card, "🎧 <b>Zvuk Band</b> — Riff\n💿 Riffs (2019)\n🎼 Rock, Hard Rock · 🏷 Zvuk Records\n📚")
+		assert.Contains(t, card, c.TrackText(riffsMetadata("Rock", "Hard Rock")))
 		sent := s.Telegram.CallsTo("sendAudio")
 		require.Len(t, sent, 2)
 		for _, call := range sent {
-			assert.Equal(t, "💿 Riffs (2019)\n🎼 Rock, Hard Rock · 🏷 Zvuk Records", call.Params["caption"])
+			assert.Equal(t, c.AudioCaption(riffsMetadata("Rock", "Hard Rock")), call.Params["caption"])
 		}
 	})
 
@@ -56,8 +59,8 @@ func TestShowMetadata(t *testing.T) {
 		importZvukRiffs(s)
 
 		c := s.Catalog(alice)
-		s.Open(alice, c.MusicButton(), c.MineTab(), "Zvuk Band — Ballad")
-		assert.Contains(t, s.WindowText(), "\n🎼 Pop · 🏷 Zvuk Records\n")
+		s.Open(alice, c.MusicButton(), "Zvuk Band — Ballad")
+		assert.Contains(t, s.WindowText(), c.AudioCaption(riffsMetadata("Pop")))
 		tags := audiofile.Tags(t, s.PersonalPath(alice, "Zvuk Band/Riffs (2019)/02 - Ballad.mp3"))
 		assert.Equal(t, "Pop", tags[taglib.Genre])
 		assert.Equal(t, "Zvuk Records", tags[taglib.Label])
@@ -73,7 +76,7 @@ func TestShowMetadata(t *testing.T) {
 
 		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
 		require.Len(t, edits, 1)
-		assert.Contains(t, edits[0].Media.Caption, "👤 Zvuk Band\n💿 Riffs (2019)\n🎼 Rock, Hard Rock · 🏷 Zvuk Records\n\n")
+		assert.Contains(t, edits[0].Media.Caption, s.Catalog(alice).AudioCaption(riffsMetadata("Rock", "Hard Rock")))
 	})
 
 	t.Run("attached library track takes genres and label from Navidrome", func(t *testing.T) {
@@ -81,9 +84,9 @@ func TestShowMetadata(t *testing.T) {
 		s.Link(alice, account)
 		c := s.Catalog(alice)
 
-		s.Open(alice, c.MusicButton(), c.MineTab(), "Radiohead — Paranoid Android")
+		s.Open(alice, c.MusicButton(), "Radiohead — Paranoid Android")
 
-		assert.Contains(t, s.WindowText(), "\n💿 OK Computer (1997)\n🎼 Alternative Rock, Art Rock · 🏷 Parlophone\n")
+		assert.Contains(t, s.WindowText(), c.AudioCaption(paranoidMetadata()))
 	})
 
 	t.Run("better copy of a track fills its missing genres and label", func(t *testing.T) {
@@ -95,8 +98,8 @@ func TestShowMetadata(t *testing.T) {
 		s.Uploaded(alice, s.UploadAudioFile(paranoidAndroid(t)))
 
 		c := s.Catalog(alice)
-		s.Open(alice, c.MusicButton(), c.MineTab(), "Radiohead — Paranoid Android")
-		assert.Contains(t, s.WindowText(), "\n🎼 Alternative Rock, Art Rock · 🏷 Parlophone\n")
+		s.Open(alice, c.MusicButton(), "Radiohead — Paranoid Android")
+		assert.Contains(t, s.WindowText(), c.AudioCaption(paranoidMetadata()))
 	})
 
 	t.Run("album shows the most common year, genre and label of its tracks", func(t *testing.T) {
@@ -118,14 +121,17 @@ func TestShowMetadata(t *testing.T) {
 		require.NotEmpty(t, results)
 
 		chosen := s.Choose(alice, results[0])
-		s.Open(alice, c.MusicButton(), c.MineTab(), c.AlbumsMode(), "💿 Radiohead — Kid A · 3 трека")
+		s.Open(alice, c.MusicButton(), c.AlbumsMode(), c.OwnAlbumButton(repositories.AlbumSummary{AlbumKey: library.AlbumKey{AlbumArtist: "Radiohead", Album: "Kid A"}, Tracks: 3}))
 
-		assert.Equal(t, "2000 · 3 трека · 00:06 · Electronic", results[0].Description)
-		facts := "💿 <b>Radiohead</b> — Kid A\n📅 2000 · 3 трека · 00:06\n🎼 Electronic · 🏷 Parlophone\n"
+		album := repositories.AlbumSummary{
+			AlbumKey: library.AlbumKey{AlbumArtist: "Radiohead", Album: "Kid A"},
+			Year:     2000, Tracks: 3, DurationMs: 6000, Genres: []string{"Electronic"}, Label: "Parlophone",
+		}
+		assert.Equal(t, c.AlbumDescription(album), results[0].Description)
 		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
 		require.Len(t, edits, 1)
-		assert.Contains(t, edits[0].Text, facts+"🔗")
-		assert.Contains(t, s.WindowText(), facts+"📚")
+		assert.Contains(t, edits[0].Text, c.SharedAlbumCaption(c.AlbumText(album)))
+		assert.Contains(t, s.WindowText(), c.AlbumText(album))
 	})
 }
 
@@ -140,8 +146,8 @@ func TestEnrichTracks(t *testing.T) {
 		s.Enrich()
 
 		c := s.Catalog(alice)
-		s.Open(alice, c.MusicButton(), c.MineTab(), "Radiohead — Paranoid Android")
-		assert.Contains(t, s.WindowText(), "\n🎼 Alternative Rock, Art Rock · 🏷 Parlophone\n")
+		s.Open(alice, c.MusicButton(), "Radiohead — Paranoid Android")
+		assert.Contains(t, s.WindowText(), c.AudioCaption(paranoidMetadata()))
 	})
 
 	t.Run("tracks from before ask their provider, the shared one for its author", func(t *testing.T) {
@@ -157,10 +163,10 @@ func TestEnrichTracks(t *testing.T) {
 		s.Enrich()
 
 		c := s.Catalog(alice)
-		s.Open(alice, c.MusicButton(), c.MineTab(), "Zvuk Band — Riff")
-		assert.Contains(t, s.WindowText(), "\n🎼 Metal · 🏷 Zvuk Records\n")
+		s.Open(alice, c.MusicButton(), "Zvuk Band — Riff")
+		assert.Contains(t, s.WindowText(), c.AudioCaption(riffsMetadata("Metal")))
 		s.OpenShared(bob, 1)
-		assert.Contains(t, s.WindowText(), "\n🎼 Metal · 🏷 Zvuk Records\n")
+		assert.Contains(t, s.WindowText(), c.AudioCaption(riffsMetadata("Metal")))
 	})
 
 	t.Run("track the provider failed for waits for the next run", func(t *testing.T) {
@@ -170,15 +176,15 @@ func TestEnrichTracks(t *testing.T) {
 		s.Zvuk.SetDown(true)
 		s.Enrich()
 		c := s.Catalog(alice)
-		s.Open(alice, c.MusicButton(), c.MineTab(), "Zvuk Band — Riff")
+		s.Open(alice, c.MusicButton(), "Zvuk Band — Riff")
 		failed := s.WindowText()
 		s.Zvuk.SetDown(false)
 
 		s.Enrich()
 
 		assert.NotContains(t, failed, "🎼")
-		s.Open(alice, c.MusicButton(), c.MineTab(), "Zvuk Band — Riff")
-		assert.Contains(t, s.WindowText(), "\n🎼 Rock, Hard Rock · 🏷 Zvuk Records\n")
+		s.Open(alice, c.MusicButton(), "Zvuk Band — Riff")
+		assert.Contains(t, s.WindowText(), c.AudioCaption(riffsMetadata("Rock", "Hard Rock")))
 	})
 }
 
@@ -208,4 +214,18 @@ func paranoidAndroid(t *testing.T) string {
 		"artist": "Radiohead", "album": "OK Computer", "title": "Paranoid Android", "track": "2", "date": "1997",
 		"genre": "Alternative Rock;Art Rock;Britpop", "publisher": "Parlophone",
 	}})
+}
+
+func paranoidMetadata() *library.Track {
+	return &library.Track{Metadata: library.Metadata{
+		Artist: "Radiohead", Title: "Paranoid Android", Album: "OK Computer", Year: 1997,
+		Genres: []string{"Alternative Rock", "Art Rock", "Britpop"}, Label: "Parlophone",
+	}, DurationMs: 2000}
+}
+
+func riffsMetadata(genres ...string) *library.Track {
+	return &library.Track{Metadata: library.Metadata{
+		Artist: "Zvuk Band", Title: "Riff", Album: "Riffs", Year: 2019,
+		Genres: genres, Label: "Zvuk Records",
+	}}
 }

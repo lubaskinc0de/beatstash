@@ -77,13 +77,13 @@ func TestAttachedLibraryAccess(t *testing.T) {
 	t.Run("library opened later is seen once the access TTL passes", func(t *testing.T) {
 		s, account, late := newWithClosedLibrary(t)
 		c := s.Catalog(alice)
-		s.Open(alice, c.MusicButton(), c.MineTab())
+		s.Open(alice, c.MusicButton())
 		s.Navidrome.OpenLibrary(t, account, late.ID)
 
-		s.Open(alice, c.MusicButton(), c.MineTab())
+		s.Open(alice, c.MusicButton())
 		cached := ownButtons(t, s)
 		s.Clock.Advance(31 * time.Second)
-		s.Open(alice, c.MusicButton(), c.MineTab())
+		s.Open(alice, c.MusicButton())
 
 		assert.Empty(t, cached)
 		assert.Equal(t, []string{fixtureButton}, ownButtons(t, s))
@@ -253,7 +253,7 @@ func TestShareFromAttachedLibrary(t *testing.T) {
 		assert.Contains(t, s.LastCallbackAnswer(), s.Catalog(alice).ShareResult(&share_tracks.ShareResult{Created: 1}))
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.SharedFiles())
 		assert.Equal(t, before, harness.FilesWithContent(t, own.Dir))
-		s.Open(bob, s.Catalog(bob).MusicButton())
+		s.Open(bob, s.Catalog(bob).MusicButton(), s.Catalog(bob).SharedTab())
 		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), fixtureButton)
 	})
 
@@ -297,7 +297,7 @@ func TestAttachedLibraryRefresh(t *testing.T) {
 		s.Link(alice, account)
 		assert.Contains(t, s.WindowText(), s.Catalog(alice).Linked(account.Login, 1))
 		assert.Equal(t, []string{audiofile.FixtureTrackPath}, s.SharedFiles())
-		s.Open(bob, s.Catalog(bob).MusicButton())
+		s.Open(bob, s.Catalog(bob).MusicButton(), s.Catalog(bob).SharedTab())
 		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), fixtureButton)
 	})
 }

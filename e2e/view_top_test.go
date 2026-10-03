@@ -94,7 +94,7 @@ func TestTop(t *testing.T) {
 }
 
 func top(s *harness.Scenario, user harness.User) string {
-	s.Open(user, s.Catalog(user).MusicButton(), s.Catalog(user).TopButton())
+	s.Open(user, s.Catalog(user).MusicButton(), s.Catalog(user).SharedTab(), s.Catalog(user).TopButton())
 	return s.WindowText()
 }
 

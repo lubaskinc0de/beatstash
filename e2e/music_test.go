@@ -12,7 +12,7 @@ import (
 func TestMusic(t *testing.T) {
 	t.Parallel()
 
-	t.Run("music opens on the shared tab", func(t *testing.T) {
+	t.Run("music opens on mine with mine first", func(t *testing.T) {
 		s := harness.New(t)
 		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 		s.ShareTrack(alice, fixtureButton)
@@ -21,9 +21,9 @@ func TestMusic(t *testing.T) {
 
 		c := s.Catalog(bob)
 		buttons := telegram.ButtonTexts(s.Telegram.Buttons(t))
-		assert.Contains(t, s.WindowText(), c.FeedTitle())
-		assert.Contains(t, buttons, fixtureButton)
-		assert.Contains(t, buttons, c.MineTab())
+		assert.Equal(t, c.ShareScreen("", false), s.WindowText())
+		assert.Equal(t, []string{c.OpenTab(c.MineTab()), c.SharedTab()}, buttons[:2])
+		assert.NotContains(t, buttons, fixtureButton)
 	})
 
 	t.Run("shared track opens its card", func(t *testing.T) {
@@ -31,7 +31,7 @@ func TestMusic(t *testing.T) {
 		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 		s.ShareTrack(alice, fixtureButton)
 
-		s.Open(bob, s.Catalog(bob).MusicButton(), fixtureButton)
+		s.Open(bob, s.Catalog(bob).MusicButton(), s.Catalog(bob).SharedTab(), fixtureButton)
 
 		c := s.Catalog(bob)
 		assert.Contains(t, s.WindowText(), "@alice")
@@ -43,7 +43,7 @@ func TestMusic(t *testing.T) {
 		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 		s.ShareTrack(alice, fixtureButton)
 
-		s.Open(bob, s.Catalog(bob).MusicButton(), fixtureButton, s.Catalog(bob).Back())
+		s.Open(bob, s.Catalog(bob).MusicButton(), s.Catalog(bob).SharedTab(), fixtureButton, s.Catalog(bob).Back())
 
 		assert.Contains(t, s.WindowText(), s.Catalog(bob).FeedTitle())
 	})
@@ -52,7 +52,7 @@ func TestMusic(t *testing.T) {
 		s := harness.New(t)
 		s.Uploaded(alice, s.UploadAudio("track.mp3"))
 
-		s.Open(alice, s.Catalog(alice).MusicButton(), s.Catalog(alice).MineTab())
+		s.Open(alice, s.Catalog(alice).MusicButton())
 		mine := s.WindowText()
 		s.Go(alice, s.Catalog(alice).SharedTab())
 
@@ -64,7 +64,7 @@ func TestMusic(t *testing.T) {
 	t.Run("top opens from the shared tab and leads back to it", func(t *testing.T) {
 		s := harness.New(t)
 
-		s.Open(alice, s.Catalog(alice).MusicButton(), s.Catalog(alice).TopButton())
+		s.Open(alice, s.Catalog(alice).MusicButton(), s.Catalog(alice).SharedTab(), s.Catalog(alice).TopButton())
 		top := s.WindowText()
 		s.Go(alice, s.Catalog(alice).Back())
 

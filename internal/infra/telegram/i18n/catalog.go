@@ -507,7 +507,7 @@ func (c Catalog) AlbumArticle(album repositories.AlbumSummary) Article {
 	return Article{
 		Title:       AlbumTitle(album.AlbumArtist, album.Album),
 		Description: c.AlbumDescription(album),
-		Message:     "⏳ " + AlbumCaption(album.AlbumArtist, album.Album),
+		Message:     c.SharedAlbumCaption("⏳ " + musicHeading("💿", album.AlbumArtist, album.Album)),
 	}
 }
 
