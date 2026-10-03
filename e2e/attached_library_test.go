@@ -74,6 +74,21 @@ func TestAttachedLibraryAccess(t *testing.T) {
 		assert.Equal(t, c.Linked(account.Login, 0)+"\n\n"+c.NavidromeLinked(account.Login), s.WindowText())
 	})
 
+	t.Run("library opened later is seen once the access TTL passes", func(t *testing.T) {
+		s, account, late := newWithClosedLibrary(t)
+		c := s.Catalog(alice)
+		s.Open(alice, c.MusicButton(), c.MineTab())
+		s.Navidrome.OpenLibrary(t, account, late.ID)
+
+		s.Open(alice, c.MusicButton(), c.MineTab())
+		cached := ownButtons(t, s)
+		s.Clock.Advance(31 * time.Second)
+		s.Open(alice, c.MusicButton(), c.MineTab())
+
+		assert.Empty(t, cached)
+		assert.Equal(t, []string{fixtureButton}, ownButtons(t, s))
+	})
+
 	t.Run("library inside music_dir but apart from the bot's folders is attached", func(t *testing.T) {
 		var account navidrome.Account
 		s := harness.NewOwnNavidrome(t, func(s *harness.Scenario) {
@@ -147,6 +162,22 @@ func newWithOwnLibrary(
 		s.Navidrome.UntilSongs(t, own.ID, len(files))
 	}, opts...)
 	return s, account, own
+}
+
+// newWithClosedLibrary links alice to an account that does not see the
+// library yet.
+func newWithClosedLibrary(t *testing.T) (*harness.Scenario, navidrome.Account, harness.NavidromeLibrary) {
+	t.Helper()
+
+	var account navidrome.Account
+	var closed harness.NavidromeLibrary
+	s := harness.NewOwnNavidrome(t, func(s *harness.Scenario) {
+		account = s.Navidrome.CreateAccount(t, "alice")
+		closed = s.NewNavidromeLibrary("closed", audiofile.Fixture("track.mp3"))
+		s.Navidrome.UntilSongs(t, closed.ID, 1)
+	})
+	s.Link(alice, account)
+	return s, account, closed
 }
 
 // keptSong is the Zvuk track "Zvuk Band — Kept Song" of AddZvukSong as the

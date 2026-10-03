@@ -23,11 +23,14 @@ type ViewFeed struct {
 	Shared    repositories.SharedTracks
 	Tracks    repositories.Tracks
 	Libraries *libraries.Libraries
-	Attached  *libraries.Attached
 }
 
 func (i *ViewFeed) Execute(ctx context.Context, limit int) ([]FeedEntry, error) {
-	_, _, kept, err := libraries.CurrentKept(ctx, i.IDs, i.Libraries, i.Attached)
+	user, err := i.IDs.CurrentUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	libs, err := i.Libraries.Of(ctx, user.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +43,7 @@ func (i *ViewFeed) Execute(ctx context.Context, limit int) ([]FeedEntry, error) 
 	for _, share := range shares {
 		sharedTracks = append(sharedTracks, share.Track)
 	}
-	alreadyKept, err := i.Tracks.WithDuplicates(ctx, libraries.IDs(kept), sharedTracks)
+	alreadyKept, err := i.Tracks.WithDuplicates(ctx, libs.KeptIDs(), sharedTracks)
 	if err != nil {
 		return nil, err
 	}

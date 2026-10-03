@@ -26,19 +26,22 @@ type ViewTrackCard struct {
 	Tracks    repositories.Tracks
 	Shared    repositories.SharedTracks
 	Libraries *libraries.Libraries
-	Attached  *libraries.Attached
 }
 
 func (i *ViewTrackCard) Execute(ctx context.Context, trackID uint) (*TrackCard, error) {
-	user, libs, kept, err := libraries.CurrentKept(ctx, i.IDs, i.Libraries, i.Attached)
+	user, err := i.IDs.CurrentUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	track, err := keptTrack(ctx, i.Tracks, kept, trackID)
+	libs, err := i.Libraries.Of(ctx, user.ID)
 	if err != nil {
 		return nil, err
 	}
-	card := &TrackCard{Track: track, Library: libraryOf(track, kept)}
+	track, err := keptTrack(ctx, i.Tracks, libs.Kept(), trackID)
+	if err != nil {
+		return nil, err
+	}
+	card := &TrackCard{Track: track, Library: libraryOf(track, libs.Kept())}
 
 	shared, err := i.Shared.BySource(ctx, track.ID)
 	switch {

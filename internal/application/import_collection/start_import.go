@@ -18,8 +18,7 @@ type StartImport struct {
 	IDs       common.IDProvider
 	Tx        repositories.TxManager
 	Providers *providers.Registry
-	Libraries repositories.Libraries
-	Attached  *libraries.Attached
+	Libraries *libraries.Libraries
 	Tracks    repositories.Tracks
 	Accounts  repositories.ProviderAccounts
 	Queue     repositories.IngestQueue
@@ -45,7 +44,7 @@ func (i *StartImport) Execute(ctx context.Context, providerName provider.Provide
 		return nil, accounts.ErrBatchRunning
 	}
 
-	surveyed, err := survey(ctx, i.Providers, i.Libraries, i.Attached, i.Tracks, user.ID, providerName)
+	surveyed, err := survey(ctx, i.Providers, i.Libraries, i.Tracks, user.ID, providerName)
 	if err != nil {
 		return nil, err
 	}

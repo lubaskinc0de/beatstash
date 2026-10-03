@@ -24,18 +24,21 @@ type SearchMusic struct {
 	IDs         common.IDProvider
 	Tracks      repositories.Tracks
 	Libraries   *libraries.Libraries
-	Attached    *libraries.Attached
 	ListenLinks *listening.ListenLinks
 }
 
 const albumsShown = 3
 
 func (i *SearchMusic) Execute(ctx context.Context, text string, offset, limit int) (*Found, error) {
-	user, libs, kept, err := libraries.CurrentKept(ctx, i.IDs, i.Libraries, i.Attached)
+	user, err := i.IDs.CurrentUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	searched := append(libraries.IDs(kept), libs.Shared.ID)
+	libs, err := i.Libraries.Of(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	searched := append(libs.KeptIDs(), libs.Shared.ID)
 	tracks, err := i.Tracks.Search(ctx, searched, text, offset, limit+1)
 	if err != nil {
 		return nil, err

@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"sync"
-	"time"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
@@ -17,20 +15,15 @@ import (
 type Attached struct {
 	Repo      repositories.Libraries
 	Accounts  repositories.NavidromeAccounts
-	Navidrome navidrome.Client
+	Navidrome AccountReader
 	Admin     navidrome.Credentials
-
-	mu     sync.Mutex
-	access map[string]cachedAccess
 }
 
-// accessTTL spares Navidrome a request per Ingest job of an Import; a
-// library an admin closes stays visible this long at most.
-const accessTTL = 30 * time.Second
-
-type cachedAccess struct {
-	access library.NavidromeAccess
-	until  time.Time
+// AccountReader may answer from a cache: a library an admin closes in
+// Navidrome may stay visible for a while.
+type AccountReader interface {
+	// Account returns navidrome.ErrAccountNotFound if Navidrome has no such login.
+	Account(ctx context.Context, admin navidrome.Credentials, login string) (*navidrome.Account, error)
 }
 
 func (a *Attached) VisibleTo(ctx context.Context, userID uint) ([]*library.Library, error) {
@@ -45,34 +38,14 @@ func (a *Attached) VisibleTo(ctx context.Context, userID uint) ([]*library.Libra
 	if err != nil {
 		return nil, err
 	}
-	access, err := a.accessOf(ctx, account.Login)
+	nd, err := a.Navidrome.Account(ctx, a.Admin, account.Login)
 	if err != nil {
 		if !errors.Is(err, navidrome.ErrAccountNotFound) {
 			slog.Warn("navidrome_access", "user_id", userID, "error", err)
 		}
 		return nil, nil
 	}
-	return access.Visible(all), nil
-}
-
-func (a *Attached) accessOf(ctx context.Context, login string) (library.NavidromeAccess, error) {
-	a.mu.Lock()
-	cached, ok := a.access[login]
-	a.mu.Unlock()
-	if ok && time.Now().Before(cached.until) {
-		return cached.access, nil
-	}
-	account, err := a.Navidrome.Account(ctx, a.Admin, login)
-	if err != nil {
-		return library.NavidromeAccess{}, err
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.access == nil {
-		a.access = map[string]cachedAccess{}
-	}
-	a.access[login] = cachedAccess{access: account.Access, until: time.Now().Add(accessTTL)}
-	return account.Access, nil
+	return nd.Access.Visible(all), nil
 }
 
 func IDs(libs []*library.Library) []uint {

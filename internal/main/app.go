@@ -122,7 +122,13 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	quotaSettings := &database.QuotaSettingsRepository{DB: db}
 	libraryQuotas := &quotas.Quotas{Repo: quotaSettings, Libraries: libraryRepo, Tracks: tracks, Disk: fileDisk, Config: cfg.Quotas}
 
-	libs := &libraries.Libraries{Repo: libraryRepo, Disk: fileDisk, MusicDir: cfg.MusicDir}
+	attached := &libraries.Attached{
+		Repo:      libraryRepo,
+		Accounts:  accountRepo,
+		Navidrome: &navidrome.AccountCache{Client: navidromeClient, TTL: cfg.NavidromeAccessTTL, Clock: cfg.Clock},
+		Admin:     navidromeAdmin,
+	}
+	libs := &libraries.Libraries{Repo: libraryRepo, Attached: attached, Disk: fileDisk, MusicDir: cfg.MusicDir}
 	navidromeLibraries := &libraries.Navidrome{
 		Libraries: libs,
 		Navidrome: navidromeClient,
@@ -161,12 +167,6 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		Interval: cfg.ReconcileInterval,
 	}
 	reconciler.Once(ctx)
-	attached := &libraries.Attached{
-		Repo:      libraryRepo,
-		Accounts:  accountRepo,
-		Navidrome: navidromeClient,
-		Admin:     navidromeAdmin,
-	}
 
 	telegramIDs := &tgbot.IDProvider{Users: users, Clock: cfg.Clock}
 	ids := &common.Visitors{Channel: telegramIDs, Users: users, Clock: cfg.Clock}
@@ -222,8 +222,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Providers: providers,
 			Tracks:    tracks,
 			Uploads:   uploads,
-			Libraries: libraryRepo,
-			Attached:  attached,
+			Libraries: libs,
 			Lock:      libraryLock,
 			Quotas:    libraryQuotas,
 			Disk:      fileDisk,
@@ -252,19 +251,19 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	listenLinks := &listening.ListenLinks{Accounts: navidromeAccounts, On: publicURL != ""}
 	getTrackListenLink := &send_listen_link.GetTrackListenLink{
 		IDs: ids, Tracks: tracks, Links: listenLinkRepo,
-		Libraries: libs, Attached: attached, ListenLinks: listenLinks,
+		Libraries: libs, ListenLinks: listenLinks,
 		Navidrome: navidromeClient, Admin: navidromeAdmin,
 		TTL: cfg.ListenLinkTTL, Downloadable: cfg.ListenLinkDownloadable, Clock: cfg.Clock,
 	}
 	getAlbumListenLink := &send_listen_link.GetAlbumListenLink{
 		IDs: ids, Tracks: tracks, Links: listenLinkRepo,
-		Libraries: libs, Attached: attached, ListenLinks: listenLinks,
+		Libraries: libs, ListenLinks: listenLinks,
 		Navidrome: navidromeClient, Admin: navidromeAdmin,
 		TTL: cfg.ListenLinkTTL, Downloadable: cfg.ListenLinkDownloadable, Clock: cfg.Clock,
 	}
-	getTrackFile := &show_playing.GetTrackFile{IDs: ids, Tracks: tracks, Libraries: libs, Attached: attached}
+	getTrackFile := &show_playing.GetTrackFile{IDs: ids, Tracks: tracks, Libraries: libs}
 	tg := &tgbot.Telegram{Bot: b, BotName: me.Username, Windows: windows, Texts: texts, AdminContact: cfg.AdminContact}
-	viewFeed := &browse_shared.ViewFeed{IDs: ids, Shared: sharedTracks, Tracks: tracks, Libraries: libs, Attached: attached}
+	viewFeed := &browse_shared.ViewFeed{IDs: ids, Shared: sharedTracks, Tracks: tracks, Libraries: libs}
 	getTop := &view_top.GetTop{IDs: ids, Shared: sharedTracks, Takes: takes, Clock: cfg.Clock}
 	home := &tgbot.Home{
 		Telegram:     tg,
@@ -288,12 +287,12 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		Telegram: tg,
 		ViewFeed: viewFeed,
 		ViewSharedTrack: &browse_shared.ViewSharedTrack{
-			IDs: ids, Shared: sharedTracks, Tracks: tracks, Libraries: libs, Attached: attached,
+			IDs: ids, Shared: sharedTracks, Tracks: tracks, Libraries: libs,
 		},
 		GetTop: getTop,
 		TakeTrack: &browse_shared.TakeTrack{
 			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks, Takes: takes,
-			Libraries: libs, Attached: attached, Quotas: libraryQuotas, Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,
+			Libraries: libs, Quotas: libraryQuotas, Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,
 		},
 		GetTrackAudio: &browse_shared.GetTrackAudio{IDs: ids, Shared: sharedTracks, Libraries: libs},
 		Files:         telegramFiles,
@@ -306,14 +305,13 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		},
 		DisconnectProviderAccount: &connect_provider.DisconnectProviderAccount{IDs: ids, Tx: txManager, Accounts: providerAccountRepo},
 		PlanImport: &import_collection.PlanImport{
-			IDs: ids, Providers: providers, Libraries: libraryRepo, Attached: attached, Tracks: tracks, Quotas: libraryQuotas,
+			IDs: ids, Providers: providers, Libraries: libs, Tracks: tracks, Quotas: libraryQuotas,
 		},
 		StartImport: &import_collection.StartImport{
 			IDs:       ids,
 			Tx:        txManager,
 			Providers: providers,
-			Libraries: libraryRepo,
-			Attached:  attached,
+			Libraries: libs,
 			Tracks:    tracks,
 			Accounts:  providerAccountRepo,
 			Queue:     ingestQueue,
@@ -346,21 +344,21 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	}
 	shareTrack := &share_tracks.ShareTrack{
 		IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks,
-		Libraries: libs, Attached: attached, Quotas: libraryQuotas, Navidrome: navidromeClient, Admin: navidromeAdmin,
+		Libraries: libs, Quotas: libraryQuotas, Navidrome: navidromeClient, Admin: navidromeAdmin,
 		Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,
 	}
 	shareAlbum := &share_tracks.ShareAlbum{
 		IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks,
-		Libraries: libs, Attached: attached, Quotas: libraryQuotas, Navidrome: navidromeClient, Admin: navidromeAdmin,
+		Libraries: libs, Quotas: libraryQuotas, Navidrome: navidromeClient, Admin: navidromeAdmin,
 		Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,
 	}
 	unshareTrack := &share_tracks.UnshareTrack{
 		IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks,
-		Libraries: libs, Attached: attached, Disk: fileDisk, MusicDir: cfg.MusicDir,
+		Libraries: libs, Disk: fileDisk, MusicDir: cfg.MusicDir,
 	}
 	unshareAlbum := &share_tracks.UnshareAlbum{
 		IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks,
-		Libraries: libs, Attached: attached, Disk: fileDisk, MusicDir: cfg.MusicDir,
+		Libraries: libs, Disk: fileDisk, MusicDir: cfg.MusicDir,
 	}
 	inline := &tgbot.Inline{
 		Telegram: tg,
@@ -370,7 +368,6 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Tracks:      tracks,
 			Accounts:    navidromeAccounts,
 			Libraries:   libs,
-			Attached:    attached,
 			ListenLinks: listenLinks,
 		},
 		GetRecentlyPlayed: &show_playing.GetRecentlyPlayed{
@@ -379,14 +376,13 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Tracks:      tracks,
 			Accounts:    navidromeAccounts,
 			Libraries:   libs,
-			Attached:    attached,
 			ListenLinks: listenLinks,
 		},
 		GetTrackFile: getTrackFile,
 		ViewFeed:     viewFeed,
 		GetTop:       getTop,
 		SearchMusic: &search_music.SearchMusic{
-			IDs: ids, Tracks: tracks, Libraries: libs, Attached: attached, ListenLinks: listenLinks,
+			IDs: ids, Tracks: tracks, Libraries: libs, ListenLinks: listenLinks,
 		},
 		GetTrackListenLink: getTrackListenLink,
 		GetAlbumListenLink: getAlbumListenLink,
@@ -420,11 +416,11 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	shareScreen := &tgbot.ShareScreen{
 		Telegram:        tg,
 		Users:           telegramUsers,
-		SearchOwnTracks: &search_music.SearchOwnTracks{IDs: ids, Tracks: tracks, Libraries: libs, Attached: attached},
-		SearchOwnAlbums: &search_music.SearchOwnAlbums{IDs: ids, Tracks: tracks, Libraries: libs, Attached: attached},
-		ViewTrackCard:   &share_tracks.ViewTrackCard{IDs: ids, Tracks: tracks, Shared: sharedTracks, Libraries: libs, Attached: attached},
+		SearchOwnTracks: &search_music.SearchOwnTracks{IDs: ids, Tracks: tracks, Libraries: libs},
+		SearchOwnAlbums: &search_music.SearchOwnAlbums{IDs: ids, Tracks: tracks, Libraries: libs},
+		ViewTrackCard:   &share_tracks.ViewTrackCard{IDs: ids, Tracks: tracks, Shared: sharedTracks, Libraries: libs},
 		ViewAlbumCard: &share_tracks.ViewAlbumCard{
-			IDs: ids, Tracks: tracks, Shared: sharedTracks, Libraries: libs, Attached: attached, ListenLinks: listenLinks,
+			IDs: ids, Tracks: tracks, Shared: sharedTracks, Libraries: libs, ListenLinks: listenLinks,
 		},
 		ShareTrack: shareTrack, ShareAlbum: shareAlbum, UnshareTrack: unshareTrack, UnshareAlbum: unshareAlbum,
 		GetTrackFile:       getTrackFile,
@@ -467,8 +463,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Interval:  cfg.SyncInterval,
 			Clock:     cfg.Clock,
 
-			Libraries:         libraryRepo,
-			Attached:          attached,
+			Libraries:         libs,
 			Tracks:            tracks,
 			Quotas:            libraryQuotas,
 			Navidrome:         navidromeClient,

@@ -14,8 +14,7 @@ import (
 type PlanImport struct {
 	IDs       common.IDProvider
 	Providers *providers.Registry
-	Libraries repositories.Libraries
-	Attached  *libraries.Attached
+	Libraries *libraries.Libraries
 	Tracks    repositories.Tracks
 	Quotas    *quotas.Quotas
 }
@@ -25,7 +24,7 @@ func (i *PlanImport) Execute(ctx context.Context, providerName provider.Provider
 	if err != nil {
 		return nil, err
 	}
-	surveyed, err := survey(ctx, i.Providers, i.Libraries, i.Attached, i.Tracks, user.ID, providerName)
+	surveyed, err := survey(ctx, i.Providers, i.Libraries, i.Tracks, user.ID, providerName)
 	if err != nil {
 		return nil, err
 	}

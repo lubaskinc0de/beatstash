@@ -26,11 +26,15 @@ type Navidrome struct {
 // Grant creates the user's libraries in Navidrome and gives the account the
 // access library.Grant decides; it returns what the account sees then.
 func (n *Navidrome) Grant(ctx context.Context, user *access.User, login string) (library.NavidromeAccess, error) {
-	libs, err := n.Libraries.Of(ctx, user)
+	personal, err := n.Libraries.Repo.Personal(ctx, user.ID)
 	if err != nil {
 		return library.NavidromeAccess{}, err
 	}
-	for _, lib := range []*library.Library{libs.Personal, libs.Shared} {
+	shared, err := n.Libraries.Repo.Shared(ctx)
+	if err != nil {
+		return library.NavidromeAccess{}, err
+	}
+	for _, lib := range []*library.Library{personal, shared} {
 		if err := n.Create(ctx, lib); err != nil {
 			return library.NavidromeAccess{}, err
 		}
@@ -54,7 +58,7 @@ func (n *Navidrome) Grant(ctx context.Context, user *access.User, login string) 
 	for _, nd := range existing {
 		paths[nd.ID] = nd.Path
 	}
-	ids := library.Grant(account.Access.LibraryIDs, all, paths, n.Folders, libs.Personal, libs.Shared)
+	ids := library.Grant(account.Access.LibraryIDs, all, paths, n.Folders, personal, shared)
 	if err := n.Navidrome.SetLibraries(ctx, n.Admin, account.ID, ids); err != nil {
 		return library.NavidromeAccess{}, err
 	}

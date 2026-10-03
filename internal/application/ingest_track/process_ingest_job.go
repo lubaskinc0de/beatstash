@@ -25,8 +25,7 @@ type ProcessIngestJob struct {
 	Providers *providers.Registry
 	Tracks    repositories.Tracks
 	Uploads   UploadRepository
-	Libraries repositories.Libraries
-	Attached  *libraries.Attached
+	Libraries *libraries.Libraries
 	Lock      repositories.LibraryLock
 	Quotas    *quotas.Quotas
 	Disk      common.Disk
@@ -205,21 +204,12 @@ type storing struct {
 // ctx's transaction; the file is moved into the Library last, and files
 // records how to make the Library follow the transaction's outcome.
 func (i *ProcessIngestJob) process(ctx context.Context, job *ingest.IngestJob, files *libraries.FileChanges) (*jobResult, error) {
-	personal, err := i.Libraries.Personal(ctx, job.UserID)
-	if err != nil {
-		return nil, wrapStep(stepSource, err)
-	}
-	shared, err := i.Libraries.Shared(ctx)
-	if err != nil {
-		return nil, wrapStep(stepSource, err)
-	}
-	libs := libraries.ManagedLibraries{Personal: personal, Shared: shared}
-	attached, err := i.Attached.VisibleTo(ctx, job.UserID)
+	libs, err := i.Libraries.Of(ctx, job.UserID)
 	if err != nil {
 		return nil, wrapStep(stepSource, err)
 	}
 
-	if result, err := i.beforeFetch(ctx, job, libs, attached, files); result != nil || err != nil {
+	if result, err := i.beforeFetch(ctx, job, libs, files); result != nil || err != nil {
 		return result, wrapStep(stepSource, err)
 	}
 	audio, err := i.fetch(ctx, job)
@@ -236,18 +226,18 @@ func (i *ProcessIngestJob) process(ctx context.Context, job *ingest.IngestJob, f
 	// path choice run one at a time per Library: otherwise two workers could
 	// both miss the duplicate and store the same track twice. Another job may
 	// also have added this source while we were fetching.
-	if result, err := i.lockAndRecheck(ctx, job, libs, job.Ref(), files); result != nil || err != nil {
+	if result, err := i.lockAndRecheck(ctx, job, libs.ManagedLibraries, job.Ref(), files); result != nil || err != nil {
 		return result, wrapStep(stepSource, err)
 	}
 	st := storing{
 		job:    job,
-		lib:    personal,
-		dir:    libraries.Dir(i.MusicDir, personal),
+		lib:    libs.Personal,
+		dir:    libraries.Dir(i.MusicDir, libs.Personal),
 		cover:  audio.Cover,
 		staged: staged,
 		files:  files,
 	}
-	result, err := i.store(ctx, st, attached, in)
+	result, err := i.store(ctx, st, libs.Attached, in)
 	return result, wrapStep(stepStore, err)
 }
 
@@ -257,28 +247,27 @@ func (i *ProcessIngestJob) process(ctx context.Context, job *ingest.IngestJob, f
 func (i *ProcessIngestJob) beforeFetch(
 	ctx context.Context,
 	job *ingest.IngestJob,
-	libs libraries.ManagedLibraries,
-	attached []*library.Library,
+	libs libraries.UserLibraries,
 	files *libraries.FileChanges,
 ) (*jobResult, error) {
 	ref := job.Ref()
-	if result, err := i.knownSource(ctx, job, library.KeptLibraries(libs.Personal, attached), ref); result != nil || err != nil {
+	if result, err := i.knownSource(ctx, job, libs.Kept(), ref); result != nil || err != nil {
 		return result, err
 	}
 	inShared, err := i.inLibrary(ctx, libs.Shared, ref)
 	if err != nil {
 		return nil, err
 	}
-	recognized, err := i.recognize(ctx, libs, ref)
+	recognized, err := i.recognize(ctx, libs.ManagedLibraries, ref)
 	if err != nil {
 		return nil, err
 	}
 	if inShared || recognized.any() {
-		if result, err := i.lockAndRecheck(ctx, job, libs, ref, files); result != nil || err != nil {
+		if result, err := i.lockAndRecheck(ctx, job, libs.ManagedLibraries, ref, files); result != nil || err != nil {
 			return result, err
 		}
 	}
-	return i.attachedByDescription(ctx, job, attached, ref)
+	return i.attachedByDescription(ctx, job, libs.Attached, ref)
 }
 
 // fetch marks the failures a retry cannot fix as permanent: a Provider

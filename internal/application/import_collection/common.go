@@ -36,8 +36,7 @@ type surveyed struct {
 func survey(
 	ctx context.Context,
 	registry *providers.Registry,
-	libs repositories.Libraries,
-	attached *libraries.Attached,
+	libraries *libraries.Libraries,
 	tracks repositories.Tracks,
 	userID uint,
 	providerName provider.ProviderName,
@@ -50,11 +49,7 @@ func survey(
 	if err != nil {
 		return nil, err
 	}
-	personal, err := libs.Personal(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	visible, err := attached.VisibleTo(ctx, userID)
+	libs, err := libraries.Of(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -63,8 +58,7 @@ func survey(
 	for _, track := range all {
 		refs = append(refs, track.Ref)
 	}
-	kept := library.KeptLibraries(personal, visible)
-	have, err := tracks.KnownSources(ctx, libraries.IDs(kept), refs)
+	have, err := tracks.KnownSources(ctx, libs.KeptIDs(), refs)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +68,7 @@ func survey(
 			missing = append(missing, track)
 		}
 	}
-	return &surveyed{collection: collection, missing: missing, personal: personal}, nil
+	return &surveyed{collection: collection, missing: missing, personal: libs.Personal}, nil
 }
 
 func (s *surveyed) plan() *Plan {

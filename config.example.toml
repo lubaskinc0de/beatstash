@@ -88,6 +88,10 @@ user = "admin"
 # rescans them (also at start); "0" turns them off, e.g. when several bots
 # share one Navidrome.
 attach_interval = "1h"
+# How long the bot trusts what Navidrome said a user's account sees, so an
+# Import does not ask it for every track. A library an admin closes to the
+# account stays visible to the bot this long at most; "0" asks every time.
+access_ttl = "30s"
 
 [invites]
 ttl = "168h"

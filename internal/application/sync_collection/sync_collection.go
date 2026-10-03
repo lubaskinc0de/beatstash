@@ -15,6 +15,7 @@ import (
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/quotas"
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
+	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
 )
 
@@ -31,8 +32,7 @@ type SyncCollection struct {
 	Interval  time.Duration
 	Clock     func() time.Time
 
-	Libraries         repositories.Libraries
-	Attached          *libraries.Attached
+	Libraries         *libraries.Libraries
 	Tracks            repositories.Tracks
 	Quotas            *quotas.Quotas
 	Navidrome         navidrome.Client
@@ -160,7 +160,7 @@ func (i *SyncCollection) refitted(
 	if len(candidates) == 0 {
 		return nil, nil
 	}
-	personal, err := i.Libraries.Personal(ctx, userID)
+	personal, err := i.Libraries.Repo.Personal(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -293,14 +293,14 @@ func (i *SyncCollection) songs(
 	account *provider.ProviderAccount,
 	creds navidrome.Credentials,
 ) (*songLookup, error) {
-	library, err := i.Libraries.Personal(ctx, account.UserID)
+	libs, err := i.Libraries.Of(ctx, account.UserID)
 	if err != nil {
 		return nil, err
 	}
-	if library.NavidromeID == 0 {
+	if libs.Personal.NavidromeID == 0 {
 		return nil, nil
 	}
-	indexed, err := i.Navidrome.Songs(ctx, creds, library.NavidromeID)
+	indexed, err := i.Navidrome.Songs(ctx, creds, libs.Personal.NavidromeID)
 	if err != nil {
 		return nil, err
 	}
@@ -308,7 +308,7 @@ func (i *SyncCollection) songs(
 	for _, playlist := range account.Collection.Playlists {
 		refs = append(refs, playlist.Tracks...)
 	}
-	paths, err := i.Tracks.SourcePaths(ctx, library.ID, account.Provider, refs)
+	paths, err := i.Tracks.SourcePaths(ctx, libs.Personal.ID, account.Provider, refs)
 	if err != nil {
 		return nil, err
 	}
@@ -317,7 +317,7 @@ func (i *SyncCollection) songs(
 		return nil, err
 	}
 	queued := providers.RefSet(pending)
-	kept, err := i.keptSongs(ctx, account, refs)
+	kept, err := i.keptSongs(ctx, account, libs.Attached, refs)
 	if err != nil {
 		return nil, err
 	}
@@ -340,10 +340,11 @@ func (i *SyncCollection) songs(
 	return s, nil
 }
 
-func (i *SyncCollection) keptSongs(ctx context.Context, account *provider.ProviderAccount, refs []string) (map[string]string, error) {
-	attached, err := i.Attached.VisibleTo(ctx, account.UserID)
-	if err != nil || len(attached) == 0 {
-		return nil, err
+func (i *SyncCollection) keptSongs(
+	ctx context.Context, account *provider.ProviderAccount, attached []*library.Library, refs []string,
+) (map[string]string, error) {
+	if len(attached) == 0 {
+		return nil, nil
 	}
 	return i.Tracks.SourceSongs(ctx, libraries.IDs(attached), account.Provider, refs)
 }

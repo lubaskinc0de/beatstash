@@ -38,21 +38,24 @@ type ViewAlbumCard struct {
 	Tracks      repositories.Tracks
 	Shared      repositories.SharedTracks
 	Libraries   *libraries.Libraries
-	Attached    *libraries.Attached
 	ListenLinks *listening.ListenLinks
 }
 
 func (i *ViewAlbumCard) Execute(ctx context.Context, trackID uint) (*AlbumCard, error) {
-	user, _, kept, err := libraries.CurrentKept(ctx, i.IDs, i.Libraries, i.Attached)
+	user, err := i.IDs.CurrentUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	track, err := keptTrack(ctx, i.Tracks, kept, trackID)
+	libs, err := i.Libraries.Of(ctx, user.ID)
 	if err != nil {
 		return nil, err
 	}
-	card := &AlbumCard{Album: track.AlbumKey(), Library: libraryOf(track, kept)}
-	card.Tracks, err = album(ctx, i.Tracks, kept, track)
+	track, err := keptTrack(ctx, i.Tracks, libs.Kept(), trackID)
+	if err != nil {
+		return nil, err
+	}
+	card := &AlbumCard{Album: track.AlbumKey(), Library: libraryOf(track, libs.Kept())}
+	card.Tracks, err = album(ctx, i.Tracks, libs.Kept(), track)
 	if err != nil {
 		return nil, err
 	}

@@ -240,6 +240,7 @@ func prepare(t *testing.T, opts ...Option) *Scenario {
 		NavidromePublicURL:     NavidromePublicURL,
 		ListenLinkTTL:          ListenLinkTTL,
 		ListenLinkDownloadable: true,
+		NavidromeAccessTTL:     30 * time.Second,
 		SecretKey:              SecretKey,
 		NavidromeUser:          navidrome.AdminUser,
 		NavidromePassword:      navidrome.AdminPassword,

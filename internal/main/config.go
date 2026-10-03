@@ -64,6 +64,9 @@ type Config struct {
 	// AttachInterval is how often the bot looks for songs of Attached
 	// Libraries; zero takes no Attached Libraries at all.
 	AttachInterval time.Duration
+	// NavidromeAccessTTL is how long the bot trusts what Navidrome said an
+	// account sees; zero asks Navidrome on every request.
+	NavidromeAccessTTL time.Duration
 	// Quotas hold until the Admin sets others in the bot.
 	Quotas library.ServerQuotas
 
@@ -130,6 +133,7 @@ type fileConfig struct {
 		ListenLinkTTL          time.Duration `toml:"listen_link_ttl"`
 		ListenLinkDownloadable bool          `toml:"listen_link_downloadable"`
 		SongInterval           time.Duration `toml:"song_interval"`
+		AccessTTL              time.Duration `toml:"access_ttl"`
 	} `toml:"navidrome"`
 
 	Invites struct {
@@ -170,6 +174,7 @@ func defaultFileConfig() fileConfig {
 	f.Navidrome.ListenLinkTTL = 720 * time.Hour
 	f.Navidrome.ListenLinkDownloadable = true
 	f.Navidrome.SongInterval = time.Minute
+	f.Navidrome.AccessTTL = 30 * time.Second
 	f.Library.ReconcileInterval = time.Hour
 	f.Invites.TTL = 7 * 24 * time.Hour
 	f.Ingest.Workers = 2
@@ -243,6 +248,7 @@ func LoadConfig() (Config, error) {
 		ListenLinkTTL:          file.Navidrome.ListenLinkTTL,
 		ListenLinkDownloadable: file.Navidrome.ListenLinkDownloadable,
 		SongInterval:           file.Navidrome.SongInterval,
+		NavidromeAccessTTL:     file.Navidrome.AccessTTL,
 		Quotas: library.ServerQuotas{
 			Default: parseQuota("quota.default", file.Quota.Default, &problems),
 			Shared:  parseQuota("quota.shared", file.Quota.Shared, &problems),
@@ -297,6 +303,9 @@ func readFile(path string, file *fileConfig) []error {
 	}
 	if file.Navidrome.SongInterval < 0 {
 		problems = append(problems, errors.New("navidrome.song_interval must not be negative"))
+	}
+	if file.Navidrome.AccessTTL < 0 {
+		problems = append(problems, errors.New("navidrome.access_ttl must not be negative"))
 	}
 	if file.Navidrome.ListenLinkTTL <= 0 {
 		problems = append(problems, errors.New("navidrome.listen_link_ttl must be positive"))

@@ -14,6 +14,7 @@ import (
 // a User joins; every other request finds them there.
 type Libraries struct {
 	Repo     repositories.Libraries
+	Attached *Attached
 	Disk     common.Disk
 	MusicDir string
 }
@@ -40,16 +41,21 @@ func (l *Libraries) FilePath(ctx context.Context, track *library.Track) (string,
 	return TrackPath(ctx, l.Repo, l.MusicDir, track)
 }
 
-func (l *Libraries) Of(ctx context.Context, user *access.User) (ManagedLibraries, error) {
-	personal, err := l.Repo.Personal(ctx, user.ID)
+// Of asks Navidrome for the Attached Libraries the user sees.
+func (l *Libraries) Of(ctx context.Context, userID uint) (UserLibraries, error) {
+	personal, err := l.Repo.Personal(ctx, userID)
 	if err != nil {
-		return ManagedLibraries{}, err
+		return UserLibraries{}, err
 	}
 	shared, err := l.Repo.Shared(ctx)
 	if err != nil {
-		return ManagedLibraries{}, err
+		return UserLibraries{}, err
 	}
-	return ManagedLibraries{Personal: personal, Shared: shared}, nil
+	attached, err := l.Attached.VisibleTo(ctx, userID)
+	if err != nil {
+		return UserLibraries{}, err
+	}
+	return UserLibraries{ManagedLibraries: ManagedLibraries{Personal: personal, Shared: shared}, Attached: attached}, nil
 }
 
 func Dir(musicDir string, lib *library.Library) string {
@@ -75,23 +81,17 @@ func (u ManagedLibraries) IDs() []uint {
 	return []uint{u.Personal.ID, u.Shared.ID}
 }
 
-func CurrentKept(
-	ctx context.Context,
-	ids common.IDProvider,
-	libraries *Libraries,
-	attached *Attached,
-) (*access.User, ManagedLibraries, []*library.Library, error) {
-	user, err := ids.CurrentUser(ctx)
-	if err != nil {
-		return nil, ManagedLibraries{}, nil, err
-	}
-	libs, err := libraries.Of(ctx, user)
-	if err != nil {
-		return nil, ManagedLibraries{}, nil, err
-	}
-	visible, err := attached.VisibleTo(ctx, user.ID)
-	if err != nil {
-		return nil, ManagedLibraries{}, nil, err
-	}
-	return user, libs, library.KeptLibraries(libs.Personal, visible), nil
+// UserLibraries are a user's Managed Libraries and the Attached Libraries
+// they see.
+type UserLibraries struct {
+	ManagedLibraries
+	Attached []*library.Library
+}
+
+func (u UserLibraries) Kept() []*library.Library {
+	return library.KeptLibraries(u.Personal, u.Attached)
+}
+
+func (u UserLibraries) KeptIDs() []uint {
+	return IDs(u.Kept())
 }

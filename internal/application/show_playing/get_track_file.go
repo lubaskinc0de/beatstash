@@ -13,11 +13,14 @@ type GetTrackFile struct {
 	IDs       common.IDProvider
 	Tracks    repositories.Tracks
 	Libraries *libraries.Libraries
-	Attached  *libraries.Attached
 }
 
 func (i *GetTrackFile) Execute(ctx context.Context, trackID uint) (*library.Track, string, error) {
-	_, libs, kept, err := libraries.CurrentKept(ctx, i.IDs, i.Libraries, i.Attached)
+	user, err := i.IDs.CurrentUser(ctx)
+	if err != nil {
+		return nil, "", err
+	}
+	libs, err := i.Libraries.Of(ctx, user.ID)
 	if err != nil {
 		return nil, "", err
 	}
@@ -25,7 +28,7 @@ func (i *GetTrackFile) Execute(ctx context.Context, trackID uint) (*library.Trac
 	if err != nil {
 		return nil, "", err
 	}
-	if err := track.AudibleBy(kept, libs.Shared); err != nil {
+	if err := track.AudibleBy(libs.Kept(), libs.Shared); err != nil {
 		return nil, "", err
 	}
 	path, err := i.Libraries.FilePath(ctx, track)

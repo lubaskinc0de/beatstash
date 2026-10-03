@@ -12,15 +12,18 @@ type SearchOwnAlbums struct {
 	IDs       common.IDProvider
 	Tracks    repositories.Tracks
 	Libraries *libraries.Libraries
-	Attached  *libraries.Attached
 }
 
 func (i *SearchOwnAlbums) Execute(ctx context.Context, text string, offset, limit int) (*OwnPage[repositories.AlbumSummary], error) {
-	_, _, kept, err := libraries.CurrentKept(ctx, i.IDs, i.Libraries, i.Attached)
+	user, err := i.IDs.CurrentUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	albums, err := i.Tracks.SearchAlbums(ctx, libraries.IDs(kept), text, false, offset, limit+1)
+	libs, err := i.Libraries.Of(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	albums, err := i.Tracks.SearchAlbums(ctx, libs.KeptIDs(), text, false, offset, limit+1)
 	if err != nil {
 		return nil, err
 	}

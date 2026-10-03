@@ -19,7 +19,6 @@ type ShareTrack struct {
 	Tracks    repositories.Tracks
 	Shared    repositories.SharedTracks
 	Libraries *libraries.Libraries
-	Attached  *libraries.Attached
 	Quotas    *quotas.Quotas
 	Navidrome navidrome.Client
 	// Admin downloads the files of Attached Libraries.
@@ -30,12 +29,16 @@ type ShareTrack struct {
 }
 
 func (i *ShareTrack) Execute(ctx context.Context, trackID uint) (*ShareResult, error) {
-	user, libs, kept, err := libraries.CurrentKept(ctx, i.IDs, i.Libraries, i.Attached)
+	user, err := i.IDs.CurrentUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	libs, err := i.Libraries.Of(ctx, user.ID)
 	if err != nil {
 		return nil, err
 	}
 	result := &ShareResult{}
-	err = libraries.Within(ctx, i.Tx, i.Lock, i.Disk, libs, func(ctx context.Context, changes *libraries.FileChanges) error {
+	err = libraries.Within(ctx, i.Tx, i.Lock, i.Disk, libs.ManagedLibraries, func(ctx context.Context, changes *libraries.FileChanges) error {
 		usage, err := i.Quotas.UsageOf(ctx, libs.Shared)
 		if err != nil {
 			return err
@@ -43,9 +46,9 @@ func (i *ShareTrack) Execute(ctx context.Context, trackID uint) (*ShareResult, e
 		s := &sharer{
 			tracks: i.Tracks, shared: i.Shared, lock: i.Lock, disk: i.Disk,
 			navidrome: i.Navidrome, admin: i.Admin, musicDir: i.MusicDir,
-			user: user, libs: libs, kept: kept, usage: usage, changes: changes, now: i.Clock(),
+			user: user, libs: libs.ManagedLibraries, kept: libs.Kept(), usage: usage, changes: changes, now: i.Clock(),
 		}
-		track, err := keptTrack(ctx, i.Tracks, kept, trackID)
+		track, err := keptTrack(ctx, i.Tracks, libs.Kept(), trackID)
 		if err != nil {
 			return err
 		}

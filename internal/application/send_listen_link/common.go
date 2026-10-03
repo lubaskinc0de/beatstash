@@ -17,12 +17,15 @@ var ErrNotIndexed = errors.New("not indexed by navidrome yet")
 func audible(
 	ctx context.Context,
 	ids common.IDProvider,
-	libs *libraries.Libraries,
-	attached *libraries.Attached,
+	libraries *libraries.Libraries,
 	tracks repositories.Tracks,
 	trackID uint,
 ) (*access.User, *library.Track, error) {
-	user, managed, kept, err := libraries.CurrentKept(ctx, ids, libs, attached)
+	user, err := ids.CurrentUser(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	libs, err := libraries.Of(ctx, user.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -33,7 +36,7 @@ func audible(
 	if err != nil {
 		return nil, nil, err
 	}
-	return user, track, track.AudibleBy(kept, managed.Shared)
+	return user, track, track.AudibleBy(libs.Kept(), libs.Shared)
 }
 
 // songOf asks Navidrome, as admin, for a Track whose song is not known yet.

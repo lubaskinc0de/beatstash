@@ -15,18 +15,21 @@ type UnshareTrack struct {
 	Tracks    repositories.Tracks
 	Shared    repositories.SharedTracks
 	Libraries *libraries.Libraries
-	Attached  *libraries.Attached
 	Disk      common.Disk
 	MusicDir  string
 }
 
 func (i *UnshareTrack) Execute(ctx context.Context, trackID uint) error {
-	_, libs, kept, err := libraries.CurrentKept(ctx, i.IDs, i.Libraries, i.Attached)
+	user, err := i.IDs.CurrentUser(ctx)
 	if err != nil {
 		return err
 	}
-	return libraries.Within(ctx, i.Tx, i.Lock, i.Disk, libs, func(ctx context.Context, changes *libraries.FileChanges) error {
-		track, err := keptTrack(ctx, i.Tracks, kept, trackID)
+	libs, err := i.Libraries.Of(ctx, user.ID)
+	if err != nil {
+		return err
+	}
+	return libraries.Within(ctx, i.Tx, i.Lock, i.Disk, libs.ManagedLibraries, func(ctx context.Context, changes *libraries.FileChanges) error {
+		track, err := keptTrack(ctx, i.Tracks, libs.Kept(), trackID)
 		if err != nil {
 			return err
 		}

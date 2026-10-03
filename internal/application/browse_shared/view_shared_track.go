@@ -14,13 +14,16 @@ type ViewSharedTrack struct {
 	Shared    repositories.SharedTracks
 	Tracks    repositories.Tracks
 	Libraries *libraries.Libraries
-	Attached  *libraries.Attached
 }
 
 // Execute returns sharing.ErrNotShared once the Track has left the Shared
 // Library.
 func (i *ViewSharedTrack) Execute(ctx context.Context, sharedTrackID uint) (*FeedEntry, error) {
-	_, _, kept, err := libraries.CurrentKept(ctx, i.IDs, i.Libraries, i.Attached)
+	user, err := i.IDs.CurrentUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	libs, err := i.Libraries.Of(ctx, user.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +31,7 @@ func (i *ViewSharedTrack) Execute(ctx context.Context, sharedTrackID uint) (*Fee
 	if err != nil {
 		return nil, err
 	}
-	alreadyKept, err := i.Tracks.WithDuplicates(ctx, libraries.IDs(kept), []library.Track{*shared.Track})
+	alreadyKept, err := i.Tracks.WithDuplicates(ctx, libs.KeptIDs(), []library.Track{*shared.Track})
 	if err != nil {
 		return nil, err
 	}

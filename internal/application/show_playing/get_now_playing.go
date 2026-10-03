@@ -28,7 +28,6 @@ type GetNowPlaying struct {
 	Tracks      repositories.Tracks
 	Accounts    *accounts.Navidrome
 	Libraries   *libraries.Libraries
-	Attached    *libraries.Attached
 	ListenLinks *listening.ListenLinks
 }
 
@@ -43,11 +42,6 @@ func (i *GetNowPlaying) Execute(
 	if err != nil {
 		return nil, err
 	}
-	libs, err := i.Libraries.Of(ctx, user)
-	if err != nil {
-		return nil, err
-	}
-
 	track, err := i.Client.NowPlaying(ctx, creds)
 	if err != nil {
 		return nil, err
@@ -56,14 +50,13 @@ func (i *GetNowPlaying) Execute(
 		return nil, nil
 	}
 
-	visible, err := i.Attached.VisibleTo(ctx, user.ID)
+	libs, err := i.Libraries.Of(ctx, user.ID)
 	if err != nil {
 		return nil, err
 	}
-	attached := libraries.IDs(visible)
 	nowPlaying := &NowPlaying{PlayingTrack: *track}
 
-	found, err := findTracks(ctx, i.Tracks, libs.IDs(), attached, []navidrome.Track{track.Track})
+	found, err := findTracks(ctx, i.Tracks, libs.IDs(), libraries.IDs(libs.Attached), []navidrome.Track{track.Track})
 	if err != nil {
 		slog.Error("find_track", "error", err)
 		return nowPlaying, nil
