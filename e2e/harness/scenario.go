@@ -420,6 +420,16 @@ func (s *Scenario) Send(update *models.Update) {
 	s.app.Bot().ProcessUpdate(s.ctx, update)
 }
 
+// SendAtOnce hands the updates to the bot together, as outside tests, where
+// each update gets a goroutine of its own.
+func (s *Scenario) SendAtOnce(updates ...*models.Update) {
+	var wg sync.WaitGroup
+	for _, update := range updates {
+		wg.Go(func() { s.Send(update) })
+	}
+	wg.Wait()
+}
+
 // WaitIngest waits for every running instance.
 func (s *Scenario) WaitIngest() {
 	s.t.Helper()

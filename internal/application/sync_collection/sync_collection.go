@@ -309,19 +309,27 @@ func (i *SyncCollection) songs(
 	for _, playlist := range account.Collection.Playlists {
 		refs = append(refs, playlist.Tracks...)
 	}
-	paths, err := i.Tracks.SourcePaths(ctx, libs.Personal.ID, account.Provider, refs)
-	if err != nil {
-		return nil, err
-	}
-	pending, err := i.Queue.PendingRefs(ctx, account.UserID, account.Provider)
+	// An Ingest stores the Track and finishes its job in one commit. Read
+	// apart, that commit could fall between the reads and leave the track
+	// neither stored nor queued, as if it had failed: the Mirror would end
+	// without it.
+	var paths, kept map[string]string
+	var pending []string
+	err = i.Tx.WithinSnapshot(ctx, func(ctx context.Context) error {
+		var err error
+		if paths, err = i.Tracks.SourcePaths(ctx, libs.Personal.ID, account.Provider, refs); err != nil {
+			return err
+		}
+		if pending, err = i.Queue.PendingRefs(ctx, account.UserID, account.Provider); err != nil {
+			return err
+		}
+		kept, err = i.keptSongs(ctx, account, libs.Attached, refs)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
 	queued := providers.RefSet(pending)
-	kept, err := i.keptSongs(ctx, account, libs.Attached, refs)
-	if err != nil {
-		return nil, err
-	}
 
 	s := &songLookup{found: map[string]string{}, coming: map[string]bool{}}
 	for _, ref := range refs {

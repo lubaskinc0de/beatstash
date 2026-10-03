@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log"
 	"os"
@@ -103,6 +104,22 @@ func (m *TxManager) WithinTx(
 
 		return fn(txCtx)
 	})
+}
+
+var errSnapshotInTx = errors.New("snapshot inside a transaction")
+
+func (m *TxManager) WithinSnapshot(
+	ctx context.Context,
+	fn func(context.Context) error,
+) error {
+	// Inside a transaction gorm would make a savepoint, which keeps the
+	// outer transaction's isolation.
+	if _, ok := txFromContext(ctx); ok {
+		return errSnapshotInTx
+	}
+	return m.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return fn(withTx(ctx, tx))
+	}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
 }
 
 func dbForContext(ctx context.Context, db *gorm.DB) *gorm.DB {

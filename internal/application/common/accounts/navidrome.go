@@ -27,14 +27,26 @@ func (a *Navidrome) Credentials(ctx context.Context, userID uint) (navidrome.Cre
 	return navidrome.Credentials{Login: account.Login, Password: password}, nil
 }
 
-func (a *Navidrome) Save(ctx context.Context, userID uint, creds navidrome.Credentials) error {
-	sealed, err := a.Box.Seal(creds.Password)
+func (a *Navidrome) Add(ctx context.Context, userID uint, creds navidrome.Credentials) error {
+	account, err := a.seal(userID, creds)
 	if err != nil {
 		return err
 	}
-	return a.Repo.Save(ctx, &access.NavidromeAccount{
-		UserID:   userID,
-		Login:    creds.Login,
-		Password: sealed,
-	})
+	return a.Repo.Add(ctx, account)
+}
+
+func (a *Navidrome) Save(ctx context.Context, userID uint, creds navidrome.Credentials) error {
+	account, err := a.seal(userID, creds)
+	if err != nil {
+		return err
+	}
+	return a.Repo.Save(ctx, account)
+}
+
+func (a *Navidrome) seal(userID uint, creds navidrome.Credentials) (*access.NavidromeAccount, error) {
+	sealed, err := a.Box.Seal(creds.Password)
+	if err != nil {
+		return nil, err
+	}
+	return &access.NavidromeAccount{UserID: userID, Login: creds.Login, Password: sealed}, nil
 }

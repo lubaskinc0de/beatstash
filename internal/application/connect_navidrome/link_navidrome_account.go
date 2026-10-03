@@ -15,9 +15,9 @@ import (
 
 type LinkNavidromeAccount struct {
 	IDs                common.IDProvider
+	Tx                 repositories.TxManager
 	Navidrome          navidrome.Client
 	Accounts           *accounts.Navidrome
-	AccountRepo        repositories.NavidromeAccounts
 	NavidromeLibraries *libraries.Navidrome
 	Libraries          repositories.Libraries
 	Tracks             repositories.Tracks
@@ -36,16 +36,28 @@ func (i *LinkNavidromeAccount) Execute(ctx context.Context, creds navidrome.Cred
 	if err := i.Navidrome.Authenticate(ctx, creds); err != nil {
 		return 0, err
 	}
-	if err := i.checkFree(ctx, user.ID, creds.Login); err != nil {
-		return 0, err
-	}
-	// Access narrows before the account counts as linked: a failure must not
-	// leave a linked account that still sees others' Personal Libraries.
-	access, granted := i.NavidromeLibraries.Grant(ctx, user, creds.Login)
-	if granted != nil && !errors.Is(granted, navidrome.ErrAdminAccount) {
-		return 0, granted
-	}
-	if err := i.Accounts.Save(ctx, user.ID, creds); err != nil {
+	var access library.NavidromeAccess
+	var granted error
+	// The account is written first: another user linking the login at the
+	// same time waits on it and is refused before their Grant could narrow
+	// the account to their library. It counts as linked only at the commit,
+	// once access has narrowed: a failure must not leave a linked account
+	// that still sees others' Personal Libraries.
+	err = i.Tx.WithinTx(ctx, func(ctx context.Context) error {
+		err := i.Accounts.Save(ctx, user.ID, creds)
+		if errors.Is(err, repositories.ErrNavidromeLoginLinked) {
+			return ErrNavidromeAccountTaken
+		}
+		if err != nil {
+			return err
+		}
+		access, granted = i.NavidromeLibraries.Grant(ctx, user, creds.Login)
+		if granted != nil && !errors.Is(granted, navidrome.ErrAdminAccount) {
+			return granted
+		}
+		return nil
+	})
+	if err != nil {
 		return 0, err
 	}
 	return i.attachedSongCount(ctx, access), granted
@@ -68,17 +80,4 @@ func (i *LinkNavidromeAccount) attachedSongCount(ctx context.Context, access lib
 		return 0
 	}
 	return int(n)
-}
-
-func (i *LinkNavidromeAccount) checkFree(ctx context.Context, userID uint, login string) error {
-	linked, err := i.AccountRepo.ByLogin(ctx, login)
-	switch {
-	case errors.Is(err, repositories.ErrNavidromeAccountNotFound):
-		return nil
-	case err != nil:
-		return err
-	case linked.UserID != userID:
-		return ErrNavidromeAccountTaken
-	}
-	return nil
 }

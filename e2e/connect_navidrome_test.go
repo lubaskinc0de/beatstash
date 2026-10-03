@@ -216,6 +216,32 @@ func TestLinkAfterMove(t *testing.T) {
 		}, s.Navidrome.Libraries(t, account))
 	})
 
+	t.Run("account two users link at once goes to one of them", func(t *testing.T) {
+		s := harness.New(t)
+		account := s.Navidrome.CreateAccount(t, "both")
+		for _, user := range []harness.User{alice, bob} {
+			s.Open(user, s.Catalog(user).SettingsButton(), s.Catalog(user).AccountsButton(), s.Catalog(user).Link())
+		}
+
+		s.SendAtOnce(
+			s.TextMessage(alice, account.Login+" "+account.Password),
+			s.TextMessage(bob, account.Login+" "+account.Password))
+
+		var linked []harness.User
+		for _, user := range []harness.User{alice, bob} {
+			s.Open(user, s.Catalog(user).SettingsButton(), s.Catalog(user).AccountsButton())
+			if strings.Contains(s.WindowText(), s.Catalog(user).NavidromeLinked(account.Login)) {
+				linked = append(linked, user)
+			}
+		}
+		require.Len(t, linked, 1)
+		assert.Equal(t, []string{
+			navidrome.RootLibraryPath,
+			s.NavidromePath("shared"),
+			s.NavidromePath(s.PersonalDir(linked[0])),
+		}, s.Navidrome.Libraries(t, account))
+	})
+
 	t.Run("login case does not get around another user's link", func(t *testing.T) {
 		s := harness.New(t)
 		account := s.LinkNewAccount(alice)
@@ -311,6 +337,25 @@ func TestRegistration(t *testing.T) {
 		assert.Equal(t, login, account.Login)
 		assert.True(t, s.Navidrome.CanLogin(account))
 		assert.True(t, s.Navidrome.CanLogin(taken))
+	})
+
+	t.Run("two logins at once give one account", func(t *testing.T) {
+		s := harness.New(t)
+		carol := harness.Newcomer("carol")
+		s.Send(s.TextMessage(carol, "/start "+s.Invite()))
+
+		s.SendAtOnce(
+			s.TextMessage(carol, navidrome.UniqueLogin("carol")),
+			s.TextMessage(carol, navidrome.UniqueLogin("carol")))
+
+		var issued int
+		for _, reply := range s.Telegram.Replies(t) {
+			if strings.Contains(reply.Text, "tg-spoiler") {
+				issued++
+			}
+		}
+		assert.Equal(t, 1, issued)
+		assert.True(t, s.Navidrome.CanLogin(s.IssuedAccount()))
 	})
 
 	t.Run("unfit login makes the bot ask for another", func(t *testing.T) {

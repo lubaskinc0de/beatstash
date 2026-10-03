@@ -219,6 +219,15 @@ var migrations = []*gormigrate.Migration{
 					ON listen_links (user_id, track_id, library_id, lower(album_artist), lower(album))`).Error
 		},
 	},
+	{
+		// Navidrome logins ignore case, so a login is one account whatever its case.
+		ID: "0021_navidrome_account_login_unique",
+		Migrate: func(tx *gorm.DB) error {
+			return tx.Exec(`
+				CREATE UNIQUE INDEX IF NOT EXISTS idx_navidrome_account_login
+					ON navidrome_accounts (lower(login))`).Error
+		},
+	},
 }
 
 func Migrate(db *gorm.DB) error {

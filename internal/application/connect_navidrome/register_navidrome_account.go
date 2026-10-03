@@ -12,16 +12,15 @@ import (
 	"github.com/lubaskinc0de/beatstash/internal/application/common/libraries"
 	"github.com/lubaskinc0de/beatstash/internal/application/common/navidrome"
 	"github.com/lubaskinc0de/beatstash/internal/application/common/repositories"
-	"github.com/lubaskinc0de/beatstash/internal/domain/access"
 )
 
 var navidromeLoginPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{3,32}$`)
 
 type RegisterNavidromeAccount struct {
 	IDs                common.IDProvider
+	Tx                 repositories.TxManager
 	Navidrome          navidrome.Client
 	Accounts           *accounts.Navidrome
-	AccountRepo        repositories.NavidromeAccounts
 	NavidromeLibraries *libraries.Navidrome
 	Admin              navidrome.Credentials
 }
@@ -36,26 +35,27 @@ func (i *RegisterNavidromeAccount) Execute(ctx context.Context, login string) (n
 	if err != nil {
 		return navidrome.Credentials{}, err
 	}
-	_, err = i.AccountRepo.Get(ctx, user.ID)
-	switch {
-	case err == nil:
-		return navidrome.Credentials{}, ErrHasNavidromeAccount
-	case !errors.Is(err, repositories.ErrNavidromeAccountNotFound):
-		return navidrome.Credentials{}, err
-	}
-	return i.register(ctx, user, login)
-}
-
-func (i *RegisterNavidromeAccount) register(ctx context.Context, user *access.User, login string) (navidrome.Credentials, error) {
 	if !navidromeLoginPattern.MatchString(login) {
 		return navidrome.Credentials{}, ErrNavidromeLoginInvalid
 	}
 
 	creds := navidrome.Credentials{Login: login, Password: rand.Text()}
-	if err := i.Navidrome.CreateAccount(ctx, i.Admin, creds); err != nil {
-		return navidrome.Credentials{}, err
-	}
-	if err := i.Accounts.Save(ctx, user.ID, creds); err != nil {
+	// The account is written first: a second login sent at the same time
+	// waits on it and finds the account there, instead of making another one
+	// in Navidrome.
+	err = i.Tx.WithinTx(ctx, func(ctx context.Context) error {
+		err := i.Accounts.Add(ctx, user.ID, creds)
+		switch {
+		case errors.Is(err, repositories.ErrNavidromeAccountExists):
+			return ErrHasNavidromeAccount
+		case errors.Is(err, repositories.ErrNavidromeLoginLinked):
+			return navidrome.ErrLoginTaken
+		case err != nil:
+			return err
+		}
+		return i.Navidrome.CreateAccount(ctx, i.Admin, creds)
+	})
+	if err != nil {
 		return navidrome.Credentials{}, err
 	}
 	// The account already exists: failing here would strand it, and the next start grants again.
