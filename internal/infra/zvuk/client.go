@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/stall"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/providers"
+	"github.com/lubaskinc0de/beatstash/internal/infra/stall"
 )
 
 const authHeader = "X-Auth-Token"

@@ -6,8 +6,8 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/sharing"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/repositories"
+	"github.com/lubaskinc0de/beatstash/internal/domain/sharing"
 )
 
 type TakeRepository struct {

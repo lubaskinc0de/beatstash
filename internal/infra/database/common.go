@@ -13,12 +13,12 @@ import (
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/sharing"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/navidrome"
+	"github.com/lubaskinc0de/beatstash/internal/domain/access"
+	"github.com/lubaskinc0de/beatstash/internal/domain/ingest"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/domain/provider"
+	"github.com/lubaskinc0de/beatstash/internal/domain/sharing"
+	"github.com/lubaskinc0de/beatstash/internal/infra/navidrome"
 )
 
 type (

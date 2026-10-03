@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/domain/provider"
 )
 
 type Tracks interface {

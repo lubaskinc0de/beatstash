@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
+	"github.com/lubaskinc0de/beatstash/internal/domain/access"
 )
 
 // Library is an aggregate root. It does not hold its Tracks: Tracks refer to

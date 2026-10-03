@@ -10,11 +10,11 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/add_track"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/trackfile"
+	"github.com/lubaskinc0de/beatstash/internal/application/add_track"
+	"github.com/lubaskinc0de/beatstash/internal/application/common"
+	"github.com/lubaskinc0de/beatstash/internal/domain/ingest"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/trackfile"
 )
 
 // JobMessage is the message whose audio became the Ingest Job: it gets the

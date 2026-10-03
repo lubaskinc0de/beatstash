@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
 )
 
 // Post is a Track's file on its way to Telegram; a successful post leaves a

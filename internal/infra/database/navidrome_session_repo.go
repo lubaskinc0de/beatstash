@@ -6,7 +6,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/navidrome"
+	"github.com/lubaskinc0de/beatstash/internal/infra/navidrome"
 )
 
 type NavidromeSessionRepository struct {

@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/navidrome"
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
+	"github.com/lubaskinc0de/beatstash/e2e/harness"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/navidrome"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/telegram"
 )
 
 func TestNavidromeLibraryGone(t *testing.T) {
@@ -149,8 +149,8 @@ func TestStartup(t *testing.T) {
 func buildBot(t *testing.T) string {
 	t.Helper()
 
-	binary := filepath.Join(t.TempDir(), "navidrome-tg")
-	out, err := exec.CommandContext(t.Context(), "go", "build", "-o", binary, "../cmd/navidrome-tg").CombinedOutput() //nolint:gosec // G204: builds the app under test
+	binary := filepath.Join(t.TempDir(), "beatstash")
+	out, err := exec.CommandContext(t.Context(), "go", "build", "-o", binary, "../cmd/beatstash").CombinedOutput() //nolint:gosec // G204: builds the app under test
 	require.NoError(t, err, string(out))
 	return binary
 }

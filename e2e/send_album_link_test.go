@@ -6,11 +6,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/navidrome"
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/e2e/harness"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/navidrome"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/telegram"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/repositories"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
 )
 
 func TestAlbumListenLink(t *testing.T) {

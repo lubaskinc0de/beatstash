@@ -8,8 +8,8 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/repositories"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
 )
 
 // similarWord keeps a word with a typo or two similar, and an unrelated

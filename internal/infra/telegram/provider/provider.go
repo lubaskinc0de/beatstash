@@ -15,12 +15,12 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/stall"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/trackfile"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/providers"
+	"github.com/lubaskinc0de/beatstash/internal/domain/ingest"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/domain/provider"
+	"github.com/lubaskinc0de/beatstash/internal/infra/stall"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/trackfile"
 )
 
 const Name = provider.ProviderTelegram

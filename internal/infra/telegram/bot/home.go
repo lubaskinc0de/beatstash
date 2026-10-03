@@ -8,16 +8,16 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/listening"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/greet_stranger"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/invite_friend"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/join_by_invite"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/send_listen_link"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_home"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/window"
+	"github.com/lubaskinc0de/beatstash/internal/application/common"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/listening"
+	"github.com/lubaskinc0de/beatstash/internal/application/greet_stranger"
+	"github.com/lubaskinc0de/beatstash/internal/application/invite_friend"
+	"github.com/lubaskinc0de/beatstash/internal/application/join_by_invite"
+	"github.com/lubaskinc0de/beatstash/internal/application/send_listen_link"
+	"github.com/lubaskinc0de/beatstash/internal/application/view_home"
+	"github.com/lubaskinc0de/beatstash/internal/domain/access"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/i18n"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/window"
 )
 
 // Home is the home screen, the invites and the language.

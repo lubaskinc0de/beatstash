@@ -12,12 +12,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
 )
 
 // ScratchDir is the folder of music_dir that holds files on their way into
 // a Library. Navidrome skips hidden folders.
-const ScratchDir = ".navidrome-tg"
+const ScratchDir = ".beatstash"
 
 type Disk struct {
 	MusicDir string

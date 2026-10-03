@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
+	"github.com/lubaskinc0de/beatstash/e2e/harness"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/telegram"
 )
 
 func TestMusic(t *testing.T) {

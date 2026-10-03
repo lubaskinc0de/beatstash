@@ -11,15 +11,15 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/browse_shared"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/search_music"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/send_listen_link"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/show_playing"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/trackfile"
+	"github.com/lubaskinc0de/beatstash/internal/application/browse_shared"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/repositories"
+	"github.com/lubaskinc0de/beatstash/internal/application/search_music"
+	"github.com/lubaskinc0de/beatstash/internal/application/send_listen_link"
+	"github.com/lubaskinc0de/beatstash/internal/application/show_playing"
+	"github.com/lubaskinc0de/beatstash/internal/application/view_top"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/i18n"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/trackfile"
 )
 
 // Inline answers inline queries and brings the files of chosen results.

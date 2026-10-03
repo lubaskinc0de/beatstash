@@ -3,7 +3,7 @@ package harness
 import (
 	"slices"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/repositories"
 )
 
 // ShareTrack shares the user's track from its card; track is its button,

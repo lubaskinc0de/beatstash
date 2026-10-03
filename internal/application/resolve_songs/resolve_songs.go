@@ -3,9 +3,9 @@ package resolve_songs
 import (
 	"context"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/navidrome"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/repositories"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
 )
 
 // ResolveSongs: search shows only an Album Navidrome has indexed, and a

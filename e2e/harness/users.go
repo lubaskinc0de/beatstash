@@ -3,7 +3,7 @@ package harness
 import (
 	"github.com/go-telegram/bot/models"
 
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/navidrome"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/navidrome"
 )
 
 type User struct {

@@ -9,8 +9,8 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
+	"github.com/lubaskinc0de/beatstash/internal/application/common"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/i18n"
 )
 
 func updateSender(update *models.Update) *models.User {

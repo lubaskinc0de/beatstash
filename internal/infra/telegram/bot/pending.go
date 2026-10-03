@@ -11,11 +11,11 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/listening"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/send_listen_link"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/trackfile"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/listening"
+	"github.com/lubaskinc0de/beatstash/internal/application/send_listen_link"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/i18n"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/trackfile"
 )
 
 // A pending result's id carries what the sent message becomes, since

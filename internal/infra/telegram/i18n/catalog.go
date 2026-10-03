@@ -12,16 +12,16 @@ import (
 
 	goi18n "github.com/nicksnyder/go-i18n/v2/i18n"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/browse_shared"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/import_collection"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/share_tracks"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/show_playing"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
+	"github.com/lubaskinc0de/beatstash/internal/application/browse_shared"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/repositories"
+	"github.com/lubaskinc0de/beatstash/internal/application/import_collection"
+	"github.com/lubaskinc0de/beatstash/internal/application/share_tracks"
+	"github.com/lubaskinc0de/beatstash/internal/application/show_playing"
+	"github.com/lubaskinc0de/beatstash/internal/application/view_top"
+	"github.com/lubaskinc0de/beatstash/internal/domain/access"
+	"github.com/lubaskinc0de/beatstash/internal/domain/ingest"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/domain/provider"
 )
 
 type Article struct {

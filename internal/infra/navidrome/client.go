@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	appnd "github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	appnd "github.com/lubaskinc0de/beatstash/internal/application/common/navidrome"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
 )
 
 const nativeAuthHeader = "X-Nd-Authorization"
@@ -95,7 +95,7 @@ func addAuth(q url.Values, creds appnd.Credentials) {
 	q.Set("s", salt)
 	q.Set("t", token)
 	q.Set("v", "1.16.1")
-	q.Set("c", "navidrome-tg")
+	q.Set("c", "beatstash")
 	q.Set("f", "json")
 }
 

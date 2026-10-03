@@ -3,9 +3,9 @@ package show_playing
 import (
 	"context"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/navidrome"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/repositories"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
 )
 
 // findTracks finds the Track of each played song, nil where none: by

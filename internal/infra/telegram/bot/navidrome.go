@@ -8,9 +8,9 @@ import (
 
 	"github.com/go-telegram/bot/models"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/connect_navidrome"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/window"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/navidrome"
+	"github.com/lubaskinc0de/beatstash/internal/application/connect_navidrome"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/window"
 )
 
 // Navidrome links and registers the Navidrome Account.

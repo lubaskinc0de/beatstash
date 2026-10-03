@@ -4,8 +4,8 @@ import (
 	"context"
 	"io"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/domain/provider"
 )
 
 // Provider is an external source of music. What it can do is expressed by

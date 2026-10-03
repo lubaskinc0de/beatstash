@@ -7,8 +7,8 @@ package sharing
 import (
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/domain/access"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
 )
 
 // Take is an aggregate root: a copy of a SharedTrack in the taker's Personal

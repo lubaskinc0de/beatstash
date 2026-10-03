@@ -4,10 +4,10 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/share_tracks"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/repositories"
+	"github.com/lubaskinc0de/beatstash/internal/application/share_tracks"
+	"github.com/lubaskinc0de/beatstash/internal/domain/access"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
 )
 
 func (c Catalog) TracksMode() string        { return c.t("share_screen.tracks", nil) }

@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.senan.xyz/taglib"
 
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/zvuk"
+	"github.com/lubaskinc0de/beatstash/e2e/harness"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/audiofile"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/zvuk"
 )
 
 func TestZvukTracks(t *testing.T) {

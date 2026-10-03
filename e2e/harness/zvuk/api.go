@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/audiofile"
 )
 
 const antiBotCookie = "__ddg1_"

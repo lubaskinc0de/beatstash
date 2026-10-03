@@ -1,4 +1,4 @@
-module github.com/lubaskinc0de/navidrome-tg
+module github.com/lubaskinc0de/beatstash
 
 go 1.27.1
 

@@ -7,12 +7,12 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/add_track"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/poller"
-	tgprovider "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/provider"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/trackfile"
+	"github.com/lubaskinc0de/beatstash/internal/application/add_track"
+	"github.com/lubaskinc0de/beatstash/internal/domain/ingest"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/poller"
+	tgprovider "github.com/lubaskinc0de/beatstash/internal/infra/telegram/provider"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/trackfile"
 )
 
 type Uploads struct {

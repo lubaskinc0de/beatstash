@@ -9,8 +9,8 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/connect_provider"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
+	"github.com/lubaskinc0de/beatstash/internal/application/connect_provider"
+	"github.com/lubaskinc0de/beatstash/internal/domain/provider"
 )
 
 // AccountNotice is the last invalidation of the user's Provider Account

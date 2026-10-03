@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/sharing"
+	"github.com/lubaskinc0de/beatstash/internal/domain/access"
+	"github.com/lubaskinc0de/beatstash/internal/domain/sharing"
 )
 
 // SharedTracks keeps the Shared Library's Tracks together with their Shares.

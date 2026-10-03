@@ -5,8 +5,8 @@ import (
 
 	"github.com/go-telegram/bot"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/window"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/i18n"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/window"
 )
 
 // Telegram is what every feature draws and writes with.

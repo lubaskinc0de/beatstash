@@ -6,8 +6,8 @@ package ingest
 import (
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
+	"github.com/lubaskinc0de/beatstash/internal/domain/access"
+	"github.com/lubaskinc0de/beatstash/internal/domain/provider"
 )
 
 // IngestBatch is an aggregate root: a group of IngestJobs started by one Import.

@@ -9,14 +9,14 @@ import (
 
 	"github.com/go-telegram/bot/models"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/search_music"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/send_listen_link"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/share_tracks"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/show_playing"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/trackfile"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/window"
+	"github.com/lubaskinc0de/beatstash/internal/application/search_music"
+	"github.com/lubaskinc0de/beatstash/internal/application/send_listen_link"
+	"github.com/lubaskinc0de/beatstash/internal/application/share_tracks"
+	"github.com/lubaskinc0de/beatstash/internal/application/show_playing"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/i18n"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/trackfile"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/window"
 )
 
 type ShareScreen struct {

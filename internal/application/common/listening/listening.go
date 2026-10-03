@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/accounts"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/accounts"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/navidrome"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/repositories"
 )
 
 var (

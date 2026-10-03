@@ -8,8 +8,8 @@ import (
 
 	"go.senan.xyz/taglib"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/application/common"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
 )
 
 type Tags struct{}

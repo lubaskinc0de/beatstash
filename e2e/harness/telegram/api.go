@@ -18,7 +18,7 @@ import (
 
 const (
 	Token       = "123456:test-token"
-	BotUsername = "navidrome_tg_bot"
+	BotUsername = "beatstash_bot"
 )
 
 const AlwaysFail = -1

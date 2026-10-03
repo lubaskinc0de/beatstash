@@ -7,16 +7,16 @@ import (
 	"slices"
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/accounts"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/libraries"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/providers"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/quotas"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
+	"github.com/lubaskinc0de/beatstash/internal/application/common"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/accounts"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/libraries"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/navidrome"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/providers"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/quotas"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/repositories"
+	"github.com/lubaskinc0de/beatstash/internal/domain/ingest"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/domain/provider"
 )
 
 // SyncCollection skips accounts with a running Import and rejected ones. Running is rechecked under the account's

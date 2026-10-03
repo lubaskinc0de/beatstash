@@ -27,7 +27,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: navidrome-tg-bot
+    container_name: beatstash-bot
     restart: unless-stopped
     depends_on:
       postgres:

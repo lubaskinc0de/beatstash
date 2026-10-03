@@ -3,8 +3,8 @@ package send_listen_link
 import (
 	"context"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/listening"
+	"github.com/lubaskinc0de/beatstash/internal/application/common"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/listening"
 )
 
 // CheckListenLinks returns why the user cannot send a Track without a

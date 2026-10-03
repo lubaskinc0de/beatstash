@@ -4,10 +4,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/manage_quotas"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/oversee_service"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/application/manage_quotas"
+	"github.com/lubaskinc0de/beatstash/internal/application/oversee_service"
+	"github.com/lubaskinc0de/beatstash/internal/domain/access"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
 )
 
 func (c Catalog) AdminButton() string  { return c.t("button.admin", nil) }

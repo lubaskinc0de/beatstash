@@ -3,7 +3,7 @@ package providers
 import (
 	"errors"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
+	"github.com/lubaskinc0de/beatstash/internal/domain/ingest"
 )
 
 var (

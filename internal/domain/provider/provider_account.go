@@ -13,7 +13,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
+	"github.com/lubaskinc0de/beatstash/internal/domain/access"
 )
 
 // ProviderAccount is an aggregate root: a User's token for a Provider, the

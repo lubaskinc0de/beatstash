@@ -5,13 +5,13 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/attach_libraries"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/reconcile_libraries"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/resolve_songs"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/sync_collection"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/disk"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/runs"
+	"github.com/lubaskinc0de/beatstash/internal/application/attach_libraries"
+	"github.com/lubaskinc0de/beatstash/internal/application/reconcile_libraries"
+	"github.com/lubaskinc0de/beatstash/internal/application/resolve_songs"
+	"github.com/lubaskinc0de/beatstash/internal/application/sync_collection"
+	"github.com/lubaskinc0de/beatstash/internal/domain/provider"
+	"github.com/lubaskinc0de/beatstash/internal/infra/disk"
+	"github.com/lubaskinc0de/beatstash/internal/infra/runs"
 )
 
 // every runs fn each interval, or sooner when woken, until ctx is done,

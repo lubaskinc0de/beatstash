@@ -7,7 +7,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/bin/app ./cmd/navidrome-tg
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/bin/beatstash ./cmd/beatstash
 
 
 FROM alpine:3.22
@@ -16,6 +16,6 @@ WORKDIR /app
 
 RUN apk add --no-cache ca-certificates ffmpeg
 
-COPY --from=builder /app/bin/app /app/app
+COPY --from=builder /app/bin/beatstash /app/beatstash
 
-CMD ["/app/app"]
+CMD ["/app/beatstash"]

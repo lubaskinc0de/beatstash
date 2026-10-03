@@ -6,7 +6,7 @@ package library
 import (
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
+	"github.com/lubaskinc0de/beatstash/internal/domain/access"
 )
 
 // Upload is an aggregate root: a record that a User sent a Track through a

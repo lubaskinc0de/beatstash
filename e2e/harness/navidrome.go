@@ -9,9 +9,9 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/navidrome"
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/disk"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/navidrome"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/telegram"
+	"github.com/lubaskinc0de/beatstash/internal/infra/disk"
 )
 
 func (s *Scenario) LinkNewAccount(user User) navidrome.Account {

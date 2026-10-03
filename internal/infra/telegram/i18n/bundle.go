@@ -22,7 +22,7 @@ type Language string
 const English Language = "en"
 
 const (
-	SourceURL = "https://github.com/lubaskinc0de/navidrome-tg"
+	SourceURL = "https://github.com/lubaskinc0de/beatstash"
 	Author    = "@lubaskinc0de"
 )
 

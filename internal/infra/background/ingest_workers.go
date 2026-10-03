@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/ingest_track"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/repositories"
+	"github.com/lubaskinc0de/beatstash/internal/application/ingest_track"
 )
 
 // Lane is a share of the queue with workers of its own, so a Provider that

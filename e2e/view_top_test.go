@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
+	"github.com/lubaskinc0de/beatstash/e2e/harness"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/audiofile"
+	"github.com/lubaskinc0de/beatstash/internal/application/view_top"
 )
 
 func TestTop(t *testing.T) {

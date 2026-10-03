@@ -9,13 +9,13 @@ import (
 
 	"github.com/go-telegram/bot/models"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/browse_shared"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/sharing"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/trackfile"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/window"
+	"github.com/lubaskinc0de/beatstash/internal/application/browse_shared"
+	"github.com/lubaskinc0de/beatstash/internal/application/view_top"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/domain/sharing"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/i18n"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/trackfile"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/window"
 )
 
 // Feed is the Shared feed, its cards and the top, with Take and the file.

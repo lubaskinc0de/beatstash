@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	app "github.com/lubaskinc0de/navidrome-tg/internal/main"
+	app "github.com/lubaskinc0de/beatstash/internal/main"
 )
 
 func setupLogger() {

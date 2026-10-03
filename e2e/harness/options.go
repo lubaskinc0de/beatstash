@@ -3,9 +3,9 @@ package harness
 import (
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
-	tgbot "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/bot"
-	app "github.com/lubaskinc0de/navidrome-tg/internal/main"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
+	tgbot "github.com/lubaskinc0de/beatstash/internal/infra/telegram/bot"
+	app "github.com/lubaskinc0de/beatstash/internal/main"
 )
 
 func WithAdminContact(contact string) Option {

@@ -13,13 +13,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness"
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/share_tracks"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/view_top"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/e2e/harness"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/audiofile"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/telegram"
+	"github.com/lubaskinc0de/beatstash/internal/application/share_tracks"
+	"github.com/lubaskinc0de/beatstash/internal/application/view_top"
+	"github.com/lubaskinc0de/beatstash/internal/domain/ingest"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
 )
 
 func TestHome(t *testing.T) {
@@ -32,7 +32,7 @@ func TestHome(t *testing.T) {
 
 		text := s.WindowText()
 		assert.Contains(t, text, s.Catalog(alice).Home(alice.Username, telegram.BotUsername, library.Usage{}))
-		assert.Contains(t, text, "https://github.com/lubaskinc0de/navidrome-tg")
+		assert.Contains(t, text, "https://github.com/lubaskinc0de/beatstash")
 		assert.Contains(t, text, "@lubaskinc0de")
 	})
 
@@ -481,7 +481,7 @@ func TestTranslations(t *testing.T) {
 		s.Open(alice)
 
 		assert.Contains(t, s.WindowText(), s.Catalog(alice).Home(alice.Username, telegram.BotUsername, library.Usage{}))
-		assert.Contains(t, s.WindowText(), "https://github.com/lubaskinc0de/navidrome-tg")
+		assert.Contains(t, s.WindowText(), "https://github.com/lubaskinc0de/beatstash")
 		assert.Contains(t, s.WindowText(), "@lubaskinc0de")
 	})
 }

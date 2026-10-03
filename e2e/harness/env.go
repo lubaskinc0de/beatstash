@@ -14,9 +14,9 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/audiofile"
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/navidrome"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/database"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/audiofile"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/navidrome"
+	"github.com/lubaskinc0de/beatstash/internal/infra/database"
 )
 
 // templateDatabase has the schema: migrating anew for each scenario would
@@ -34,7 +34,7 @@ func Run(m *testing.M) int {
 	ctx := context.Background()
 	defer audiofile.RemoveCache()
 
-	libraryRoot, err := os.MkdirTemp("", "navidrome-tg-library-")
+	libraryRoot, err := os.MkdirTemp("", "beatstash-library-")
 	if err != nil {
 		log.Printf("create library root: %v", err)
 		return 1

@@ -16,7 +16,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
+	"github.com/lubaskinc0de/beatstash/internal/domain/provider"
 )
 
 // Track is an aggregate root. Its TrackSources are part of it.

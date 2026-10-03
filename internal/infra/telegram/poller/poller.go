@@ -9,14 +9,14 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/add_track"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/connect_provider"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/import_collection"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/ingest"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/runs"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/trackfile"
+	"github.com/lubaskinc0de/beatstash/internal/application/add_track"
+	"github.com/lubaskinc0de/beatstash/internal/application/connect_provider"
+	"github.com/lubaskinc0de/beatstash/internal/application/import_collection"
+	"github.com/lubaskinc0de/beatstash/internal/domain/ingest"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/domain/provider"
+	"github.com/lubaskinc0de/beatstash/internal/infra/runs"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/trackfile"
 )
 
 // Chats is the bot's side of the Poller: it knows the chats' users and

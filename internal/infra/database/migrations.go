@@ -6,13 +6,13 @@ import (
 	"github.com/go-gormigrate/gormigrate/v2"
 	"gorm.io/gorm"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
-	tgbot "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/bot"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/poller"
-	tgprovider "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/provider"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/trackfile"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/window"
+	"github.com/lubaskinc0de/beatstash/internal/domain/access"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
+	tgbot "github.com/lubaskinc0de/beatstash/internal/infra/telegram/bot"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/poller"
+	tgprovider "github.com/lubaskinc0de/beatstash/internal/infra/telegram/provider"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/trackfile"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/window"
 )
 
 var telegramModels = []any{

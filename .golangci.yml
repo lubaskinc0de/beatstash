@@ -33,18 +33,18 @@ linters:
         domain:
           files: ["**/internal/domain/**"]
           deny:
-            - pkg: github.com/lubaskinc0de/navidrome-tg/internal/application
+            - pkg: github.com/lubaskinc0de/beatstash/internal/application
               desc: domain must not depend on application
-            - pkg: github.com/lubaskinc0de/navidrome-tg/internal/infra
+            - pkg: github.com/lubaskinc0de/beatstash/internal/infra
               desc: domain must not depend on infra
-            - pkg: github.com/lubaskinc0de/navidrome-tg/internal/main
+            - pkg: github.com/lubaskinc0de/beatstash/internal/main
               desc: domain must not depend on composition root
         application:
           files: ["**/internal/application/**"]
           deny:
-            - pkg: github.com/lubaskinc0de/navidrome-tg/internal/infra
+            - pkg: github.com/lubaskinc0de/beatstash/internal/infra
               desc: application must not depend on infra
-            - pkg: github.com/lubaskinc0de/navidrome-tg/internal/main
+            - pkg: github.com/lubaskinc0de/beatstash/internal/main
               desc: application must not depend on composition root
   exclusions:
     rules:

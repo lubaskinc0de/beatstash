@@ -3,8 +3,8 @@ package connect_provider
 import (
 	"context"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/provider"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/repositories"
+	"github.com/lubaskinc0de/beatstash/internal/domain/provider"
 )
 
 // ListRejectedTokens lets a Channel tell users their Provider stopped

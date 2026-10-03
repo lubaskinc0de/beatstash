@@ -113,7 +113,7 @@ func cacheEntryFor(key, ext string) (*cacheEntry, error) {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 	if cache.dir == "" {
-		dir, err := os.MkdirTemp("", "navidrome-tg-fixtures-")
+		dir, err := os.MkdirTemp("", "beatstash-fixtures-")
 		if err != nil {
 			return nil, err
 		}

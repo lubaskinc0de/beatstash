@@ -15,14 +15,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/navidrome"
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/telegram"
-	"github.com/lubaskinc0de/navidrome-tg/e2e/harness/zvuk"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/stall"
-	tgbot "github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/bot"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/i18n"
-	app "github.com/lubaskinc0de/navidrome-tg/internal/main"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/navidrome"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/telegram"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/zvuk"
+	"github.com/lubaskinc0de/beatstash/internal/domain/access"
+	"github.com/lubaskinc0de/beatstash/internal/infra/stall"
+	tgbot "github.com/lubaskinc0de/beatstash/internal/infra/telegram/bot"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/i18n"
+	app "github.com/lubaskinc0de/beatstash/internal/main"
 )
 
 // LeaseTTL outlasts a Bot API call of the double even under the load of the
@@ -235,7 +235,7 @@ func prepare(t *testing.T, opts ...Option) *Scenario {
 		MusicDir:               library,
 		NavidromeMusicDir:      navidrome.LibraryMount + "/" + filepath.Base(library),
 		Admins:                 []access.Identity{tgbot.Identity(Admin.ID)},
-		ServiceName:            "navidrome-tg",
+		ServiceName:            "beatstash",
 		DefaultLanguage:        "en",
 		NavidromePublicURL:     NavidromePublicURL,
 		ListenLinkTTL:          ListenLinkTTL,
@@ -476,7 +476,7 @@ func (s *Scenario) ownNavidrome(sharing bool) {
 func startNavidrome(t *testing.T, sharing bool) (server *navidrome.Server, root string) {
 	t.Helper()
 
-	root, err := os.MkdirTemp("", "navidrome-tg-own-")
+	root, err := os.MkdirTemp("", "beatstash-own-")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.RemoveAll(root) })
 	require.NoError(t, os.Chmod(root, 0o755)) //nolint:gosec // G302: Navidrome container reads the library

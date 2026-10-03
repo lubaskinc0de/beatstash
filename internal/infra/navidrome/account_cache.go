@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	appnd "github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
+	appnd "github.com/lubaskinc0de/beatstash/internal/application/common/navidrome"
 )
 
 // AccountCache keeps what Navidrome answered of an account for TTL, keyed by

@@ -9,11 +9,11 @@ import (
 
 	"github.com/go-telegram/bot/models"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/manage_quotas"
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/oversee_service"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/telegram/window"
+	"github.com/lubaskinc0de/beatstash/internal/application/manage_quotas"
+	"github.com/lubaskinc0de/beatstash/internal/application/oversee_service"
+	"github.com/lubaskinc0de/beatstash/internal/domain/access"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/window"
 )
 
 // Quotas is the Admin's screens of the Quotas: the server's and a user's.

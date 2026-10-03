@@ -13,9 +13,9 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
-	"github.com/lubaskinc0de/navidrome-tg/internal/infra/stall"
+	"github.com/lubaskinc0de/beatstash/internal/domain/access"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/infra/stall"
 )
 
 const defaultConfigFile = "config.toml"
@@ -165,7 +165,7 @@ type fileConfig struct {
 
 func defaultFileConfig() fileConfig {
 	var f fileConfig
-	f.ServiceName = "navidrome-tg"
+	f.ServiceName = "beatstash"
 	f.I18n.DefaultLanguage = "en"
 	f.Telegram.PollInterval = 2 * time.Second
 	f.Telegram.LeaseTTL = time.Minute

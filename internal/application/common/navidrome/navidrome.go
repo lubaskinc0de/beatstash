@@ -5,7 +5,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
 )
 
 type Credentials struct {

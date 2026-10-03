@@ -3,7 +3,7 @@ package ingest_track
 import (
 	"context"
 
-	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
+	"github.com/lubaskinc0de/beatstash/internal/application/common/repositories"
 )
 
 // SettleIngestBatches finishes batches whose last job ended right before a crash.
