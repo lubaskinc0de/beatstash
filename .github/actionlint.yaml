@@ -1,0 +1,9 @@
+# actionlint 1.7.12 predates GitHub's July 2026 self-repository syntax.
+# Keep the supported $/ syntax for zizmor; ignore only this parser limitation.
+paths:
+  .github/workflows/ci.yml:
+    ignore:
+      - 'reusable workflow call "\$/\.github/workflows/checks\.yml" at "uses" is not following the format'
+  .github/workflows/release.yml:
+    ignore:
+      - 'reusable workflow call "\$/\.github/workflows/checks\.yml" at "uses" is not following the format'

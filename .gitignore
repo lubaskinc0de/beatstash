@@ -5,3 +5,13 @@ test_data/
 .docs/
 config.toml
 config.docker.toml
+docs/node_modules/
+docs/.astro/
+docs/dist/
+deploy/music/
+deploy/data/
+release-assets/
+coverage.out
+__pycache__/
+
+.installer.env

@@ -93,8 +93,8 @@ func backRow(ctx context.Context, to place) []models.InlineKeyboardButton {
 	return []models.InlineKeyboardButton{goButton(texts(ctx).Back(), to)}
 }
 
-// pageRow leafs back from page, counted from zero, and on if there are
-// more; nil if neither.
+// pageRow returns navigation for a zero-based page, or nil when neither
+// a previous nor a next page is available.
 func pageRow(c i18n.Catalog, page int, more bool, at func(page int) place) []models.InlineKeyboardButton {
 	var row []models.InlineKeyboardButton
 	if page > 0 {

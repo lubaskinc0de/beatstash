@@ -1,0 +1,125 @@
+name: Checks
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Exact commit to check; defaults to the triggering ref
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    name: Go static checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Verify modules and module files
+        run: |
+          go mod verify
+          go mod tidy -diff
+      - name: Vet and compile
+        run: |
+          go vet ./...
+          go build ./...
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9
+        with:
+          version: v2.13.2
+          args: --timeout=5m
+      - name: Check formatting without changing files
+        run: |
+          golangci-lint fmt --diff ./... > "$RUNNER_TEMP/format.diff"
+          if [[ -s "$RUNNER_TEMP/format.diff" ]]; then
+            cat "$RUNNER_TEMP/format.diff"
+            exit 1
+          fi
+      - name: Check installer shell scripts
+        run: |
+          bash -n deploy/install.sh
+          shellcheck deploy/install.sh
+      - name: Check release policy
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py'
+      - name: Check spelling in code and documentation
+        uses: crate-ci/typos@00f422f3b19c57bc6338715ebfe3316d38768461 # v1.50.3
+        with:
+          files: .
+          config: _typos.toml
+      - name: Check workflow syntax
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          actionlint
+      - name: Audit workflow security with zizmor
+        run: |
+          python3 -m venv "$RUNNER_TEMP/zizmor"
+          "$RUNNER_TEMP/zizmor/bin/pip" install zizmor==1.30.1
+          "$RUNNER_TEMP/zizmor/bin/zizmor" --offline --persona=auditor --format=github .github
+
+  e2e:
+    name: End-to-end tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write # Authenticate master coverage uploads to Codecov using OIDC.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Install audio tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Run all scenarios with application coverage
+        run: go test -count=1 -timeout=25m -parallel=4 -covermode=atomic -coverpkg=./internal/... -coverprofile=coverage.out ./e2e/
+      - name: Summarize coverage
+        run: go tool cover -func=coverage.out | tail -1 >> "$GITHUB_STEP_SUMMARY"
+      - name: Save coverage report
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: coverage-${{ github.run_id }}-${{ github.run_attempt }}
+          path: coverage.out
+          retention-days: 14
+      - name: Update coverage badge on master
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
+        with:
+          files: coverage.out
+          disable_search: true
+          use_oidc: true
+          fail_ci_if_error: false
+
+  docs:
+    name: Documentation checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+      - run: npm ci
+        working-directory: docs
+      - run: npm run check
+        working-directory: docs

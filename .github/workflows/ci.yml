@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    uses: $/.github/workflows/checks.yml
+    permissions:
+      contents: read
+      id-token: write # Allow the reusable coverage job to authenticate to Codecov.

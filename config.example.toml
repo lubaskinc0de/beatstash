@@ -8,7 +8,7 @@
 #     write paths and addresses as the bot's container sees them
 #     (the "In compose" notes below).
 
-# Admins by Identity, "channel:id": they can /invite people. For Telegram
+# Admins by Identity, "channel:id": they can create invites in the bot. For Telegram
 # the id is the numeric user id.
 admins = ["telegram:869885299"]
 # Shown to strangers who write /start, e.g. "@my_contact"; empty hides it.

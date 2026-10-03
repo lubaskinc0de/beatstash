@@ -1,0 +1,51 @@
+name: Documentation
+
+on:
+  push:
+    branches: [master, main]
+    paths: ['docs/**', '.github/workflows/docs.yml']
+  pull_request:
+    paths: ['docs/**', '.github/workflows/docs.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Select the latest stable release for installation examples
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node docs/scripts/resolve-release.mjs
+      - name: Check, build, and upload documentation
+        uses: withastro/action@3eafd002e65cc31b4f0eae0bb05450d521562247 # v6
+        with:
+          path: docs
+          node-version: 24
+          package-manager: npm
+          build-cmd: npm run check
+  deploy:
+    name: Publish documentation
+    if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write # Publish the built documentation artifact to GitHub Pages.
+      id-token: write # Authenticate the Pages deployment using OIDC.
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5

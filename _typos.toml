@@ -1,0 +1,10 @@
+[files]
+extend-exclude = [".git/", "go.sum", "docs/package-lock.json", "e2e/testdata/audio/track.*"]
+
+[default]
+# This comment comes from the shared wizard template.
+extend-ignore-re = ["# secret NAMEs set this run"]
+
+[default.extend-words]
+# Navidrome's ND_* environment prefix and the nd client shorthand.
+nd = "nd"
