@@ -32,7 +32,7 @@ func TestTrackListenLink(t *testing.T) {
 		assert.WithinDuration(t, time.Now().Add(harness.ListenLinkTTL), shares[0].ExpiresAt, time.Minute)
 		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
 		require.Len(t, edits, 1)
-		assert.Equal(t, s.Catalog(alice).ListenLinkCaption("Zvuk Band", "Linked Song", shareURL(shares[0])), edits[0].Text)
+		assert.Equal(t, s.Catalog(alice).ListenLinkCaption(i18n.TrackCaption("Zvuk Band", "Linked Song"), shareURL(shares[0])), edits[0].Text)
 		assert.Empty(t, edits[0].Buttons)
 	})
 
@@ -70,7 +70,7 @@ func TestTrackListenLink(t *testing.T) {
 		require.Len(t, shares, 1)
 		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
 		require.Len(t, edits, 1)
-		assert.Equal(t, s.Catalog(alice).ListenLinkCaption("Zvuk Band", "Huge Song", shareURL(shares[0])), edits[0].Text)
+		assert.Equal(t, s.Catalog(alice).ListenLinkCaption(i18n.TrackCaption("Zvuk Band", "Huge Song"), shareURL(shares[0])), edits[0].Text)
 	})
 
 	for name, url := range map[string]string{
@@ -199,7 +199,8 @@ func TestPlayingListenLink(t *testing.T) {
 		require.Len(t, shares, 1)
 		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
 		require.Len(t, edits, 1)
-		assert.Equal(t, s.Catalog(alice).ListenLinkCaption("Zvuk Band", "Playing Song", shareURL(shares[0])), edits[0].Text)
+		np := nowPlayingText(t, s, alice, result, "Zvuk Band", "Playing Song", "Zvuk Album")
+		assert.Equal(t, s.Catalog(alice).ListenLinkCaption(np, shareURL(shares[0])), edits[0].Text)
 	})
 
 	t.Run("recent leaves out a track it can send no way", func(t *testing.T) {
@@ -242,6 +243,6 @@ func TestPlayingListenLink(t *testing.T) {
 		require.Len(t, shares, 1)
 		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
 		require.Len(t, edits, 1)
-		assert.Equal(t, s.Catalog(alice).ListenLinkCaption("Zvuk Band", "Played Song", shareURL(shares[0])), edits[0].Text)
+		assert.Equal(t, s.Catalog(alice).ListenLinkCaption(i18n.TrackCaption("Zvuk Band", "Played Song"), shareURL(shares[0])), edits[0].Text)
 	})
 }

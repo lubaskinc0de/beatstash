@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -182,6 +183,60 @@ func TestSharedFeed(t *testing.T) {
 		assert.Contains(t, results[1].Caption, "@bob")
 		assert.Equal(t, aliceAudio.FileID, results[2].AudioFileID)
 		assert.Contains(t, results[2].Caption, "@alice")
+	})
+
+	t.Run("chosen shared FLAC becomes its audio signed by the author", func(t *testing.T) {
+		s := harness.New(t)
+		audio := s.UploadAudio("track.flac")
+		s.Uploaded(alice, audio)
+		s.ShareTrack(alice, fixtureButton)
+		results := s.Search(bob, "shared", "").Results
+		require.Len(t, results, 2)
+
+		chosen := s.Choose(bob, results[1])
+
+		assert.Contains(t, results[1].Content.Text, "⏳")
+		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
+		require.Len(t, edits, 1)
+		assert.Equal(t, "editMessageMedia", edits[0].Method)
+		assert.Equal(t, audio.FileID, edits[0].Media.Media)
+		assert.Contains(t, edits[0].Media.Caption, audiofile.FixtureTitle)
+		assert.Contains(t, edits[0].Media.Caption, "@alice")
+	})
+
+	t.Run("chosen track from inline shared goes through the storage chat with its author", func(t *testing.T) {
+		s := harness.New(t, harness.WithStorageChat(storageChat), harness.WithoutStorageFill())
+		sharedZvukSong(t, s, alice, "Feed Song")
+		results := s.Search(bob, "shared", "").Results
+		require.Len(t, results, 2)
+
+		chosen := s.Choose(bob, results[1])
+
+		assert.Contains(t, results[1].Content.Text, "⏳")
+		sent := s.Telegram.CallsTo("sendAudio")
+		require.Len(t, sent, 1)
+		assert.Equal(t, strconv.Itoa(storageChat), sent[0].Params["chat_id"])
+		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
+		require.Len(t, edits, 1)
+		assert.Equal(t, s.Telegram.UploadedFileID(0), edits[0].Media.Media)
+		assert.Contains(t, edits[0].Media.Caption, "Feed Song")
+		assert.Contains(t, edits[0].Media.Caption, "@alice")
+	})
+
+	t.Run("track unshared before the choice is not sent", func(t *testing.T) {
+		s := harness.New(t)
+		s.Uploaded(alice, s.UploadAudio("track.flac"))
+		s.ShareTrack(alice, fixtureButton)
+		results := s.Search(bob, "shared", "").Results
+		require.Len(t, results, 2)
+		s.UnshareTrack(alice, fixtureButton)
+
+		chosen := s.Choose(bob, results[1])
+
+		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
+		require.Len(t, edits, 1)
+		assert.Equal(t, "editMessageText", edits[0].Method)
+		assert.Equal(t, s.Catalog(bob).NotSentNote(false), edits[0].Text)
 	})
 
 	t.Run("Share made on one instance is in another's feed", func(t *testing.T) {

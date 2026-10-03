@@ -28,6 +28,7 @@ type Inline struct {
 	GetNowPlaying      *show_playing.GetNowPlaying
 	GetRecentlyPlayed  *show_playing.GetRecentlyPlayed
 	GetTrackFile       *show_playing.GetTrackFile
+	GetTrackAudio      *browse_shared.GetTrackAudio
 	GetTrackListenLink *send_listen_link.GetTrackListenLink
 	GetAlbumListenLink *send_listen_link.GetAlbumListenLink
 	ViewFeed           *browse_shared.ViewFeed
@@ -102,7 +103,7 @@ func (in *Inline) handleSearch(ctx context.Context, query *models.InlineQuery) {
 	files := in.filesOf(ctx, tracks...)
 	results := make([]models.InlineQueryResult, 0, len(found.Albums)+len(tracks))
 	for _, album := range found.Albums {
-		result := article(pendingResultID(albumLinkPrefix, album.TrackID, 0), c.AlbumArticle(album))
+		result := article(pendingResultID(albumLinkPrefix, album.TrackID, "0"), c.AlbumArticle(album))
 		result.ReplyMarkup = waitKeyboard()
 		results = append(results, result)
 	}
@@ -132,11 +133,11 @@ func (in *Inline) unsendableButton(c i18n.Catalog, hidden bool) *models.InlineQu
 // trackResult is not ok for a Track that can be sent no way.
 func (in *Inline) trackResult(files trackFiles, track *library.Track, linkable bool) (models.InlineQueryResult, bool) {
 	caption := i18n.TrackCaption(track.Artist, track.Title)
-	if file := files.of(track); file != nil {
+	if file := files.cached(track); file != nil {
 		return cachedFileResult("track-"+strconv.FormatUint(uint64(track.ID), 10), file, caption), true
 	}
 	a := i18n.Article{Title: i18n.ResultTitle(track.Artist, track.Title), Description: track.Album, Message: caption}
-	return in.unfiledResult(a, track, linkable, 0)
+	return in.uncachedResult(files, a, track, linkable, "0")
 }
 
 func (in *Inline) handleNowPlaying(ctx context.Context, queryID string) {
@@ -155,26 +156,32 @@ func (in *Inline) handleNowPlaying(ctx context.Context, queryID string) {
 		return
 	}
 
-	if file := in.filesOf(ctx, track.Track).of(track.Track); file != nil {
+	files := in.filesOf(ctx, track.Track)
+	if file := files.cached(track.Track); file != nil {
 		in.answerInline(ctx, queryID, cachedFileResult(track.ID, file, c.NowPlaying(track)))
 		return
 	}
 	// What is playing is worth telling even without the file.
-	result, ok := in.unfiledResult(c.NowPlayingArticle(track), track.Track, track.Linkable, 0)
+	result, ok := in.uncachedResult(files, c.NowPlayingArticle(track), track.Track, track.Linkable, playingTag(track))
 	if !ok {
 		result = article(track.ID, c.NowPlayingArticle(track))
 	}
 	in.answerInline(ctx, queryID, result)
 }
 
-// unfiledResult brings the file once chosen, else the Listen Link. n tells
-// apart the results of one answer that stand for one Track.
-func (in *Inline) unfiledResult(a i18n.Article, track *library.Track, linkable bool, n int) (models.InlineQueryResult, bool) {
+// uncachedResult brings the file once chosen, else the Listen Link.
+func (in *Inline) uncachedResult(
+	files trackFiles,
+	a i18n.Article,
+	track *library.Track,
+	linkable bool,
+	tag string,
+) (models.InlineQueryResult, bool) {
 	switch {
-	case in.pending(track):
-		return pendingResult(pendingResultID(pendingPrefix, track.ID, n), a, track), true
+	case in.pending(files, track):
+		return pendingResult(pendingResultID(pendingPrefix, track.ID, tag), a, track), true
 	case linkable && track != nil:
-		return pendingResult(pendingResultID(linkPrefix, track.ID, n), a, track), true
+		return pendingResult(pendingResultID(linkPrefix, track.ID, tag), a, track), true
 	default:
 		return nil, false
 	}
@@ -209,7 +216,7 @@ func (in *Inline) handleRecentlyPlayed(ctx context.Context, queryID string) {
 	for i := range tracks {
 		track := &tracks[i]
 		caption := i18n.TrackCaption(track.Artist, track.Title)
-		if file := files.of(track.Track); file != nil {
+		if file := files.cached(track.Track); file != nil {
 			results = append(results, cachedFileResult("recent-"+track.ID, file, caption))
 			continue
 		}
@@ -218,7 +225,7 @@ func (in *Inline) handleRecentlyPlayed(ctx context.Context, queryID string) {
 			Description: c.RecentDescription(track, now),
 			Message:     caption,
 		}
-		result, ok := in.unfiledResult(a, track.Track, recent.Linkable, i)
+		result, ok := in.uncachedResult(files, a, track.Track, recent.Linkable, strconv.Itoa(i))
 		if !ok {
 			hidden = true
 			continue
@@ -292,6 +299,20 @@ func (f trackFiles) of(track *library.Track) *trackfile.File {
 	return f[track.ID]
 }
 
+// cached returns the Track's file only if inline mode may send it as is:
+// Telegram keeps any format it plays as audio, but sends a cached audio
+// only in MP3 or M4A and turns down the whole answer for another.
+func (f trackFiles) cached(track *library.Track) *trackfile.File {
+	file := f.of(track)
+	if file == nil || file.Kind == trackfile.FileDocument {
+		return file
+	}
+	if track.Format == library.FormatMP3 || track.Format == library.FormatM4A {
+		return file
+	}
+	return nil
+}
+
 // filesOf skips nil Tracks; on error the Tracks go without files.
 func (in *Inline) filesOf(ctx context.Context, tracks ...*library.Track) trackFiles {
 	ids := make([]uint, 0, len(tracks))
@@ -328,22 +349,19 @@ func (in *Inline) handleInlineFeed(ctx context.Context, queryID string) {
 	}
 	files := in.filesOf(ctx, tracks...)
 	for i := range entries {
-		entry := &entries[i]
-		id := "shared-" + strconv.FormatUint(uint64(entry.Track.ID), 10)
-		caption := c.FeedCaption(entry)
-		if file := files.of(&entry.Track); file != nil {
+		track := &entries[i].Track
+		id := "shared-" + strconv.FormatUint(uint64(track.ID), 10)
+		caption := c.FeedCaption(track, &entries[i].Author)
+		if file := files.cached(track); file != nil {
 			results = append(results, cachedFileResult(id, file, caption))
 			continue
 		}
-		results = append(results, &models.InlineQueryResultArticle{
-			ID:          id,
-			Title:       i18n.ResultTitle(entry.Track.Artist, entry.Track.Title),
-			Description: c.SharedBy(&entry.Author),
-			InputMessageContent: &models.InputTextMessageContent{
-				MessageText: caption,
-				ParseMode:   models.ParseModeHTML,
-			},
-		})
+		a := i18n.Article{Title: i18n.ResultTitle(track.Artist, track.Title), Description: c.SharedBy(&entries[i].Author), Message: caption}
+		if in.pending(files, track) {
+			results = append(results, pendingResult(pendingResultID(sharedPrefix, track.ID, strconv.Itoa(i)), a, track))
+			continue
+		}
+		results = append(results, article(id, a))
 	}
 	in.answerInline(ctx, queryID, results...)
 }

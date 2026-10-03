@@ -76,7 +76,7 @@ type nowPlayingLabels struct {
 func nowPlaying(track *show_playing.NowPlaying, labels nowPlayingLabels) string {
 	position := track.PositionMs / 1000
 	icon, header := "▶️", labels.playing
-	if strings.EqualFold(track.State, "paused") {
+	if track.Paused() {
 		icon, header = "⏸", labels.paused
 	}
 

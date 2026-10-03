@@ -1,133 +1,91 @@
-# beatstash settings. Passwords and tokens do not go here: they are
-# environment variables, see .env.example.
-#
-# Where the bot looks for this file:
-#   - run locally: config.toml in the working directory, or the path in
-#     the CONFIG_FILE environment variable;
-#   - run with docker compose: copy this file to config.docker.toml and
-#     write paths and addresses as the bot's container sees them
-#     (the "In compose" notes below).
+# beatstash settings: https://lubaskinc0de.github.io/beatstash/administration/configuration/
+# Secrets go to environment variables (.env.example). With docker compose,
+# copy this file to config.docker.toml and write paths and addresses as the
+# bot's container sees them ("In compose" below).
 
-# Admins by Identity, "channel:id": they can create invites in the bot. For Telegram
-# the id is the numeric user id.
+# Admins as "telegram:<numeric user id>".
 admins = ["telegram:869885299"]
-# Shown to strangers who write /start, e.g. "@my_contact"; empty hides it.
+# Shown to strangers on /start, e.g. "@my_contact"; empty hides it.
 admin_contact = ""
-# What the bot calls the service in its texts.
 service_name = "beatstash"
 
 [i18n]
-# Folder with extra language files: <language>.yaml, e.g. de.yaml or
-# pt-BR.yaml. Take internal/infra/telegram/i18n/locales/en.yaml as the
-# template and translate the texts; a file named like a built-in language
-# (en.yaml, ru.yaml) overrides the texts it has. Texts a language lacks
-# are shown in English. Empty uses the built-in English and Russian only.
+# Extra <language>.yaml files, made from
+# internal/infra/telegram/i18n/locales/en.yaml; a built-in name overrides its
+# texts, missing texts fall back to English. Empty: English and Russian only.
 dir = ""
-# Language of users whose Telegram language has no file.
+# For users whose Telegram language has no file.
 default_language = "en"
 
 [telegram]
-# Local Telegram Bot API server (lifts the 20 MB download limit);
-# empty means https://api.telegram.org. In compose: "http://telegram-bot-api:8081".
+# Local Bot API server; empty means api.telegram.org.
+# In compose: "http://telegram-bot-api:8081".
 bot_api_url = ""
-# Chat where the bot uploads tracks that came without a Telegram file (e.g.
-# from Zvuk), so inline mode can send them as audio right away; the bot must
-# be able to post there. 0 uploads a track only when somebody asks for its file.
-# np and recent upload a track that has no file yet once the user picks it:
-# turn on inline feedback in BotFather (/setinlinefeedback) for that.
+# Chat the bot uploads tracks without a Telegram file to, so inline mode sends
+# them as audio; 0 uploads only when a user asks for the file.
+# Inline results picked by users need /setinlinefeedback Enabled in BotFather.
 storage_chat_id = 0
-# Upload every such track to the storage chat in the background. false
-# uploads a track there only once somebody picks it in np or recent.
+# Upload all such tracks there in the background; false only the picked ones.
 fill_storage_chat = true
-# How often the bot checks what became of the tracks and Imports it was
-# sent, to react and update progress.
 poll_interval = "2s"
-# How long a chat waits for an instance that died amid redrawing its window,
-# answering a track or uploading a file. It must outlast any Bot API call.
+# How long a crashed instance keeps a chat's window, answer or upload; must
+# outlast any Bot API call.
 lease_ttl = "1m"
 
 [library]
 # In compose: "/music".
 music_dir = "~/beatstash/test_data"
-# music_dir as the Navidrome container sees it, if the path differs; empty
-# means the same. The bot writes only to music_dir/shared, music_dir/users
-# and music_dir/.beatstash. A new install: point ND_MUSICFOLDER at
-# music_dir/shared once it exists, or Navidrome's own library shows admins
-# every track twice. Music you had before: keep it in a folder of its own,
-# beside music_dir or in it next to the bot's folders, as a Navidrome
-# library; a library that holds the bot's folders is ignored.
+# music_dir as Navidrome sees it; empty means the same. Point ND_MUSICFOLDER
+# at music_dir/shared, and keep music you had before in a library of its own.
 navidrome_music_dir = "/music"
-# How often the bot looks at the files of music_dir/shared and music_dir/users
-# and follows the ones changed by hand: a removed file takes its Track away,
-# a retagged or replaced one updates it. It also does so at start.
+# How often files changed by hand in music_dir/shared and music_dir/users
+# are picked up.
 reconcile_interval = "1h"
 
 [navidrome]
 url = "http://localhost:4533"
-# Address users open Navidrome at, in a browser or a player app; the bot
-# shows it in its instructions. Listen Links lead there too: public links
-# to a track or an album anyone can listen to without an account, sent
-# where Telegram can't take the audio (inline search, np, recent). They need
-# an address reachable from the internet (localhost and private networks
-# don't count) and sharing on in Navidrome: ND_ENABLESHARING=true. Empty
-# leaves the address out and turns Listen Links off.
+# Address users open Navidrome at. Listen Links need it reachable from the
+# internet and ND_ENABLESHARING=true; empty turns them off.
 public_url = ""
-# How long a Listen Link works. The bot gives a user the same link to the
-# same track or album until it expires.
 listen_link_ttl = "720h"
-# Let a Listen Link's listener download the files too.
 listen_link_downloadable = true
-# How often the bot learns which Navidrome songs its new tracks became:
-# inline search shows an album only once Navidrome has indexed it. "0"
-# turns it off: a track's song is then looked up only when it is sent.
+# How often new tracks are matched to Navidrome songs; "0" turns it off.
 song_interval = "1m"
-# Navidrome admin: the bot creates accounts for invited users with it.
+# Navidrome admin that creates accounts for invited users.
 user = "admin"
-# Navidrome libraries outside navidrome_music_dir are Attached Libraries:
-# the bot tracks their songs but never touches their files. How often it
-# rescans them (also at start); "0" turns them off, e.g. when several bots
-# share one Navidrome.
+# How often libraries outside navidrome_music_dir are rescanned; "0" turns
+# them off.
 attach_interval = "1h"
-# How long the bot trusts what Navidrome said a user's account sees, so an
-# Import does not ask it for every track. A library an admin closes to the
-# account stays visible to the bot this long at most; "0" asks every time.
+# How long what Navidrome said an account sees is trusted; "0" asks every time.
 access_ttl = "30s"
 
 [invites]
 ttl = "168h"
 
 [quota]
-# Default Quota of Personal Libraries: how much all tracks of a user may
-# weigh together, e.g. "10GB" or "500MB"; empty is unlimited. Takes count
-# in full, even though they share the file on disk. The Admin can change it
-# in the bot; that value then wins over this one.
+# Size limits, e.g. "10GB"; empty is unlimited. default is each user's
+# Personal Library (the Admin can change it in the bot), shared the Shared
+# Library.
 default = ""
-# Quota of the Shared Library, likewise; empty is unlimited.
 shared = ""
 
 [ingest]
 workers = 2
-# Waits before each retry of a failed Ingest Job.
 retry_delays = ["10s", "1m", "5m"]
 poll_interval = "1s"
-# Files in music_dir/.beatstash older than this were left by a crashed
-# Ingest and get removed, at start and this often. A download in progress
-# writes to its file all the time, so it never gets this old.
+# Leftovers of a crashed Ingest older than this are removed.
 scratch_ttl = "1h"
-# A download that sends nothing for this long is cut off and tried again.
+# A download silent this long is retried.
 stall_timeout = "60s"
 
 [zvuk]
 url = "https://zvuk.com"
-# How many tracks download at once, for all users together.
+# Downloads at once, for all users.
 workers = 4
-# How many of them may belong to one user. More is faster, but the account
-# looks less like a person and risks a block.
+# Of them per user; more risks a block.
 per_user = 1
-# Random pause after each download of an account, so it is not blocked.
+# Random pause after each download of an account.
 pause = ["5s", "10s"]
-# How often new likes and playlist tracks are fetched after an Import.
 sync_interval = "6h"
-# Stars and playlists can be set only on songs Navidrome has already found
-# in the library. Until it scans the new files, the bot tries again this often.
+# Retry of stars and playlists until Navidrome scans new files.
 mirror_retry_interval = "1m"

@@ -284,6 +284,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		GetServiceStats:  &greet_stranger.GetServiceStats{Users: users, Tracks: tracks, Libraries: libraryRepo},
 		CheckListenLinks: &send_listen_link.CheckListenLinks{IDs: ids, ListenLinks: listenLinks},
 	}
+	getTrackAudio := &browse_shared.GetTrackAudio{IDs: ids, Shared: sharedTracks, Libraries: libs}
 	feed := &tgbot.Feed{
 		Telegram: tg,
 		ViewFeed: viewFeed,
@@ -295,7 +296,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			IDs: ids, Tx: txManager, Lock: libraryLock, Tracks: tracks, Shared: sharedTracks, Takes: takes,
 			Libraries: libs, Quotas: libraryQuotas, Disk: fileDisk, MusicDir: cfg.MusicDir, Clock: cfg.Clock,
 		},
-		GetTrackAudio: &browse_shared.GetTrackAudio{IDs: ids, Shared: sharedTracks, Libraries: libs},
+		GetTrackAudio: getTrackAudio,
 		Files:         telegramFiles,
 	}
 	imports := &tgbot.Imports{
@@ -381,9 +382,10 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Libraries:   libs,
 			ListenLinks: listenLinks,
 		},
-		GetTrackFile: getTrackFile,
-		ViewFeed:     viewFeed,
-		GetTop:       getTop,
+		GetTrackFile:  getTrackFile,
+		GetTrackAudio: getTrackAudio,
+		ViewFeed:      viewFeed,
+		GetTop:        getTop,
 		SearchMusic: &search_music.SearchMusic{
 			IDs: ids, Tracks: tracks, Libraries: libs, ListenLinks: listenLinks,
 		},

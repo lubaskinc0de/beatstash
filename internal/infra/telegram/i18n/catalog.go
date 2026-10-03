@@ -491,8 +491,8 @@ func (c Catalog) NowPlayingArticle(track *show_playing.NowPlaying) Article {
 }
 
 // NotSentCaption replaces PendingCaption when the file cannot be sent.
-func (c Catalog) NotSentCaption(artist, title string, tooLarge bool) string {
-	return TrackCaption(artist, title) + "\n" + c.NotSentNote(tooLarge)
+func (c Catalog) NotSentCaption(caption string, tooLarge bool) string {
+	return caption + "\n" + c.NotSentNote(tooLarge)
 }
 
 func (c Catalog) AlbumArticle(album repositories.AlbumSummary) Article {
@@ -507,8 +507,8 @@ func (c Catalog) AlbumLinkCaption(artist, album, url string) string {
 	return AlbumCaption(artist, album) + "\n" + c.listenLink(url)
 }
 
-func (c Catalog) ListenLinkCaption(artist, title, url string) string {
-	return TrackCaption(artist, title) + "\n" + c.listenLink(url)
+func (c Catalog) ListenLinkCaption(caption, url string) string {
+	return caption + "\n" + c.listenLink(url)
 }
 
 func (c Catalog) listenLink(url string) string {
@@ -566,8 +566,8 @@ func (c Catalog) FeedList(entries []browse_shared.FeedEntry) Article {
 	}
 }
 
-func (c Catalog) FeedCaption(entry *browse_shared.FeedEntry) string {
-	return TrackCaption(entry.Track.Artist, entry.Track.Title) + "\n🔗 " + esc(c.SharedBy(&entry.Author))
+func (c Catalog) FeedCaption(track *library.Track, author *access.User) string {
+	return TrackCaption(track.Artist, track.Title) + "\n🔗 " + esc(c.SharedBy(author))
 }
 
 func (c Catalog) FeedEmptyArticle() Article {

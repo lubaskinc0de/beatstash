@@ -87,6 +87,26 @@ func TestTelegramFileOfZvukTrack(t *testing.T) {
 		assert.Equal(t, "Stored Song.mp3", sent[0].Params[telegram.UploadedFileParam])
 	})
 
+	t.Run("FLAC in the storage chat is found and sent by its file", func(t *testing.T) {
+		s := harness.New(t, harness.WithStorageChat(storageChat))
+		s.ConnectZvuk(alice, harness.ZvukToken)
+		s.AddZvukSong("111", "Lossless Song", true)
+		s.LikeOnZvuk("111")
+		s.ImportZvuk(alice)
+		s.WaitIngest()
+		results := s.Search(alice, "lossless song", "").Results
+		require.Len(t, results, 1)
+
+		chosen := s.Choose(alice, results[0])
+
+		sent := s.Telegram.CallsTo("sendAudio")
+		require.Len(t, sent, 1)
+		assert.Equal(t, "Lossless Song.flac", sent[0].Params[telegram.UploadedFileParam])
+		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
+		require.Len(t, edits, 1)
+		assert.Equal(t, s.Telegram.UploadedFileID(0), edits[0].Media.Media)
+	})
+
 	t.Run("audio the bot sent from the feed is stored without download", func(t *testing.T) {
 		s := harness.New(t)
 		sharedZvukSong(t, s, alice, "Forwarded Song")

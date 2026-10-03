@@ -3,6 +3,7 @@ package navidrome
 import (
 	"context"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/lubaskinc0de/beatstash/internal/domain/library"
@@ -109,6 +110,12 @@ type PlayingTrack struct {
 	PositionMs int
 	State      string
 	CoverArt   string
+}
+
+const StatePaused = "paused"
+
+func (t PlayingTrack) Paused() bool {
+	return strings.EqualFold(t.State, StatePaused)
 }
 
 type PlayedTrack struct {

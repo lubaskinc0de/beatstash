@@ -28,6 +28,26 @@ func TestSearchMusic(t *testing.T) {
 		assert.Contains(t, results[0].Caption, audiofile.FixtureTitle)
 	})
 
+	t.Run("FLAC with a Telegram file is sent by its file once chosen", func(t *testing.T) {
+		s := harness.New(t)
+		audio := s.UploadAudio("track.flac")
+		s.Uploaded(alice, audio)
+		results := s.Search(alice, "fixture artist", "").Results
+		require.Len(t, results, 1)
+
+		chosen := s.Choose(alice, results[0])
+
+		assert.Equal(t, "article", results[0].Type)
+		assert.Contains(t, results[0].Content.Text, "⏳")
+		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
+		require.Len(t, edits, 1)
+		assert.Equal(t, "editMessageMedia", edits[0].Method)
+		assert.Equal(t, "audio", edits[0].Media.Type)
+		assert.Equal(t, audio.FileID, edits[0].Media.Media)
+		assert.Contains(t, edits[0].Media.Caption, audiofile.FixtureTitle)
+		assert.Empty(t, s.Telegram.UploadedFileID(0))
+	})
+
 	t.Run("words from different fields find the track", func(t *testing.T) {
 		s := harness.New(t)
 		s.Uploaded(alice, s.UploadAudioFile(queenSong(t)))

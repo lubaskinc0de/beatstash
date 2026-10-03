@@ -147,11 +147,11 @@ func (f *Feed) handleSendFile(ctx context.Context, query *models.CallbackQuery, 
 
 // sendFile uploads the Track only once: the file serves its copies too.
 func (f *Feed) sendFile(ctx context.Context, chatID int64, sharedTrackID uint) error {
-	track, path, err := f.GetTrackAudio.Execute(ctx, sharedTrackID)
+	audio, err := f.GetTrackAudio.Execute(ctx, sharedTrackID)
 	if err != nil {
 		return err
 	}
-	return f.Files.SendTo(ctx, chatID, track, path)
+	return f.Files.SendTo(ctx, chatID, audio.Track, audio.Path)
 }
 
 func (f *Feed) topView(ctx context.Context) window.View {

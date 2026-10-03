@@ -39,6 +39,9 @@ type API struct {
 	holds    map[string]*Hold
 	messages int
 	uploaded []string
+	// formats are the extensions of the files, without the dot, as
+	// Telegram tells them by content.
+	formats  map[string]string
 	refusals int
 	outages  map[string]outage
 }
@@ -57,6 +60,7 @@ func New(t *testing.T) *API {
 		failures: map[string]int{},
 		holds:    map[string]*Hold{},
 		outages:  map[string]outage{},
+		formats:  map[string]string{},
 	}
 	api.server = httptest.NewServer(http.HandlerFunc(api.handle))
 	t.Cleanup(api.server.Close)
@@ -79,7 +83,12 @@ func (a *API) AddFile(t *testing.T, fileID, source string) string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.files[fileID] = path
+	a.formats[fileID] = formatOf(source)
 	return path
+}
+
+func formatOf(name string) string {
+	return strings.ToLower(strings.TrimPrefix(filepath.Ext(name), "."))
 }
 
 func (a *API) FailGetFile(fileID string, n int) {
@@ -170,6 +179,10 @@ func (a *API) handle(w http.ResponseWriter, r *http.Request) {
 		writeError(w, code, http.StatusText(code))
 		return
 	}
+	if method == "answerInlineQuery" && !a.cachableAudio(params["results"]) {
+		writeError(w, http.StatusBadRequest, "Bad Request: AUDIO_CONTENT_TYPE_INVALID")
+		return
+	}
 	a.mu.Lock()
 	call := &Call{Method: method, Params: params}
 	a.calls = append(a.calls, call)
@@ -218,11 +231,33 @@ func (a *API) sentAudio(params map[string]string) map[string]any {
 	defer a.mu.Unlock()
 
 	id := params["audio"]
-	if params[UploadedFileParam] != "" {
+	if name := params[UploadedFileParam]; name != "" {
 		id = fmt.Sprintf("uploaded-%d", len(a.uploaded)+1)
 		a.uploaded = append(a.uploaded, id)
+		a.formats[id] = formatOf(name)
 	}
 	return map[string]any{"file_id": id, "file_unique_id": id + "-unique", "duration": 2}
+}
+
+// cachableAudio: Telegram sends a cached audio from inline mode only in
+// MP3 or M4A, though it keeps other formats as audio too.
+func (a *API) cachableAudio(results string) bool {
+	var audios []struct {
+		Type        string `json:"type"`
+		AudioFileID string `json:"audio_file_id"`
+	}
+	if err := json.Unmarshal([]byte(results), &audios); err != nil {
+		return true
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, audio := range audios {
+		format, known := a.formats[audio.AudioFileID]
+		if audio.Type == "audio" && known && format != "mp3" && format != "m4a" {
+			return false
+		}
+	}
+	return true
 }
 
 // NextMessageID numbers the messages of users and of the bot in one

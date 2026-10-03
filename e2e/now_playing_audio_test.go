@@ -1,6 +1,8 @@
 package e2e
 
 import (
+	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -9,8 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/lubaskinc0de/beatstash/e2e/harness"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/audiofile"
 	"github.com/lubaskinc0de/beatstash/e2e/harness/navidrome"
 	"github.com/lubaskinc0de/beatstash/e2e/harness/telegram"
+	appnd "github.com/lubaskinc0de/beatstash/internal/application/common/navidrome"
+	"github.com/lubaskinc0de/beatstash/internal/application/show_playing"
 )
 
 func TestNowPlayingAudio(t *testing.T) {
@@ -74,6 +79,48 @@ func TestNowPlayingAudio(t *testing.T) {
 		assert.Empty(t, edits[0].Buttons)
 	})
 
+	t.Run("chosen np FLAC becomes its audio under the np text", func(t *testing.T) {
+		s := harness.New(t)
+		account := s.LinkNewAccount(alice)
+		audio := s.UploadAudio("track.flac")
+		s.Uploaded(alice, audio)
+		s.Navidrome.StartPlaying(t, account, s.Navidrome.IndexedTrack(t, account, s.Library, audiofile.FixtureTitle).ID)
+		result := s.NowPlaying(alice)
+
+		chosen := s.Choose(alice, result)
+
+		assert.Contains(t, result.Content.Text, "⏳")
+		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
+		require.Len(t, edits, 1)
+		assert.Equal(t, "editMessageMedia", edits[0].Method)
+		assert.Equal(t, "audio", edits[0].Media.Type)
+		assert.Equal(t, audio.FileID, edits[0].Media.Media)
+		assert.Equal(t, nowPlayingText(t, s, alice, result, "Fixture Artist", audiofile.FixtureTitle, "Fixture Album"), edits[0].Media.Caption)
+	})
+
+	t.Run("recent with FLAC and MP3 answers in full", func(t *testing.T) {
+		s := harness.New(t)
+		account := s.LinkNewAccount(alice)
+		mp3 := s.UploadAudioFile(mixedSong(t, "mp3.mp3", "MP3 Song"))
+		s.Uploaded(alice, mp3)
+		flac := s.UploadAudioFile(mixedSong(t, "flac.flac", "FLAC Song"))
+		s.Uploaded(alice, flac)
+		for _, title := range []string{"MP3 Song", "FLAC Song"} {
+			s.Navidrome.Play(t, account, s.Navidrome.IndexedTrack(t, account, s.Library, title).ID)
+		}
+		answer := s.Search(alice, "recent", "")
+		require.Len(t, answer.Results, 3)
+
+		chosen := s.Choose(alice, answer.Results[1])
+
+		assert.Equal(t, []string{mp3.FileID}, telegram.AudioFileIDs(answer))
+		assert.Contains(t, answer.Results[1].Content.Text, "⏳")
+		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
+		require.Len(t, edits, 1)
+		assert.Equal(t, "editMessageMedia", edits[0].Method)
+		assert.Equal(t, flac.FileID, edits[0].Media.Media)
+	})
+
 	t.Run("simultaneous choices upload the file once", func(t *testing.T) {
 		s := harness.New(t, harness.WithStorageChat(storageChat), harness.WithoutStorageFill())
 		playingUnpostedZvukSong(t, s, alice, "Pending Song")
@@ -93,6 +140,29 @@ func TestNowPlayingAudio(t *testing.T) {
 			assert.Equal(t, s.Telegram.UploadedFileID(0), edits[0].Media.Media)
 		}
 	})
+}
+
+// nowPlayingText is the np text of what the result showed, at the
+// position it showed.
+func nowPlayingText(t *testing.T, s *harness.Scenario, user harness.User, result telegram.InlineResult, artist, title, album string) string {
+	t.Helper()
+
+	var posMin, posSec, durMin, durSec int
+	_, err := fmt.Sscanf(strings.TrimPrefix(result.Description, album+" · "), "%d:%d / %d:%d", &posMin, &posSec, &durMin, &durSec)
+	require.NoError(t, err, "np description %q", result.Description)
+	return s.Catalog(user).NowPlaying(&show_playing.NowPlaying{PlayingTrack: appnd.PlayingTrack{
+		Track:      appnd.Track{Artist: artist, Title: title, Album: album, Duration: durMin*60 + durSec},
+		PositionMs: (posMin*60 + posSec) * 1000,
+		State:      "playing",
+	}})
+}
+
+func mixedSong(t *testing.T, name, title string) string {
+	t.Helper()
+
+	return audiofile.Generate(t, name, audiofile.Spec{Tags: map[string]string{
+		"artist": "Mixed Band", "album": "Mixed Album", "title": title, "track": "1",
+	}})
 }
 
 func playingUnpostedZvukSong(t *testing.T, s *harness.Scenario, user harness.User, title string) {
