@@ -200,8 +200,6 @@ func uploadedAudio(s *harness.Scenario, n int) models.Audio {
 	return models.Audio{FileID: id, FileUniqueID: id + "-unique", FileName: "song.mp3", Duration: 2}
 }
 
-// sharedZvukSong has the user import a liked Zvuk track and share it on
-// the Share screen: it comes without an audio message to answer /share.
 func sharedZvukSong(t *testing.T, s *harness.Scenario, user harness.User, title string) {
 	t.Helper()
 

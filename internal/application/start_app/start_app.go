@@ -20,6 +20,7 @@ type StartApp struct {
 	Users              repositories.Users
 	Accounts           NavidromeAccountLister
 	Libraries          *libraries.Libraries
+	LibraryRepo        repositories.Libraries
 	NavidromeLibraries *libraries.Navidrome
 	Clock              func() time.Time
 }
@@ -58,7 +59,7 @@ func (i *StartApp) Execute(ctx context.Context) error {
 		}
 	}
 
-	libraries, err := i.Libraries.Repo.All(ctx)
+	libraries, err := i.LibraryRepo.All(ctx)
 	if err != nil {
 		return err
 	}

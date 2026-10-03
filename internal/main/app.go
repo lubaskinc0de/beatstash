@@ -130,7 +130,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	}
 	libs := &libraries.Libraries{Repo: libraryRepo, Attached: attached, Disk: fileDisk, MusicDir: cfg.MusicDir}
 	navidromeLibraries := &libraries.Navidrome{
-		Libraries: libs,
+		Repo:      libraryRepo,
 		Navidrome: navidromeClient,
 		Admin:     navidromeAdmin,
 		Folders:   folders,
@@ -140,6 +140,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 		Users:              users,
 		Accounts:           accountRepo,
 		Libraries:          libs,
+		LibraryRepo:        libraryRepo,
 		NavidromeLibraries: navidromeLibraries,
 		Clock:              cfg.Clock,
 	}
@@ -248,16 +249,16 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	createInvite := &invite_friend.CreateInvite{IDs: ids, Invites: invites, TTL: cfg.InviteTTL, Clock: cfg.Clock}
 
 	listenLinkRepo := &database.ListenLinkRepository{DB: db}
-	listenLinks := &listening.ListenLinks{Accounts: navidromeAccounts, On: publicURL != ""}
+	listenLinks := &listening.ListenLinks{Accounts: navidromeAccounts, AccountRepo: accountRepo, On: publicURL != ""}
 	getTrackListenLink := &send_listen_link.GetTrackListenLink{
 		IDs: ids, Tracks: tracks, Links: listenLinkRepo,
-		Libraries: libs, ListenLinks: listenLinks,
+		Libraries: libs, LibraryRepo: libraryRepo, ListenLinks: listenLinks,
 		Navidrome: navidromeClient, Admin: navidromeAdmin,
 		TTL: cfg.ListenLinkTTL, Downloadable: cfg.ListenLinkDownloadable, Clock: cfg.Clock,
 	}
 	getAlbumListenLink := &send_listen_link.GetAlbumListenLink{
 		IDs: ids, Tracks: tracks, Links: listenLinkRepo,
-		Libraries: libs, ListenLinks: listenLinks,
+		Libraries: libs, LibraryRepo: libraryRepo, ListenLinks: listenLinks,
 		Navidrome: navidromeClient, Admin: navidromeAdmin,
 		TTL: cfg.ListenLinkTTL, Downloadable: cfg.ListenLinkDownloadable, Clock: cfg.Clock,
 	}
@@ -330,6 +331,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			IDs:                ids,
 			Navidrome:          navidromeClient,
 			Accounts:           navidromeAccounts,
+			AccountRepo:        accountRepo,
 			NavidromeLibraries: navidromeLibraries,
 			Libraries:          libraryRepo,
 			Tracks:             tracks,
@@ -338,6 +340,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			IDs:                ids,
 			Navidrome:          navidromeClient,
 			Accounts:           navidromeAccounts,
+			AccountRepo:        accountRepo,
 			NavidromeLibraries: navidromeLibraries,
 			Admin:              navidromeAdmin,
 		},
@@ -464,6 +467,7 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Clock:     cfg.Clock,
 
 			Libraries:         libs,
+			LibraryRepo:       libraryRepo,
 			Tracks:            tracks,
 			Quotas:            libraryQuotas,
 			Navidrome:         navidromeClient,

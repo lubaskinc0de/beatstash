@@ -24,6 +24,7 @@ type GetTrackListenLink struct {
 	Tracks      repositories.Tracks
 	Links       repositories.ListenLinks
 	Libraries   *libraries.Libraries
+	LibraryRepo repositories.Libraries
 	ListenLinks *listening.ListenLinks
 	Navidrome   navidrome.Client
 	// Admin finds the songs of any library.
@@ -43,7 +44,7 @@ func (i *GetTrackListenLink) Execute(ctx context.Context, trackID uint) (*TrackL
 	if err != nil {
 		return found, err
 	}
-	songID, err := songOf(ctx, i.Tracks, i.Libraries.Repo, i.Navidrome, i.Admin, track)
+	songID, err := songOf(ctx, i.Tracks, i.LibraryRepo, i.Navidrome, i.Admin, track)
 	if err != nil {
 		return found, err
 	}

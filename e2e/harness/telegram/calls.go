@@ -262,8 +262,7 @@ func (a *API) MessageWith(b Button) int {
 	return call.MessageID
 }
 
-// Window is the latest sent or edited message with a keyboard. Right after
-// /share it is the share keyboard, not the window.
+// Window is the latest sent or edited message with a keyboard.
 func (a *API) Window() Call {
 	call, _ := a.lastWithKeyboard(func(call Call, _ []Button) bool {
 		return call.Method == "sendMessage" || call.Method == "editMessageText"

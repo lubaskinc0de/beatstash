@@ -81,8 +81,6 @@ func (u ManagedLibraries) IDs() []uint {
 	return []uint{u.Personal.ID, u.Shared.ID}
 }
 
-// UserLibraries are a user's Managed Libraries and the Attached Libraries
-// they see.
 type UserLibraries struct {
 	ManagedLibraries
 	Attached []*library.Library

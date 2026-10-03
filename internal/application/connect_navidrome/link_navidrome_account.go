@@ -17,6 +17,7 @@ type LinkNavidromeAccount struct {
 	IDs                common.IDProvider
 	Navidrome          navidrome.Client
 	Accounts           *accounts.Navidrome
+	AccountRepo        repositories.NavidromeAccounts
 	NavidromeLibraries *libraries.Navidrome
 	Libraries          repositories.Libraries
 	Tracks             repositories.Tracks
@@ -70,7 +71,7 @@ func (i *LinkNavidromeAccount) attachedSongCount(ctx context.Context, access lib
 }
 
 func (i *LinkNavidromeAccount) checkFree(ctx context.Context, userID uint, login string) error {
-	linked, err := i.Accounts.Repo.ByLogin(ctx, login)
+	linked, err := i.AccountRepo.ByLogin(ctx, login)
 	switch {
 	case errors.Is(err, repositories.ErrNavidromeAccountNotFound):
 		return nil

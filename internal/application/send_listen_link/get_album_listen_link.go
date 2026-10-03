@@ -27,6 +27,7 @@ type GetAlbumListenLink struct {
 	Tracks      repositories.Tracks
 	Links       repositories.ListenLinks
 	Libraries   *libraries.Libraries
+	LibraryRepo repositories.Libraries
 	ListenLinks *listening.ListenLinks
 	Navidrome   navidrome.Client
 	// Admin finds the songs of any library.
@@ -90,5 +91,5 @@ func (i *GetAlbumListenLink) anySong(ctx context.Context, album library.AlbumKey
 			return t.SongID, nil
 		}
 	}
-	return songOf(ctx, i.Tracks, i.Libraries.Repo, i.Navidrome, i.Admin, chosen)
+	return songOf(ctx, i.Tracks, i.LibraryRepo, i.Navidrome, i.Admin, chosen)
 }

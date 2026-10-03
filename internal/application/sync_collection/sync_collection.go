@@ -33,6 +33,7 @@ type SyncCollection struct {
 	Clock     func() time.Time
 
 	Libraries         *libraries.Libraries
+	LibraryRepo       repositories.Libraries
 	Tracks            repositories.Tracks
 	Quotas            *quotas.Quotas
 	Navidrome         navidrome.Client
@@ -160,7 +161,7 @@ func (i *SyncCollection) refitted(
 	if len(candidates) == 0 {
 		return nil, nil
 	}
-	personal, err := i.Libraries.Repo.Personal(ctx, userID)
+	personal, err := i.LibraryRepo.Personal(ctx, userID)
 	if err != nil {
 		return nil, err
 	}

@@ -21,6 +21,7 @@ type RegisterNavidromeAccount struct {
 	IDs                common.IDProvider
 	Navidrome          navidrome.Client
 	Accounts           *accounts.Navidrome
+	AccountRepo        repositories.NavidromeAccounts
 	NavidromeLibraries *libraries.Navidrome
 	Admin              navidrome.Credentials
 }
@@ -35,7 +36,7 @@ func (i *RegisterNavidromeAccount) Execute(ctx context.Context, login string) (n
 	if err != nil {
 		return navidrome.Credentials{}, err
 	}
-	_, err = i.Accounts.Repo.Get(ctx, user.ID)
+	_, err = i.AccountRepo.Get(ctx, user.ID)
 	switch {
 	case err == nil:
 		return navidrome.Credentials{}, ErrHasNavidromeAccount

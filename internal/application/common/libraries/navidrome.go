@@ -10,6 +10,7 @@ import (
 	"slices"
 
 	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/navidrome"
+	"github.com/lubaskinc0de/navidrome-tg/internal/application/common/repositories"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/access"
 	"github.com/lubaskinc0de/navidrome-tg/internal/domain/library"
 )
@@ -17,7 +18,7 @@ import (
 const sharedLibraryName = "Общая"
 
 type Navidrome struct {
-	Libraries *Libraries
+	Repo      repositories.Libraries
 	Navidrome navidrome.Client
 	Admin     navidrome.Credentials
 	Folders   library.SystemFolders
@@ -26,11 +27,11 @@ type Navidrome struct {
 // Grant creates the user's libraries in Navidrome and gives the account the
 // access library.Grant decides; it returns what the account sees then.
 func (n *Navidrome) Grant(ctx context.Context, user *access.User, login string) (library.NavidromeAccess, error) {
-	personal, err := n.Libraries.Repo.Personal(ctx, user.ID)
+	personal, err := n.Repo.Personal(ctx, user.ID)
 	if err != nil {
 		return library.NavidromeAccess{}, err
 	}
-	shared, err := n.Libraries.Repo.Shared(ctx)
+	shared, err := n.Repo.Shared(ctx)
 	if err != nil {
 		return library.NavidromeAccess{}, err
 	}
@@ -46,7 +47,7 @@ func (n *Navidrome) Grant(ctx context.Context, user *access.User, login string) 
 	if account.Access.Admin {
 		return account.Access, navidrome.ErrAdminAccount
 	}
-	all, err := n.Libraries.Repo.All(ctx)
+	all, err := n.Repo.All(ctx)
 	if err != nil {
 		return library.NavidromeAccess{}, err
 	}
@@ -87,7 +88,7 @@ func (n *Navidrome) Create(ctx context.Context, lib *library.Library) error {
 	}
 
 	lib.LinkNavidrome(id)
-	return n.Libraries.Repo.Save(ctx, lib)
+	return n.Repo.Save(ctx, lib)
 }
 
 // ShowNewAccountsOnlyShared keeps an account that Navidrome creates, or one
@@ -95,7 +96,7 @@ func (n *Navidrome) Create(ctx context.Context, lib *library.Library) error {
 // in or around the bot's folders only the Shared Library goes to new
 // accounts. Attached Libraries are the admin's to set.
 func (n *Navidrome) ShowNewAccountsOnlyShared(ctx context.Context) error {
-	shared, err := n.Libraries.Repo.Shared(ctx)
+	shared, err := n.Repo.Shared(ctx)
 	if err != nil {
 		return err
 	}

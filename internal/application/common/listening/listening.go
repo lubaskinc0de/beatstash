@@ -19,7 +19,8 @@ var (
 
 // ListenLinks are made on behalf of the user's Navidrome Account.
 type ListenLinks struct {
-	Accounts *accounts.Navidrome
+	Accounts    *accounts.Navidrome
+	AccountRepo repositories.NavidromeAccounts
 	// On: Navidrome has an address a listener outside can open.
 	On bool
 }
@@ -37,7 +38,7 @@ func (l *ListenLinks) Check(ctx context.Context, userID uint) error {
 	if !l.On {
 		return ErrNoPublicAddress
 	}
-	_, err := l.Accounts.Repo.Get(ctx, userID)
+	_, err := l.AccountRepo.Get(ctx, userID)
 	if errors.Is(err, repositories.ErrNavidromeAccountNotFound) {
 		return ErrNoNavidromeAccount
 	}
