@@ -50,7 +50,7 @@ func Run(m *testing.M) int {
 		return 1
 	}
 
-	pg, err := postgres.Run(ctx, "postgres:17",
+	pg, err := postgres.Run(ctx, "postgres:18",
 		postgres.WithUsername("postgres"),
 		postgres.WithPassword("postgres"),
 		postgres.WithDatabase("postgres"),

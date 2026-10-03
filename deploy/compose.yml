@@ -2,7 +2,7 @@ name: beatstash
 
 services:
   postgres:
-    image: postgres:17
+    image: postgres:18
     restart: unless-stopped
     environment:
       POSTGRES_USER: beatstash
@@ -14,7 +14,7 @@ services:
       timeout: 5s
       retries: 10
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
 
   telegram-bot-api:
     image: aiogram/telegram-bot-api:latest
