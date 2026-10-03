@@ -166,7 +166,8 @@ func (s *setup) createBot(_ context.Context, in *installation) error {
 		return err
 	}
 	s.t.Step("Send /setinline, select your bot, and enter a search prompt such as Search music.")
-	s.t.Step("Send /setinlinefeedback, select your bot, and choose 100%%.")
+	s.t.Step("Send /setinlinefeedback, select your bot, and choose Enabled, not 1/10 or 1/100:")
+	s.t.Note("  tracks picked from inline search reach a chat only when the bot hears of every pick.")
 	s.t.Pause("Press Enter once inline mode and feedback are enabled.")
 	return nil
 }

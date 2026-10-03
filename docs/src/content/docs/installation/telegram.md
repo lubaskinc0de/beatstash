@@ -8,7 +8,7 @@ description: Create your bot, configure inline mode, and connect the local Bot A
 1. Open [@BotFather](https://t.me/BotFather) in Telegram.
 2. Use `/newbot`, choose a name and username, and save the token in `BOT_TOKEN` in your installation's `.env`.
 3. Use `/setinline`, select your bot, and set a prompt such as `Search your music`.
-4. Use `/setinlinefeedback`, select your bot, and choose **100%**. beatstash uses chosen-result updates to prepare tracks and listening links after selection.
+4. Use `/setinlinefeedback`, select your bot, and choose **Enabled**, not a fraction such as 1/100. beatstash uses chosen-result updates to prepare tracks and listening links after selection; with a fraction, most picked tracks stay at ⏳.
 
 Once beatstash is running, open your bot and send `/start`. From there, you can invite friends, connect a music service, or browse your collection.
 

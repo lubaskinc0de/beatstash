@@ -37,7 +37,7 @@ Set `navidrome.attach_interval` to a positive duration; `0` disables attached li
 
 ## Inline results or listening links are missing
 
-Verify BotFather inline mode and 100% inline feedback. Confirm a Navidrome account is linked. An imported or attached track may need a Telegram file prepared in the storage chat, or a public listening link as a fallback.
+Verify BotFather inline mode, and that `/setinlinefeedback` is **Enabled**: with 1/100 or 1/10, most tracks picked in np or search stay at ⏳. Confirm a Navidrome account is linked. An imported or attached track may need a Telegram file prepared in the storage chat, or a public listening link as a fallback.
 
 For links, check `navidrome.public_url`, sharing enabled in Navidrome, and proxy access to `/share`. Test a generated link from a private browser window outside your server network. Localhost, private IPs, and local-only names disable links in the bot.
 
