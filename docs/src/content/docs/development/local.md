@@ -59,13 +59,21 @@ just lint
 just test
 ```
 
-`just lint` runs Go lint, formatting checks, vet, compilation, module checks, actionlint, zizmor, typos, ShellCheck, installer syntax, and documentation checks. Install ShellCheck **0.11.0**, actionlint **1.7.12**, zizmor **1.30.1**, and typos **1.50.3** on your `PATH`, in addition to the Go lint tools. Install documentation dependencies with `npm --prefix docs ci` using Node 24.
+`just lint` runs Go lint, formatting checks, vet, compilation, module checks, actionlint, zizmor, typos, ShellCheck, installer syntax, and Gitleaks secret scanning. Use `just docs` to check and build the documentation. Install Gitleaks **8.30.1**, ShellCheck **0.11.0**, actionlint **1.7.12**, zizmor **1.30.1**, and typos **1.50.3** on your `PATH`, in addition to the Go lint tools. Install documentation dependencies with `npm --prefix docs ci` using Node 24.
 
 Install actionlint with Go:
 
 ```sh
 go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
 ```
+
+Install Gitleaks with Go:
+
+```sh
+go install github.com/zricethezav/gitleaks/v8@v8.30.1
+```
+
+Secret scanning checks all locally available Git history and current tracked or new files. Ignored local credentials and generated files are excluded from the current-file scan. A tracked file is checked even if it matches `.gitignore`. Findings fail the check, and secret values are redacted in logs. The only project exception matches the fixed test encryption key in its current and former test-harness files.
 
 For ShellCheck, use your package manager or `uv tool install shellcheck-py==0.11.0.1`.
 

@@ -22,10 +22,15 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ inputs.ref }}
+          fetch-depth: 0
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
+      - name: Install Gitleaks
+        run: go install github.com/zricethezav/gitleaks/v8@v8.30.1
+      - name: Scan history and current files for secrets
+        run: bash .github/scripts/check-secrets.sh
       - name: Verify modules and module files
         run: |
           go mod verify
@@ -48,7 +53,8 @@ jobs:
       - name: Check installer shell scripts
         run: |
           bash -n deploy/install.sh
-          shellcheck deploy/install.sh
+          bash -n .github/scripts/check-secrets.sh
+          shellcheck deploy/install.sh .github/scripts/check-secrets.sh
       - name: Check release policy
         run: python3 -m unittest discover -s .github/scripts -p 'test_*.py'
       - name: Check spelling in code and documentation

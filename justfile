@@ -14,7 +14,7 @@ lint:
     set -euo pipefail
     export PATH="$(go env GOPATH)/bin:$HOME/.local/bin:$PATH"
     missing_tools=()
-    for tool in golangci-lint actionlint zizmor typos shellcheck npm; do
+    for tool in golangci-lint actionlint zizmor typos shellcheck gitleaks npm; do
         if ! command -v "$tool" > /dev/null 2>&1; then
             missing_tools+=("$tool")
         fi
@@ -24,6 +24,7 @@ lint:
         printf 'Setup: https://lubaskinc0de.github.io/beatstash/development/local/\n' >&2
         exit 127
     fi
+    bash .github/scripts/check-secrets.sh
     "$(go env GOPATH)/bin/golangci-lint" run ./...
     format_diff=$(mktemp)
     trap 'rm -f "$format_diff"' EXIT
@@ -38,7 +39,8 @@ lint:
     go mod verify
     go mod tidy -diff
     bash -n deploy/install.sh
-    shellcheck deploy/install.sh
+    bash -n .github/scripts/check-secrets.sh
+    shellcheck deploy/install.sh .github/scripts/check-secrets.sh
     actionlint
     zizmor --offline --persona=auditor .github
     typos --hidden .

@@ -1,0 +1,13 @@
+title = "beatstash secret scanning"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "Fixed encryption key used only by the end-to-end test harness, including its former location"
+condition = "AND"
+paths = ['''(^|/)e2e/(harness/scenario\.go|scenario_test\.go)$''']
+regexes = ['''^(MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=|0123456789abcdef0123456789abcdef)$''']
