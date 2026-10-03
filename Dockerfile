@@ -13,7 +13,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=$TARGETARCH go build -trimpath -o /app/bin/beatstash ./cmd/beatstash
 
 
-FROM alpine:3.22
+FROM alpine:3.24
 
 WORKDIR /app
 
