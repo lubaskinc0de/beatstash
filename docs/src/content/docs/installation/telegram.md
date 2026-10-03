@@ -67,11 +67,19 @@ and run `docker compose up -d`. The server needs `/dev/net/tun`, which most virt
 
 ## Optional storage chat
 
-A storage chat lets beatstash prepare Telegram audio files for music imported from elsewhere or read from an existing Navidrome library.
+A storage chat lets beatstash prepare Telegram audio files for music imported from elsewhere or read from an existing Navidrome library. Without one, np, recent and search send such tracks as listening links; with one, they arrive as audio.
 
-1. Create a private channel and add your bot as an administrator with permission to post.
-2. Obtain the channel's numeric chat ID from a `channel_post` update while setting up the bot. Private channel IDs usually start with `-100`; use the actual ID from Telegram.
-3. Set `telegram.storage_chat_id` to that ID in `deploy/config.toml` and [apply the change](../administration/configuration.md#change-a-setting).
+1. Create a private channel in Telegram, named as you like. Nobody else needs to join it.
+2. Open the channel's info, then **Administrators** > **Add Admin**, find your bot by its username, and keep **Post Messages** allowed.
+3. Find the channel's numeric ID: open the channel in [Telegram Web](https://web.telegram.org/k/). The address ends with `#-100…`; that number, minus sign included, is the ID.
+4. On the server, set it in `deploy/config.toml`:
+
+   ```toml
+   [telegram]
+   storage_chat_id = -1001234567890
+   ```
+
+5. [Apply the change](../administration/configuration.md#change-a-setting) with `docker compose up -d --force-recreate bot`.
 
 With `fill_storage_chat = true`, the bot prepares files in the background. With it disabled, files are prepared as users request them. Leaving the chat ID at `0` skips background storage; some inline results depend on public listening links or preparing a file after selection.
 
