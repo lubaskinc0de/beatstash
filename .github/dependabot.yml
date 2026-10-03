@@ -22,6 +22,10 @@ updates:
       docs-minor-and-patch:
         patterns: ['*']
         update-types: [minor, patch]
+    ignore:
+      # @astrojs/check works only with typescript 5 or 6.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: docker
     directory: /
