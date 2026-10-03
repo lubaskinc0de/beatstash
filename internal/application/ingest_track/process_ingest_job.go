@@ -405,11 +405,12 @@ func (i *ProcessIngestJob) attachedByDescription(
 	if err != nil {
 		return nil, err
 	}
-	described, err := describer.Describe(ctx, job.UserID, ref)
+	found, err := describer.Describe(ctx, job.UserID, []provider.TrackRef{ref})
 	if err != nil {
 		slog.Warn("describe_track", "job_id", job.ID, "error", err)
 		return nil, nil
 	}
+	described := found[ref.ID]
 	if described == nil {
 		return nil, nil
 	}

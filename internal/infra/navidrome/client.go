@@ -561,6 +561,25 @@ type songJSON struct {
 	BitRate     int     `json:"bitRate"`
 	Codec       string  `json:"codec"`
 	Size        int64   `json:"size"`
+	Genres      []struct {
+		Name string `json:"name"`
+	} `json:"genres"`
+	Tags map[string][]string `json:"tags"`
+}
+
+func (s songJSON) genres() []string {
+	genres := make([]string, 0, len(s.Genres))
+	for _, genre := range s.Genres {
+		genres = append(genres, genre.Name)
+	}
+	return genres
+}
+
+func (s songJSON) label() string {
+	if labels := s.Tags["recordlabel"]; len(labels) > 0 {
+		return labels[0]
+	}
+	return ""
 }
 
 func (c *Client) LibrarySongs(ctx context.Context, admin appnd.Credentials, libraryID int) ([]appnd.Song, error) {
@@ -587,6 +606,8 @@ func (c *Client) LibrarySongs(ctx context.Context, admin appnd.Credentials, libr
 				Title:       s.Title,
 				Year:        s.Year,
 				TrackNumber: s.TrackNumber,
+				Genres:      s.genres(),
+				Label:       s.label(),
 				DurationMs:  int(s.Duration * 1000),
 				Suffix:      strings.ToLower(s.Suffix),
 				Codec:       s.Codec,

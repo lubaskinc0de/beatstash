@@ -20,11 +20,12 @@ type Fetcher interface {
 	Fetch(ctx context.Context, userID uint, ref provider.TrackRef) (*FetchedAudio, error)
 }
 
-// Describer tells what a track is before it is fetched, so a track the user
-// has already need not be downloaded.
+// Describer tells what a track is without fetching it: so a track the user
+// has already need not be downloaded, and a stored one learns what it lacks.
 type Describer interface {
-	// Describe returns nil if the Provider knows no such track.
-	Describe(ctx context.Context, userID uint, ref provider.TrackRef) (*Description, error)
+	// Describe maps the refs' IDs to their tracks, leaving out those the
+	// Provider knows no track for.
+	Describe(ctx context.Context, userID uint, refs []provider.TrackRef) (map[string]*Description, error)
 }
 
 type Description struct {

@@ -32,12 +32,17 @@ func (e *TooLargeError) Is(target error) bool {
 	return target == ErrFileTooLarge
 }
 
-func (s *AudioSender) Send(ctx context.Context, chatID int64, file *File) error {
+// Send's caption is HTML.
+func (s *AudioSender) Send(ctx context.Context, chatID int64, file *File, caption string) error {
 	var err error
 	if file.Kind == FileDocument {
-		_, err = s.Bot.SendDocument(ctx, &bot.SendDocumentParams{ChatID: chatID, Document: &models.InputFileString{Data: file.ID}})
+		_, err = s.Bot.SendDocument(ctx, &bot.SendDocumentParams{
+			ChatID: chatID, Document: &models.InputFileString{Data: file.ID}, Caption: caption, ParseMode: models.ParseModeHTML,
+		})
 	} else {
-		_, err = s.Bot.SendAudio(ctx, &bot.SendAudioParams{ChatID: chatID, Audio: &models.InputFileString{Data: file.ID}})
+		_, err = s.Bot.SendAudio(ctx, &bot.SendAudioParams{
+			ChatID: chatID, Audio: &models.InputFileString{Data: file.ID}, Caption: caption, ParseMode: models.ParseModeHTML,
+		})
 	}
 	return err
 }
@@ -45,7 +50,7 @@ func (s *AudioSender) Send(ctx context.Context, chatID int64, file *File) error 
 // post uploads the Track's file from disk and keeps what Telegram made of
 // it: it may take a format it cannot play as a document. A *TooLargeError
 // if Telegram would not take it.
-func (s *AudioSender) post(ctx context.Context, chatID int64, path string, track *library.Track) (*File, error) {
+func (s *AudioSender) post(ctx context.Context, chatID int64, path string, track *library.Track, caption string) (*File, error) {
 	file, err := os.Open(path) //nolint:gosec // G304: path comes from our storage
 	if err != nil {
 		return nil, err
@@ -65,6 +70,8 @@ func (s *AudioSender) post(ctx context.Context, chatID int64, path string, track
 		Performer: track.Artist,
 		Title:     track.Title,
 		Duration:  track.DurationMs / 1000,
+		Caption:   caption,
+		ParseMode: models.ParseModeHTML,
 	})
 	switch {
 	case err != nil:

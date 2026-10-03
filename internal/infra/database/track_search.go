@@ -70,20 +70,11 @@ func (r *TrackRepository) SearchAlbums(
 		return nil, nil
 	}
 	words := searchWords(text)
-	var rows []struct {
-		LibraryID   uint
-		AlbumArtist string
-		Album       string
-		TrackID     uint
-		Tracks      int
-	}
+	var rows []albumRow
 	err := r.withSimilarity(ctx, func(db *gorm.DB) error {
 		order := libraryOrder(libraryIDs)
-		albums := db.Table("tracks AS t").
-			Select(`t.library_id, min(t.album_artist) AS album_artist, min(t.album) AS album, min(t.id) AS track_id,
-				count(*) AS tracks, max(t.created_at) AS newest`).
-			Where("t.library_id = ANY(?::bigint[]) AND t.album <> ''", order).
-			Group("t.library_id, lower(t.album_artist), lower(t.album)")
+		albums := albumsOf(db).Select(albumColumns+", max(t.created_at) AS newest").
+			Where("t.library_id = ANY(?::bigint[]) AND t.album <> ''", order)
 		if len(words) > 0 {
 			cond, args := matching(db, order, words, []string{"t.album_artist", "t.album"})
 			albums = albums.Where(cond, args...)
@@ -112,12 +103,49 @@ func (r *TrackRepository) SearchAlbums(
 	}
 	found := make([]repositories.AlbumSummary, 0, len(rows))
 	for _, row := range rows {
-		found = append(found, repositories.AlbumSummary{
-			AlbumKey: library.AlbumKey{LibraryID: row.LibraryID, AlbumArtist: row.AlbumArtist, Album: row.Album},
-			TrackID:  row.TrackID, Tracks: row.Tracks,
-		})
+		found = append(found, row.summary())
 	}
 	return found, nil
+}
+
+func (r *TrackRepository) AlbumSummary(ctx context.Context, album library.AlbumKey) (repositories.AlbumSummary, error) {
+	var row albumRow
+	err := albumsOf(dbForContext(ctx, r.DB)).Select(albumColumns).
+		Where("t.library_id = ? AND lower(t.album_artist) = lower(?) AND lower(t.album) = lower(?)",
+			album.LibraryID, album.AlbumArtist, album.Album).
+		Scan(&row).Error
+	return row.summary(), err
+}
+
+// albumColumns sum up each Album of albumsOf: the year, genres and label
+// most of its Tracks have.
+const albumColumns = `t.library_id, min(t.album_artist) AS album_artist, min(t.album) AS album, min(t.id) AS track_id,
+	count(*) AS tracks, coalesce(sum(t.duration_ms), 0) AS duration_ms,
+	coalesce(mode() WITHIN GROUP (ORDER BY t.year) FILTER (WHERE t.year > 0), 0) AS year,
+	mode() WITHIN GROUP (ORDER BY t.genres) FILTER (WHERE cardinality(t.genres) > 0) AS genres,
+	coalesce(mode() WITHIN GROUP (ORDER BY t.label) FILTER (WHERE t.label <> ''), '') AS label`
+
+func albumsOf(db *gorm.DB) *gorm.DB {
+	return db.Table("tracks AS t").Group("t.library_id, lower(t.album_artist), lower(t.album)")
+}
+
+type albumRow struct {
+	LibraryID   uint
+	AlbumArtist string
+	Album       string
+	TrackID     uint
+	Tracks      int
+	DurationMs  int
+	Year        int
+	Genres      []string `gorm:"serializer:pgarray"`
+	Label       string
+}
+
+func (row albumRow) summary() repositories.AlbumSummary {
+	return repositories.AlbumSummary{
+		AlbumKey: library.AlbumKey{LibraryID: row.LibraryID, AlbumArtist: row.AlbumArtist, Album: row.Album},
+		TrackID:  row.TrackID, Tracks: row.Tracks, Year: row.Year, DurationMs: row.DurationMs, Genres: row.Genres, Label: row.Label,
+	}
 }
 
 func (r *TrackRepository) withSimilarity(ctx context.Context, fn func(db *gorm.DB) error) error {

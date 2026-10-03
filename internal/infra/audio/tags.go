@@ -1,6 +1,7 @@
 package audio
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"strconv"
@@ -70,7 +71,19 @@ func metadataFromTags(tags map[string][]string) library.Metadata {
 		Title:       first(taglib.Title),
 		Year:        leadingNumber(first(taglib.Date)),
 		TrackNumber: leadingNumber(first(taglib.TrackNumber)),
+		Genres:      genres(tags[taglib.Genre]),
+		Label:       cmp.Or(first(taglib.Label), first("ORGANIZATION"), first("PUBLISHER")),
 	}
+}
+
+// genres splits only on ";": "/" and "," are part of names like "Hip-Hop/Rap".
+// The slice is never nil: the file has been looked at.
+func genres(values []string) []string {
+	found := []string{}
+	for _, value := range values {
+		found = append(found, strings.Split(value, ";")...)
+	}
+	return found
 }
 
 // leadingNumber reads "2001-05-01" as 2001 and "3/12" as 3.
@@ -104,6 +117,10 @@ func (Tags) WriteTags(path string, m library.Metadata) error {
 	if m.TrackNumber > 0 {
 		set(taglib.TrackNumber, strconv.Itoa(m.TrackNumber))
 	}
+	if len(m.Genres) > 0 {
+		tags[taglib.Genre] = m.Genres
+	}
+	set(taglib.Label, m.Label)
 
 	if err := taglib.WriteTags(path, tags, 0); err != nil {
 		return fmt.Errorf("write tags: %w", err)

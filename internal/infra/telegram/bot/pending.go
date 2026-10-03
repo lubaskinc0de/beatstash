@@ -89,7 +89,16 @@ func chosenCaption(c i18n.Catalog, track *library.Track, tag string) string {
 	if playing := playingOf(tag, track); playing != nil {
 		return c.NowPlaying(playing)
 	}
-	return i18n.TrackCaption(track.Artist, track.Title)
+	return c.AudioCaption(track)
+}
+
+// chosenText stands in for the audio: no player tells the artist and the
+// title.
+func chosenText(c i18n.Catalog, track *library.Track, tag string) string {
+	if playing := playingOf(tag, track); playing != nil {
+		return c.NowPlaying(playing)
+	}
+	return c.TrackText(track)
 }
 
 // pending tells whether choosing the Track can bring its file: it has one
@@ -148,9 +157,9 @@ func (in *Inline) sendFeedTrack(ctx context.Context, inlineMessageID string, sha
 		in.editInlineText(ctx, inlineMessageID, c.NotSentNote(false))
 		return
 	}
-	caption := c.FeedCaption(audio.Track, &audio.Author)
-	if tooLarge := in.editToFile(ctx, inlineMessageID, audio.Track, audio.Path, caption); tooLarge {
-		in.editInlineText(ctx, inlineMessageID, c.NotSentCaption(caption, true))
+	text := c.FeedText(audio.Track, &audio.Author)
+	if tooLarge := in.editToFile(ctx, inlineMessageID, audio.Track, audio.Path, c.FeedCaption(audio.Track, &audio.Author), text); tooLarge {
+		in.editInlineText(ctx, inlineMessageID, c.NotSentCaption(text, true))
 	}
 }
 
@@ -163,22 +172,22 @@ func (in *Inline) sendTrackFile(ctx context.Context, inlineMessageID string, tra
 		in.editInlineText(ctx, inlineMessageID, c.NotSentNote(false))
 		return
 	}
-	if tooLarge := in.editToFile(ctx, inlineMessageID, track, path, chosenCaption(c, track, tag)); tooLarge {
+	if tooLarge := in.editToFile(ctx, inlineMessageID, track, path, chosenCaption(c, track, tag), chosenText(c, track, tag)); tooLarge {
 		in.sendTrackLink(ctx, inlineMessageID, trackID, tag, true)
 	}
 }
 
 // editToFile turns the pending message into the Track's file under the
-// caption, or the caption with a note if the file cannot be sent. A file
-// too large for Telegram is left to the caller.
-func (in *Inline) editToFile(ctx context.Context, inlineMessageID string, track *library.Track, path, caption string) (tooLarge bool) {
-	file, _, err := in.Files.For(ctx, in.StorageChatID, track, path)
+// caption, or the text with a note if the file cannot be sent. A file too
+// large for Telegram is left to the caller.
+func (in *Inline) editToFile(ctx context.Context, inlineMessageID string, track *library.Track, path, caption, text string) (tooLarge bool) {
+	file, _, err := in.Files.For(ctx, in.StorageChatID, track, path, "")
 	if errors.Is(err, trackfile.ErrFileTooLarge) {
 		return true
 	}
 	if err != nil {
 		slog.Error("store_chosen_track", "track_id", track.ID, "error", err)
-		in.editInlineText(ctx, inlineMessageID, texts(ctx).NotSentCaption(caption, false))
+		in.editInlineText(ctx, inlineMessageID, texts(ctx).NotSentCaption(text, false))
 		return false
 	}
 	_, err = in.Telegram.Bot.EditMessageMedia(ctx, &bot.EditMessageMediaParams{
@@ -201,7 +210,7 @@ func (in *Inline) sendTrackLink(ctx context.Context, inlineMessageID string, tra
 		in.editInlineText(ctx, inlineMessageID, c.NotSentNote(tooLarge))
 		return
 	}
-	caption := chosenCaption(c, link.Track, tag)
+	caption := chosenText(c, link.Track, tag)
 	text := c.ListenLinkCaption(caption, link.URL)
 	switch {
 	case errors.Is(err, listening.ErrListenLinksOff) && tooLarge:
@@ -225,9 +234,9 @@ func (in *Inline) sendAlbumLink(ctx context.Context, inlineMessageID string, tra
 
 func albumLinkText(c i18n.Catalog, link *send_listen_link.AlbumLink, err error) string {
 	if err != nil {
-		return linkFailure(c, i18n.AlbumCaption(link.Album.AlbumArtist, link.Album.Album), err)
+		return linkFailure(c, c.AlbumText(link.Album), err)
 	}
-	return c.AlbumLinkCaption(link.Album.AlbumArtist, link.Album.Album, link.URL)
+	return c.AlbumLinkCaption(link.Album, link.URL)
 }
 
 // linkFailure leaves the caption alone without Listen Links.

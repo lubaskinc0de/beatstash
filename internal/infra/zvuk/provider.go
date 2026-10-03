@@ -104,16 +104,27 @@ func (p *Provider) fetch(ctx context.Context, token string, ref provider.TrackRe
 
 // Describe asks for the track's metadata only, which needs no pause: the
 // pause guards downloads.
-func (p *Provider) Describe(ctx context.Context, userID uint, ref provider.TrackRef) (*providers.Description, error) {
+func (p *Provider) Describe(
+	ctx context.Context, userID uint, refs []provider.TrackRef,
+) (map[string]*providers.Description, error) {
 	token, err := p.Tokens.Token(ctx, userID, Name)
 	if err != nil {
 		return nil, err
 	}
-	tracks, err := p.Client.tracks(ctx, token, []string{ref.ID})
-	if err != nil || len(tracks) == 0 {
+	ids := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		ids = append(ids, ref.ID)
+	}
+	tracks, err := p.Client.tracks(ctx, token, ids)
+	if err != nil {
 		return nil, err
 	}
-	return &providers.Description{Metadata: hint(&tracks[0]), DurationMs: tracks[0].Duration * 1000}, nil
+	described := make(map[string]*providers.Description, len(tracks))
+	for n := range tracks {
+		t := &tracks[n]
+		described[t.ID] = &providers.Description{Metadata: hint(t), DurationMs: t.Duration * 1000}
+	}
+	return described, nil
 }
 
 // cover is a nicety: a track without one is still worth storing.
@@ -146,7 +157,30 @@ func hint(t *track) library.Metadata {
 		Title:       t.Title,
 		Year:        year(t.Release.Date),
 		TrackNumber: t.Position,
+		Genres:      genres(t),
+		Label:       label(t),
 	}
+}
+
+// genres are the track's own, else its release's. The slice is never nil:
+// Zvuk has been asked.
+func genres(t *track) []string {
+	names := t.Genres
+	if len(names) == 0 {
+		names = t.Release.Genres
+	}
+	found := make([]string, 0, len(names))
+	for _, genre := range names {
+		found = append(found, genre.Name)
+	}
+	return found
+}
+
+func label(t *track) string {
+	if t.Release.Label == nil {
+		return ""
+	}
+	return t.Release.Label.Title
 }
 
 func joinTitles(items []titled) string {

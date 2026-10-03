@@ -189,6 +189,12 @@ tracks:
   many: "{{.Count}} треков"
   other: "{{.Count}} трека"
 
+played_tracks:
+  one: "{{.Count}} прослушанный трек"
+  few: "{{.Count}} прослушанных трека"
+  many: "{{.Count}} прослушанных треков"
+  other: "{{.Count}} прослушанного трека"
+
 songs:
   one: "{{.Count}} песня"
   few: "{{.Count}} песни"
@@ -307,8 +313,8 @@ hint:
     about: Что играет сейчас
     message: что я сейчас слушаю
   recent:
-    about: Последние треки
-    message: мои последние треки
+    about: Последние прослушанные треки
+    message: мои последние прослушанные треки
   shared:
     about: Свежее в общей библиотеке
     message: свежее в общей библиотеке
@@ -373,6 +379,7 @@ search:
   nothing_message: 🔎 Ничего не нашлось
   failed_title: Поиск недоступен
   failed_description: Не удалось найти музыку
+
 
 listen_link:
   open: Слушать

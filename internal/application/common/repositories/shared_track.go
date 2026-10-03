@@ -17,6 +17,9 @@ type SharedTracks interface {
 	BySource(ctx context.Context, sourceTrackID uint) (*sharing.SharedTrack, error)
 	// SharedSources tells which of the user's Tracks are shared.
 	SharedSources(ctx context.Context, sourceTrackIDs []uint) (map[uint]bool, error)
+	// Authors maps the shared ones of the Tracks to the Users who shared them
+	// first.
+	Authors(ctx context.Context, trackIDs []uint) (map[uint]uint, error)
 	// Save stores the new Shares and drops the ones gone.
 	Save(ctx context.Context, shared *sharing.SharedTrack) error
 	Delete(ctx context.Context, shared *sharing.SharedTrack) error

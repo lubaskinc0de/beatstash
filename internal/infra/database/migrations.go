@@ -228,6 +228,12 @@ var migrations = []*gormigrate.Migration{
 					ON navidrome_accounts (lower(login))`).Error
 		},
 	},
+	{
+		ID: "0022_track_genres_and_label",
+		Migrate: func(tx *gorm.DB) error {
+			return tx.AutoMigrate(&library.Track{})
+		},
+	},
 }
 
 func Migrate(db *gorm.DB) error {

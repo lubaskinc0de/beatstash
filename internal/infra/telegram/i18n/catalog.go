@@ -196,11 +196,7 @@ func (c Catalog) SharedTrackButton(entry *browse_shared.FeedEntry) string {
 }
 
 func (c Catalog) SharedTrackCard(entry *browse_shared.FeedEntry) string {
-	text := TrackCaption(entry.Track.Artist, entry.Track.Title)
-	if !entry.Track.Single() {
-		text += "\n💿 " + esc(entry.Track.Album)
-	}
-	return text + "\n\n🔗 " + esc(c.SharedBy(&entry.Author))
+	return c.TrackText(&entry.Track) + "\n\n🔗 " + esc(c.SharedBy(&entry.Author))
 }
 
 func (c Catalog) OpenTab(tab string) string { return "✓ " + tab }
@@ -483,7 +479,19 @@ func (c Catalog) ShareResult(result *share_tracks.ShareResult) string {
 }
 
 func (c Catalog) NowPlaying(track *show_playing.NowPlaying) string {
-	return nowPlaying(track, nowPlayingLabels{playing: c.t("playing.now", nil), paused: c.t("playing.paused", nil)})
+	return nowPlaying(track, nowPlayingLabels{playing: c.t("playing.now", nil), paused: c.t("playing.paused", nil)}, c.playingDetails(track))
+}
+
+// playingDetails falls back to the album Navidrome tells for a song the
+// user's libraries do not hold.
+func (c Catalog) playingDetails(track *show_playing.NowPlaying) string {
+	if track.Track != nil {
+		return c.AudioCaption(track.Track)
+	}
+	if track.Album == "" {
+		return ""
+	}
+	return "💿 " + esc(track.Album)
 }
 
 func (c Catalog) NowPlayingArticle(track *show_playing.NowPlaying) Article {
@@ -498,13 +506,13 @@ func (c Catalog) NotSentCaption(caption string, tooLarge bool) string {
 func (c Catalog) AlbumArticle(album repositories.AlbumSummary) Article {
 	return Article{
 		Title:       AlbumTitle(album.AlbumArtist, album.Album),
-		Description: c.tracks(album.Tracks),
+		Description: c.AlbumDescription(album),
 		Message:     "⏳ " + AlbumCaption(album.AlbumArtist, album.Album),
 	}
 }
 
-func (c Catalog) AlbumLinkCaption(artist, album, url string) string {
-	return AlbumCaption(artist, album) + "\n" + c.listenLink(url)
+func (c Catalog) AlbumLinkCaption(album repositories.AlbumSummary, url string) string {
+	return c.AlbumText(album) + "\n" + c.listenLink(url)
 }
 
 func (c Catalog) ListenLinkCaption(caption, url string) string {
@@ -536,7 +544,7 @@ func (c Catalog) HistoryEmpty() Article     { return c.article("recent.empty") }
 func (c Catalog) HistoryFailed() Article    { return c.article("recent.failed") }
 
 func (c Catalog) RecentList(tracks []show_playing.RecentTrack, now time.Time) Article {
-	count := args{"Tracks": c.tracks(len(tracks))}
+	count := args{"Tracks": c.count("played_tracks", len(tracks))}
 	return Article{
 		Title:       c.t("recent.title", count),
 		Description: c.t("recent.about", nil),
@@ -567,7 +575,11 @@ func (c Catalog) FeedList(entries []browse_shared.FeedEntry) Article {
 }
 
 func (c Catalog) FeedCaption(track *library.Track, author *access.User) string {
-	return TrackCaption(track.Artist, track.Title) + "\n🔗 " + esc(c.SharedBy(author))
+	return joinParts("\n", c.AudioCaption(track), "🔗 "+esc(c.SharedBy(author)))
+}
+
+func (c Catalog) FeedText(track *library.Track, author *access.User) string {
+	return c.TrackText(track) + "\n🔗 " + esc(c.SharedBy(author))
 }
 
 func (c Catalog) FeedEmptyArticle() Article {

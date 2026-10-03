@@ -179,7 +179,7 @@ func (a *API) handle(w http.ResponseWriter, r *http.Request) {
 		writeError(w, code, http.StatusText(code))
 		return
 	}
-	if method == "answerInlineQuery" && !a.cachableAudio(params["results"]) {
+	if method == "answerInlineQuery" && !a.cacheableAudio(params["results"]) {
 		writeError(w, http.StatusBadRequest, "Bad Request: AUDIO_CONTENT_TYPE_INVALID")
 		return
 	}
@@ -239,9 +239,9 @@ func (a *API) sentAudio(params map[string]string) map[string]any {
 	return map[string]any{"file_id": id, "file_unique_id": id + "-unique", "duration": 2}
 }
 
-// cachableAudio: Telegram sends a cached audio from inline mode only in
+// cacheableAudio: Telegram sends a cached audio from inline mode only in
 // MP3 or M4A, though it keeps other formats as audio too.
-func (a *API) cachableAudio(results string) bool {
+func (a *API) cacheableAudio(results string) bool {
 	var audios []struct {
 		Type        string `json:"type"`
 		AudioFileID string `json:"audio_file_id"`

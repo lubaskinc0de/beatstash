@@ -11,7 +11,7 @@ import (
 	"github.com/lubaskinc0de/beatstash/e2e/harness/audiofile"
 	"github.com/lubaskinc0de/beatstash/e2e/harness/navidrome"
 	"github.com/lubaskinc0de/beatstash/e2e/harness/telegram"
-	"github.com/lubaskinc0de/beatstash/internal/infra/telegram/i18n"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
 )
 
 func TestTrackListenLink(t *testing.T) {
@@ -32,7 +32,7 @@ func TestTrackListenLink(t *testing.T) {
 		assert.WithinDuration(t, time.Now().Add(harness.ListenLinkTTL), shares[0].ExpiresAt, time.Minute)
 		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
 		require.Len(t, edits, 1)
-		assert.Equal(t, s.Catalog(alice).ListenLinkCaption(i18n.TrackCaption("Zvuk Band", "Linked Song"), shareURL(shares[0])), edits[0].Text)
+		assert.Equal(t, s.Catalog(alice).ListenLinkCaption(zvukSongText("Linked Song"), shareURL(shares[0])), edits[0].Text)
 		assert.Empty(t, edits[0].Buttons)
 	})
 
@@ -70,7 +70,7 @@ func TestTrackListenLink(t *testing.T) {
 		require.Len(t, shares, 1)
 		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
 		require.Len(t, edits, 1)
-		assert.Equal(t, s.Catalog(alice).ListenLinkCaption(i18n.TrackCaption("Zvuk Band", "Huge Song"), shareURL(shares[0])), edits[0].Text)
+		assert.Equal(t, s.Catalog(alice).ListenLinkCaption(zvukSongText("Huge Song"), shareURL(shares[0])), edits[0].Text)
 	})
 
 	for name, url := range map[string]string{
@@ -127,7 +127,7 @@ func TestTrackListenLink(t *testing.T) {
 		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
 		require.Len(t, edits, 1)
 		c := s.Catalog(alice)
-		assert.Equal(t, c.LinkFailedCaption(i18n.TrackCaption("Zvuk Band", "Unshared Song")), edits[0].Text)
+		assert.Equal(t, c.LinkFailedCaption(zvukSongText("Unshared Song")), edits[0].Text)
 	})
 
 	t.Run("track Navidrome has not indexed is not ready", func(t *testing.T) {
@@ -143,7 +143,7 @@ func TestTrackListenLink(t *testing.T) {
 		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
 		require.Len(t, edits, 1)
 		c := s.Catalog(alice)
-		assert.Equal(t, c.NotIndexedCaption(i18n.TrackCaption("Zvuk Band", "Fresh Song")), edits[0].Text)
+		assert.Equal(t, c.NotIndexedCaption(zvukSongText("Fresh Song")), edits[0].Text)
 		assert.Empty(t, s.Navidrome.Shares(t, account))
 	})
 }
@@ -199,7 +199,9 @@ func TestPlayingListenLink(t *testing.T) {
 		require.Len(t, shares, 1)
 		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
 		require.Len(t, edits, 1)
-		np := nowPlayingText(t, s, alice, result, "Zvuk Band", "Playing Song", "Zvuk Album")
+		np := nowPlayingText(t, s, alice, result, library.Metadata{
+			Artist: "Zvuk Band", Title: "Playing Song", Album: "Zvuk Album", Year: 2021,
+		})
 		assert.Equal(t, s.Catalog(alice).ListenLinkCaption(np, shareURL(shares[0])), edits[0].Text)
 	})
 
@@ -243,6 +245,11 @@ func TestPlayingListenLink(t *testing.T) {
 		require.Len(t, shares, 1)
 		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
 		require.Len(t, edits, 1)
-		assert.Equal(t, s.Catalog(alice).ListenLinkCaption(i18n.TrackCaption("Zvuk Band", "Played Song"), shareURL(shares[0])), edits[0].Text)
+		assert.Equal(t, s.Catalog(alice).ListenLinkCaption(zvukSongText("Played Song"), shareURL(shares[0])), edits[0].Text)
 	})
+}
+
+// zvukSongText is how a text message tells a song AddZvukSong added.
+func zvukSongText(title string) string {
+	return "🎧 <b>Zvuk Band</b> — " + title + "\n💿 Zvuk Album (2021)"
 }

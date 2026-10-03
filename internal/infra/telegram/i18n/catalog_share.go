@@ -53,12 +53,9 @@ func (c Catalog) OwnAlbumButton(album repositories.AlbumSummary) string {
 
 func (c Catalog) TrackCard(card *share_tracks.TrackCard) string {
 	track := card.Track
-	text := TrackCaption(track.Artist, track.Title)
+	text := c.TrackText(track)
 	if !track.Complete() {
-		text = "🎧 " + esc(filepath.Base(track.Path))
-	}
-	if !track.Single() {
-		text += "\n💿 " + esc(track.Album)
+		text = joinParts("\n", "🎧 "+esc(filepath.Base(track.Path)), c.AudioCaption(track))
 	}
 	text += "\n📚 " + esc(c.libraryName(card.Library)) + "\n\n"
 	switch {
@@ -76,7 +73,7 @@ func (c Catalog) SharedFirstBy(author *access.User) string {
 }
 
 func (c Catalog) AlbumCard(card *share_tracks.AlbumCard) string {
-	return AlbumCaption(card.Album.AlbumArtist, card.Album.Album) + "\n" + c.tracks(len(card.Tracks)) + "\n📚 " +
+	return joinParts("\n", AlbumCaption(card.Album.AlbumArtist, card.Album.Album), c.albumFacts(card.Album, len(card.Tracks))) + "\n📚 " +
 		esc(c.libraryName(card.Library)) + "\n\n" +
 		c.t("share_screen.album_shared", args{"Shared": card.SharedCount(), "Tracks": len(card.Tracks)})
 }

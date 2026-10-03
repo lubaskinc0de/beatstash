@@ -56,6 +56,21 @@ func (r *SharedTrackRepository) SharedSources(ctx context.Context, sourceTrackID
 	return shared, err
 }
 
+func (r *SharedTrackRepository) Authors(ctx context.Context, trackIDs []uint) (map[uint]uint, error) {
+	var rows []struct {
+		TrackID uint
+		UserID  uint
+	}
+	err := dbForContext(ctx, r.DB).Raw(`
+		SELECT DISTINCT ON (track_id) track_id, user_id FROM shares
+		WHERE track_id IN ? ORDER BY track_id, created_at, id`, trackIDs).Scan(&rows).Error
+	authors := make(map[uint]uint, len(rows))
+	for _, row := range rows {
+		authors[row.TrackID] = row.UserID
+	}
+	return authors, err
+}
+
 func (r *SharedTrackRepository) Save(ctx context.Context, shared *sharing.SharedTrack) error {
 	db := dbForContext(ctx, r.DB)
 	kept := []uint{0}

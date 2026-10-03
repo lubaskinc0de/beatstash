@@ -331,6 +331,38 @@ func (r *TrackRepository) setSongs(ctx context.Context, songs []library.Track) e
 		WHERE tracks.id = v.id AND tracks.path = v.path`, args...).Error
 }
 
+func (r *TrackRepository) Unenriched(ctx context.Context) ([]library.Track, error) {
+	var found []library.Track
+	err := tracks(ctx, r.DB).Where("genres IS NULL AND NOT in_attached_library").Order("id").Find(&found).Error
+	return found, err
+}
+
+func (r *TrackRepository) SetGenresAndLabels(ctx context.Context, tracks []library.Track) error {
+	for chunk := range slices.Chunk(tracks, saveBatch) {
+		if err := r.setGenresAndLabels(ctx, chunk); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *TrackRepository) setGenresAndLabels(ctx context.Context, tracks []library.Track) error {
+	values := make([]string, 0, len(tracks))
+	args := make([]any, 0, len(tracks)*3)
+	for _, t := range tracks {
+		genres, err := textArray(t.Genres)
+		if err != nil {
+			return err
+		}
+		values = append(values, "(?::bigint, ?::text[], ?::text)")
+		args = append(args, t.ID, genres, t.Label)
+	}
+	return dbForContext(ctx, r.DB).Exec(`
+		UPDATE tracks SET genres = v.genres, label = v.label
+		FROM (VALUES `+strings.Join(values, ", ")+`) AS v(id, genres, label)
+		WHERE tracks.id = v.id AND tracks.genres IS NULL`, args...).Error
+}
+
 func (r *TrackRepository) Unindexed(ctx context.Context, libraryIDs []uint) (map[uint][]library.Track, error) {
 	var found []library.Track
 	err := dbForContext(ctx, r.DB).Select("id, library_id, path").

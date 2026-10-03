@@ -58,20 +58,33 @@ type Tracks interface {
 	SearchAlbums(
 		ctx context.Context, libraryIDs []uint, text string, indexedOnly bool, offset, limit int,
 	) ([]AlbumSummary, error)
+	AlbumSummary(ctx context.Context, album library.AlbumKey) (AlbumSummary, error)
 	// SetSongs keeps the Navidrome song of each Track, by its id; a Track
 	// whose path has changed since keeps none.
 	SetSongs(ctx context.Context, songs []library.Track) error
 	Unindexed(ctx context.Context, libraryIDs []uint) (map[uint][]library.Track, error)
+	// Unenriched loads the Tracks of the Personal Libraries and the Shared
+	// Library whose genres were never looked up.
+	Unenriched(ctx context.Context) ([]library.Track, error)
+	// SetGenresAndLabels keeps the genres and the label of each Track, by its
+	// id, unless they were looked up meanwhile.
+	SetGenresAndLabels(ctx context.Context, tracks []library.Track) error
 	CountIn(ctx context.Context, libraryIDs []uint) (int64, error)
 	// Weigh maps each of the libraries to the sum of its Tracks' sizes.
 	Weigh(ctx context.Context, libraryIDs []uint) (map[uint]int64, error)
 }
 
-// AlbumSummary stands for an Album by one of its Tracks, TrackID.
+// AlbumSummary stands for an Album by one of its Tracks, TrackID. Year,
+// Genres and Label are the ones most of its Tracks have; DurationMs is
+// theirs in all.
 type AlbumSummary struct {
 	library.AlbumKey
-	TrackID uint
-	Tracks  int
+	TrackID    uint
+	Tracks     int
+	Year       int
+	DurationMs int
+	Genres     []string
+	Label      string
 }
 
 var (

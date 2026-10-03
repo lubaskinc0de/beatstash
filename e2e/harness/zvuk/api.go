@@ -81,6 +81,7 @@ type Track struct {
 	Seconds  int
 	HasFlac  bool
 	Audio    Audio
+	Genres   []string
 }
 
 type Release struct {
@@ -88,6 +89,8 @@ type Release struct {
 	Title   string
 	Artists []string
 	Date    string
+	Genres  []string
+	Label   string
 }
 
 type Playlist struct {
@@ -644,14 +647,33 @@ func (z *API) trackJSON(track *Track) map[string]any {
 		"hasFlac":  track.HasFlac,
 		"position": track.Position,
 		"artists":  titlesJSON(track.Artists),
+		"genres":   namesJSON(track.Genres),
 		"release": map[string]any{
 			"id":      release.ID,
 			"title":   release.Title,
 			"date":    release.Date,
 			"artists": titlesJSON(release.Artists),
+			"genres":  namesJSON(release.Genres),
+			"label":   labelJSON(release.Label),
 			"image":   map[string]any{"src": z.URL() + "/image/" + release.ID + "?size={size}"},
 		},
 	}
+}
+
+func namesJSON(names []string) []any {
+	result := make([]any, 0, len(names))
+	for _, name := range names {
+		result = append(result, map[string]any{"name": name})
+	}
+	return result
+}
+
+// labelJSON is null for a release without a label, as on Zvuk.
+func labelJSON(label string) any {
+	if label == "" {
+		return nil
+	}
+	return map[string]any{"title": label}
 }
 
 func (z *API) idsJSON(ids []string) []any {

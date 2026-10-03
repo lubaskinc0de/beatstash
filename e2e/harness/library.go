@@ -180,3 +180,25 @@ func (s *Scenario) RetagByHand(path string, tags map[string]string) {
 	s.t.Helper()
 	audiofile.Retag(s.t, path, tags)
 }
+
+// ForgetGenres makes the Tracks look stored before the bot learned genres
+// and labels.
+func (s *Scenario) ForgetGenres() {
+	s.t.Helper()
+
+	conn, err := pgx.Connect(s.t.Context(), s.config.DBDSN)
+	require.NoError(s.t, err)
+	defer conn.Close(context.Background())
+
+	_, err = conn.Exec(s.t.Context(), "UPDATE tracks SET genres = NULL, label = ''")
+	require.NoError(s.t, err)
+}
+
+// Enrich has the instance fill the Tracks' genres and labels now.
+func (s *Scenario) Enrich() {
+	s.t.Helper()
+
+	ctx, cancel := context.WithTimeout(s.t.Context(), time.Minute)
+	defer cancel()
+	require.NoError(s.t, s.app.Enrich(ctx))
+}

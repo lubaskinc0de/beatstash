@@ -19,11 +19,13 @@ In any chat, type your bot's username followed by a query, then select a result.
 |---|---|
 | Any track, artist, or album name | Search your personal and accessible attached libraries |
 | `np` | What your linked [Navidrome](https://www.navidrome.org/) account is playing now |
-| `recent` or `last` | Your ten most recent tracks |
+| `recent` or `last` | Your ten most recently played tracks |
 | `shared` | Recent tracks in the shared library |
 | `top` | Participants who share the most |
 
 An empty query shows hints. A result may send an audio file or a listening link, depending on whether a Telegram file is available and how the server is configured. Select the result and allow the bot time to prepare it.
+
+Results and sent tracks show the album, year, up to two genres, and the record label when the music has them. For an album, the bot shows the year, genre, and label most of its tracks share, together with the track count and total length. Genres and labels come from the music service the track came from, then from the file's tags; for attached libraries they come from Navidrome.
 
 Inline sending does not add the track to the server's shared library. Anyone who receives an audio file can keep or forward it.
 

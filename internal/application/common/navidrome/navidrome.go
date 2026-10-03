@@ -84,7 +84,10 @@ type Song struct {
 	Title       string
 	Year        int
 	TrackNumber int
-	DurationMs  int
+	// Genres is never nil.
+	Genres     []string
+	Label      string
+	DurationMs int
 	// Suffix is the file's extension without the dot.
 	Suffix      string
 	Codec       string

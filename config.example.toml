@@ -41,6 +41,9 @@ navidrome_music_dir = "/music"
 # How often files changed by hand in music_dir/shared and music_dir/users
 # are picked up.
 reconcile_interval = "1h"
+# How often tracks look up again what they lack, such as genres and labels,
+# when a music service did not answer before.
+enrich_interval = "1h"
 
 [navidrome]
 url = "http://localhost:4533"

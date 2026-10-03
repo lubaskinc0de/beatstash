@@ -28,9 +28,10 @@ func (Post) TableName() string {
 // file.
 const postWait = 100 * time.Millisecond
 
-// For posts the Track to the chat unless it has a file already; posted
-// tells which. While somebody else posts it, For waits for their file.
-func (f *Files) For(ctx context.Context, chatID int64, track *library.Track, path string) (file *File, posted bool, err error) {
+// For posts the Track to the chat under the caption unless it has a file
+// already; posted tells which. While somebody else posts it, For waits for
+// their file.
+func (f *Files) For(ctx context.Context, chatID int64, track *library.Track, path, caption string) (file *File, posted bool, err error) {
 	for {
 		file, err := f.stored(ctx, track)
 		if err != nil || file != nil {
@@ -41,7 +42,7 @@ func (f *Files) For(ctx context.Context, chatID int64, track *library.Track, pat
 			return nil, false, err
 		}
 		if token != nil {
-			return f.post(ctx, chatID, track, path, *token)
+			return f.post(ctx, chatID, track, path, caption, *token)
 		}
 		select {
 		case <-ctx.Done():
@@ -52,12 +53,12 @@ func (f *Files) For(ctx context.Context, chatID int64, track *library.Track, pat
 }
 
 // SendTo posts the Track only if it has no file yet.
-func (f *Files) SendTo(ctx context.Context, chatID int64, track *library.Track, path string) error {
-	file, posted, err := f.For(ctx, chatID, track, path)
+func (f *Files) SendTo(ctx context.Context, chatID int64, track *library.Track, path, caption string) error {
+	file, posted, err := f.For(ctx, chatID, track, path, caption)
 	if err != nil || posted {
 		return err
 	}
-	return f.Sender.Send(ctx, chatID, file)
+	return f.Sender.Send(ctx, chatID, file, caption)
 }
 
 // PostUnlessBusy posts the Track to the chat, unless somebody else is
@@ -67,17 +68,17 @@ func (f *Files) PostUnlessBusy(ctx context.Context, chatID int64, track *library
 	if err != nil || token == nil {
 		return err
 	}
-	_, _, err = f.post(ctx, chatID, track, path, *token)
+	_, _, err = f.post(ctx, chatID, track, path, "", *token)
 	return err
 }
 
-func (f *Files) post(ctx context.Context, chatID int64, track *library.Track, path string, token time.Time) (*File, bool, error) {
+func (f *Files) post(ctx context.Context, chatID int64, track *library.Track, path, caption string, token time.Time) (*File, bool, error) {
 	// The previous claimant may have finished between the look and the claim.
 	if file, err := f.stored(ctx, track); err != nil || file != nil {
 		f.release(ctx, track.ID, token, nil)
 		return file, false, err
 	}
-	posted, err := f.Sender.post(ctx, chatID, path, track)
+	posted, err := f.Sender.post(ctx, chatID, path, track, caption)
 	if err != nil {
 		var tooLarge *TooLargeError
 		if errors.As(err, &tooLarge) {

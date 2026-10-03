@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/lubaskinc0de/beatstash/internal/application/attach_libraries"
+	"github.com/lubaskinc0de/beatstash/internal/application/enrich_tracks"
 	"github.com/lubaskinc0de/beatstash/internal/application/reconcile_libraries"
 	"github.com/lubaskinc0de/beatstash/internal/application/resolve_songs"
 	"github.com/lubaskinc0de/beatstash/internal/application/sync_collection"
@@ -87,6 +88,25 @@ func (r *Reconciler) Run(ctx context.Context) {
 // caller see the effect of files changed by hand.
 func (r *Reconciler) Wait(ctx context.Context) error {
 	return r.runs.Wait(ctx)
+}
+
+// Enricher fills in what the Tracks lack. It starts at once: Tracks stored
+// before the bot knew a field wait for it.
+type Enricher struct {
+	Fill     *enrich_tracks.FillGenresAndLabels
+	Interval time.Duration
+}
+
+func (e *Enricher) Run(ctx context.Context) {
+	e.once(ctx)
+	every(ctx, e.Interval, nil, e.once)
+}
+
+// once is not fatal: a Provider may be down, and the next run catches up.
+func (e *Enricher) once(ctx context.Context) {
+	if err := e.Fill.Execute(ctx); err != nil && ctx.Err() == nil {
+		slog.Error("fill_genres_and_labels", "error", err)
+	}
 }
 
 // SongResolver is off with a zero Interval.

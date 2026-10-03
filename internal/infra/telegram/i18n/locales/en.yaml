@@ -199,6 +199,10 @@ tracks:
   one: "{{.Count}} track"
   other: "{{.Count}} tracks"
 
+played_tracks:
+  one: "{{.Count}} played track"
+  other: "{{.Count}} played tracks"
+
 songs:
   one: "{{.Count}} song"
   other: "{{.Count}} songs"
@@ -316,8 +320,8 @@ hint:
     about: What's playing now
     message: what I'm listening to now
   recent:
-    about: Recent tracks
-    message: my recent tracks
+    about: Recently played tracks
+    message: my recently played tracks
   shared:
     about: Fresh in the Shared Library
     message: fresh in the Shared Library
@@ -384,6 +388,7 @@ search:
   nothing_message: 🔎 Nothing found
   failed_title: Search is unavailable
   failed_description: Could not search the music
+
 
 listen_link:
   open: Listen

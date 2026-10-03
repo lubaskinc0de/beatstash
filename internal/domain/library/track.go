@@ -116,7 +116,7 @@ func (t *Track) Follow(song Song) (changed bool) {
 	t.Format = song.Format
 	t.Quality = song.Quality
 	t.Size = song.Size
-	return before.InAttachedLibrary != t.InAttachedLibrary || before.SongID != t.SongID || before.Path != t.Path || before.Metadata != t.Metadata ||
+	return before.InAttachedLibrary != t.InAttachedLibrary || before.SongID != t.SongID || before.Path != t.Path || !before.Equal(t.Metadata) ||
 		before.DurationMs != t.DurationMs || before.Format != t.Format || before.Quality != t.Quality ||
 		before.Size != t.Size
 }
@@ -141,18 +141,31 @@ func (t *Track) Indexed() bool {
 // Absorb handles incoming audio that is a Duplicate of the Track. The
 // Source is always added. The file is replaced only if the new Quality is
 // better and the Track is not Attached. The metadata stays, so only the
-// path's extension can change.
+// path's extension can change; the new audio only fills the Genres and the
+// Label the Track lacks.
 func (t *Track) Absorb(in Incoming) Outcome {
 	t.AddSource(in.Ref)
 	if t.Attached() || !in.Quality.Better(t.Quality) {
 		return AlreadyExists
 	}
+	t.Metadata = t.fillGenresAndLabel(in.Metadata)
 	t.moveTo(LayoutPath(t.Metadata, in.Format, in.OriginalName))
 	t.Format = in.Format
 	t.Quality = in.Quality
 	t.DurationMs = in.DurationMs
 	t.FileVersion++
 	return Replaced
+}
+
+// Enrich takes the Genres and the Label the Track lacks from the first of
+// the sources that has them; with none, the Genres stay empty but looked up.
+func (t *Track) Enrich(sources ...Metadata) {
+	for _, source := range sources {
+		t.Metadata = t.fillGenresAndLabel(source.Normalize())
+	}
+	if t.Genres == nil {
+		t.Genres = []string{}
+	}
 }
 
 // MoveTo sets a new path, for example when the chosen one is taken; an

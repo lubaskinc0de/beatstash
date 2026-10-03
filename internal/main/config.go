@@ -87,6 +87,9 @@ type Config struct {
 	// ReconcileInterval is how often the bot brings the Tracks of the
 	// Personal Libraries and the Shared Library in step with their files.
 	ReconcileInterval time.Duration
+	// EnrichInterval is how often the bot looks up what the Tracks lack,
+	// such as genres and labels, again.
+	EnrichInterval time.Duration
 
 	ZvukURL string
 	// ZvukWorkers is how many Zvuk downloads run at once for all users;
@@ -123,6 +126,7 @@ type fileConfig struct {
 		MusicDir          string        `toml:"music_dir"`
 		NavidromeMusicDir string        `toml:"navidrome_music_dir"`
 		ReconcileInterval time.Duration `toml:"reconcile_interval"`
+		EnrichInterval    time.Duration `toml:"enrich_interval"`
 	} `toml:"library"`
 
 	Navidrome struct {
@@ -176,6 +180,7 @@ func defaultFileConfig() fileConfig {
 	f.Navidrome.SongInterval = time.Minute
 	f.Navidrome.AccessTTL = 30 * time.Second
 	f.Library.ReconcileInterval = time.Hour
+	f.Library.EnrichInterval = time.Hour
 	f.Invites.TTL = 7 * 24 * time.Hour
 	f.Ingest.Workers = 2
 	f.Ingest.RetryDelays = []time.Duration{10 * time.Second, time.Minute, 5 * time.Minute}
@@ -264,6 +269,7 @@ func LoadConfig() (Config, error) {
 		ScratchTTL:         file.Ingest.ScratchTTL,
 		StallTimeout:       file.Ingest.StallTimeout,
 		ReconcileInterval:  file.Library.ReconcileInterval,
+		EnrichInterval:     file.Library.EnrichInterval,
 
 		ZvukURL:             file.Zvuk.URL,
 		ZvukWorkers:         file.Zvuk.Workers,
@@ -295,6 +301,9 @@ func readFile(path string, file *fileConfig) []error {
 	require(file.Library.MusicDir == "", "library.music_dir")
 	if file.Library.ReconcileInterval <= 0 {
 		problems = append(problems, errors.New("library.reconcile_interval must be positive"))
+	}
+	if file.Library.EnrichInterval <= 0 {
+		problems = append(problems, errors.New("library.enrich_interval must be positive"))
 	}
 	require(file.Navidrome.URL == "", "navidrome.url")
 	require(file.Navidrome.User == "", "navidrome.user")

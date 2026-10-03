@@ -253,6 +253,7 @@ func prepare(t *testing.T, opts ...Option) *Scenario {
 		ScratchTTL:             time.Hour,
 		StallTimeout:           time.Minute,
 		ReconcileInterval:      time.Hour,
+		EnrichInterval:         time.Hour,
 		TelegramPollInterval:   200 * time.Millisecond,
 		TelegramLeaseTTL:       LeaseTTL,
 		FillStorageChat:        true,

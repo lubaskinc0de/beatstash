@@ -130,6 +130,8 @@ func songOf(s navidrome.Song) library.Song {
 			Title:       s.Title,
 			Year:        s.Year,
 			TrackNumber: s.TrackNumber,
+			Genres:      s.Genres,
+			Label:       s.Label,
 		},
 		DurationMs: s.DurationMs,
 		Format:     format,

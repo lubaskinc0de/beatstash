@@ -78,6 +78,7 @@ Set `admin_contact` to a contact such as `@your_username` if strangers and parti
 | `navidrome.attach_interval` | `1h` | Refresh records for existing libraries; `0` disables attached libraries |
 | `navidrome.access_ttl` | `30s` | Cache a user's existing-library access; `0` checks every time |
 | `library.reconcile_interval` | `1h` | Reconcile managed library records with on-disk changes |
+| `library.enrich_interval` | `1h` | Fill in genres and labels the tracks lack, retrying music services that failed |
 | `navidrome.song_interval` | `1m` | Resolve newly indexed songs; `0` leaves lookup to individual requests |
 | `zvuk.sync_interval` | `6h` | Poll imported Zvuk collections for changes |
 | `invites.ttl` | `168h` | Single-use invite lifetime |

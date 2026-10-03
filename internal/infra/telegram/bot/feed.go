@@ -151,7 +151,7 @@ func (f *Feed) sendFile(ctx context.Context, chatID int64, sharedTrackID uint) e
 	if err != nil {
 		return err
 	}
-	return f.Files.SendTo(ctx, chatID, audio.Track, audio.Path)
+	return f.Files.SendTo(ctx, chatID, audio.Track, audio.Path, texts(ctx).FeedCaption(audio.Track, &audio.Author))
 }
 
 func (f *Feed) topView(ctx context.Context) window.View {

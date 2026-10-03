@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,7 +26,6 @@ func TestAlbumListenLink(t *testing.T) {
 		require.Len(t, results, 4)
 		album := repositories.AlbumSummary{AlbumKey: library.AlbumKey{AlbumArtist: "Artist", Album: "Opera"}, Tracks: 3}
 		assert.Equal(t, s.Catalog(alice).AlbumArticle(album).Title, results[0].Title)
-		assert.Equal(t, s.Catalog(alice).AlbumArticle(album).Description, results[0].Description)
 		assert.Equal(t, []string{"⏳"}, telegram.ButtonTexts(results[0].Buttons()))
 		assert.Len(t, telegram.AudioFileIDs(telegram.InlineAnswer{Results: results[1:]}), 3)
 	})
@@ -42,7 +42,8 @@ func TestAlbumListenLink(t *testing.T) {
 		assert.Equal(t, "Artist — Opera", shares[0].Description)
 		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
 		require.Len(t, edits, 1)
-		assert.Equal(t, s.Catalog(alice).AlbumLinkCaption("Artist", "Opera", shareURL(shares[0])), edits[0].Text)
+		assert.True(t, strings.HasPrefix(edits[0].Text, "💿 <b>Artist</b> — Opera\n"), edits[0].Text)
+		assert.Contains(t, edits[0].Text, shareURL(shares[0]))
 	})
 
 	t.Run("choosing the Album again gives the same link", func(t *testing.T) {

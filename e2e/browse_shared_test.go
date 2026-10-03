@@ -200,7 +200,7 @@ func TestSharedFeed(t *testing.T) {
 		require.Len(t, edits, 1)
 		assert.Equal(t, "editMessageMedia", edits[0].Method)
 		assert.Equal(t, audio.FileID, edits[0].Media.Media)
-		assert.Contains(t, edits[0].Media.Caption, audiofile.FixtureTitle)
+		assert.Contains(t, edits[0].Media.Caption, "Fixture Album")
 		assert.Contains(t, edits[0].Media.Caption, "@alice")
 	})
 
@@ -219,7 +219,7 @@ func TestSharedFeed(t *testing.T) {
 		edits := s.Telegram.InlineEdits(t, chosen.ChosenInlineResult.InlineMessageID)
 		require.Len(t, edits, 1)
 		assert.Equal(t, s.Telegram.UploadedFileID(0), edits[0].Media.Media)
-		assert.Contains(t, edits[0].Media.Caption, "Feed Song")
+		assert.Contains(t, edits[0].Media.Caption, "Zvuk Album")
 		assert.Contains(t, edits[0].Media.Caption, "@alice")
 	})
 

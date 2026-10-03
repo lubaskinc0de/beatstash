@@ -196,15 +196,22 @@ type track struct {
 	HasFlac  bool     `json:"hasFlac"`
 	Position int      `json:"position"`
 	Artists  []titled `json:"artists"`
+	Genres   []named  `json:"genres"`
 	Release  struct {
 		ID      string   `json:"id"`
 		Title   string   `json:"title"`
 		Date    string   `json:"date"`
 		Artists []titled `json:"artists"`
+		Genres  []named  `json:"genres"`
+		Label   *titled  `json:"label"`
 		Image   struct {
 			Src string `json:"src"`
 		} `json:"image"`
 	} `json:"release"`
+}
+
+type named struct {
+	Name string `json:"name"`
 }
 
 type identified struct {
@@ -214,8 +221,8 @@ type identified struct {
 const tracksQuery = `query getTracks($ids: [ID!]!) {
   getTracks(ids: $ids) {
     id title duration hasFlac position
-    artists { title }
-    release { id title date artists { title } image { src } }
+    artists { title } genres { name }
+    release { id title date artists { title } genres { name } label { title } image { src } }
   }
 }`
 

@@ -25,7 +25,7 @@ func TestSearchMusic(t *testing.T) {
 		require.Len(t, results, 1)
 		assert.Equal(t, "audio", results[0].Type)
 		assert.Equal(t, audio.FileID, results[0].AudioFileID)
-		assert.Contains(t, results[0].Caption, audiofile.FixtureTitle)
+		assert.Contains(t, results[0].Caption, "Fixture Album")
 	})
 
 	t.Run("FLAC with a Telegram file is sent by its file once chosen", func(t *testing.T) {
@@ -44,7 +44,7 @@ func TestSearchMusic(t *testing.T) {
 		assert.Equal(t, "editMessageMedia", edits[0].Method)
 		assert.Equal(t, "audio", edits[0].Media.Type)
 		assert.Equal(t, audio.FileID, edits[0].Media.Media)
-		assert.Contains(t, edits[0].Media.Caption, audiofile.FixtureTitle)
+		assert.Contains(t, edits[0].Media.Caption, "Fixture Album")
 		assert.Empty(t, s.Telegram.UploadedFileID(0))
 	})
 
@@ -56,7 +56,7 @@ func TestSearchMusic(t *testing.T) {
 		results := s.Search(alice, "QUEEN rhapsody", "").Results
 
 		require.Len(t, results, 1)
-		assert.Contains(t, results[0].Caption, "Bohemian Rhapsody")
+		assert.Contains(t, results[0].Caption, "A Night at the Opera")
 	})
 
 	t.Run("е finds ё", func(t *testing.T) {
@@ -68,7 +68,7 @@ func TestSearchMusic(t *testing.T) {
 		results := s.Search(alice, "елка", "").Results
 
 		require.Len(t, results, 1)
-		assert.Contains(t, results[0].Caption, "Прованс")
+		assert.Contains(t, results[0].Caption, "Альбом")
 	})
 
 	t.Run("track shared by another user is found", func(t *testing.T) {
@@ -158,7 +158,7 @@ func TestSearchMusicTypos(t *testing.T) {
 		results := s.Search(alice, "quen bohemain", "").Results
 
 		require.Len(t, results, 1)
-		assert.Contains(t, results[0].Caption, "Bohemian Rhapsody")
+		assert.Contains(t, results[0].Caption, "A Night at the Opera")
 	})
 
 	t.Run("words that match bring no similar tracks", func(t *testing.T) {
@@ -171,7 +171,7 @@ func TestSearchMusicTypos(t *testing.T) {
 		results := s.Search(alice, "queen", "").Results
 
 		require.Len(t, results, 1)
-		assert.Contains(t, results[0].Caption, "Bohemian Rhapsody")
+		assert.Contains(t, results[0].Caption, "A Night at the Opera")
 	})
 
 	t.Run("nonsense finds nothing", func(t *testing.T) {

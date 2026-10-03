@@ -23,6 +23,7 @@ import (
 	"github.com/lubaskinc0de/beatstash/internal/application/common/repositories"
 	"github.com/lubaskinc0de/beatstash/internal/application/connect_navidrome"
 	"github.com/lubaskinc0de/beatstash/internal/application/connect_provider"
+	"github.com/lubaskinc0de/beatstash/internal/application/enrich_tracks"
 	"github.com/lubaskinc0de/beatstash/internal/application/greet_stranger"
 	"github.com/lubaskinc0de/beatstash/internal/application/import_collection"
 	"github.com/lubaskinc0de/beatstash/internal/application/ingest_track"
@@ -67,6 +68,7 @@ type App struct {
 	songResolver *background.SongResolver
 	sweeper      *background.Sweeper
 	reconciler   *background.Reconciler
+	enricher     *background.Enricher
 	poller       *poller.Poller
 	db           *gorm.DB
 
@@ -487,7 +489,14 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 			Interval: cfg.SongInterval,
 		}, sweeper: &background.Sweeper{Disk: fileDisk, Interval: cfg.ScratchTTL},
 		reconciler: reconciler,
-		poller:     telegramPoller, db: db,
+		enricher: &background.Enricher{
+			Fill: &enrich_tracks.FillGenresAndLabels{
+				Libraries: libraryRepo, Tracks: tracks, Shared: sharedTracks, Providers: providers,
+				Tags: audio.Tags{}, MusicDir: cfg.MusicDir,
+			},
+			Interval: cfg.EnrichInterval,
+		},
+		poller: telegramPoller, db: db,
 	}, nil
 }
 
@@ -509,6 +518,7 @@ func (a *App) StartWorkers(ctx context.Context) <-chan struct{} {
 	wg.Go(func() { a.songResolver.Run(ctx) })
 	wg.Go(func() { a.sweeper.Run(ctx) })
 	wg.Go(func() { a.reconciler.Run(ctx) })
+	wg.Go(func() { a.enricher.Run(ctx) })
 	wg.Go(func() { a.poller.Run(ctx) })
 	stopped := make(chan struct{})
 	go func() {
@@ -544,6 +554,11 @@ func (a *App) WaitReconcile(ctx context.Context) error {
 // once more.
 func (a *App) WaitAttach(ctx context.Context) error {
 	return a.attacher.Wait(ctx)
+}
+
+// Enrich looks up what the Tracks lack now.
+func (a *App) Enrich(ctx context.Context) error {
+	return a.enricher.Fill.Execute(ctx)
 }
 
 func (a *App) ResolveSongs(ctx context.Context) error {

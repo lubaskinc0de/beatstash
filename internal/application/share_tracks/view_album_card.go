@@ -11,7 +11,7 @@ import (
 )
 
 type AlbumCard struct {
-	Album   library.AlbumKey
+	Album   repositories.AlbumSummary
 	Library *library.Library
 	// Tracks are only those the user can share.
 	Tracks   []library.Track
@@ -54,10 +54,15 @@ func (i *ViewAlbumCard) Execute(ctx context.Context, trackID uint) (*AlbumCard, 
 	if err != nil {
 		return nil, err
 	}
-	card := &AlbumCard{Album: track.AlbumKey(), Library: libraryOf(track, libs.Kept())}
+	card := &AlbumCard{Album: repositories.AlbumSummary{AlbumKey: track.AlbumKey()}, Library: libraryOf(track, libs.Kept())}
 	card.Tracks, err = album(ctx, i.Tracks, libs.Kept(), track)
 	if err != nil {
 		return nil, err
+	}
+	if !track.Single() {
+		if card.Album, err = i.Tracks.AlbumSummary(ctx, track.AlbumKey()); err != nil {
+			return nil, err
+		}
 	}
 	ids := make([]uint, 0, len(card.Tracks))
 	for _, t := range card.Tracks {

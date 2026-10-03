@@ -287,7 +287,7 @@ func (s *ShareScreen) sendFile(ctx context.Context, chatID int64, trackID uint) 
 	if err != nil {
 		return err
 	}
-	return s.Files.SendTo(ctx, chatID, track, path)
+	return s.Files.SendTo(ctx, chatID, track, path, texts(ctx).AudioCaption(track))
 }
 
 func (s *ShareScreen) sendAlbumLink(ctx context.Context, cb windowCallback, arg string) {

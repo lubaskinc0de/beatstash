@@ -16,6 +16,7 @@ import (
 	"github.com/lubaskinc0de/beatstash/e2e/harness/telegram"
 	appnd "github.com/lubaskinc0de/beatstash/internal/application/common/navidrome"
 	"github.com/lubaskinc0de/beatstash/internal/application/show_playing"
+	"github.com/lubaskinc0de/beatstash/internal/domain/library"
 )
 
 func TestNowPlayingAudio(t *testing.T) {
@@ -95,7 +96,9 @@ func TestNowPlayingAudio(t *testing.T) {
 		assert.Equal(t, "editMessageMedia", edits[0].Method)
 		assert.Equal(t, "audio", edits[0].Media.Type)
 		assert.Equal(t, audio.FileID, edits[0].Media.Media)
-		assert.Equal(t, nowPlayingText(t, s, alice, result, "Fixture Artist", audiofile.FixtureTitle, "Fixture Album"), edits[0].Media.Caption)
+		assert.Equal(t, nowPlayingText(t, s, alice, result, library.Metadata{
+			Artist: "Fixture Artist", Title: audiofile.FixtureTitle, Album: "Fixture Album",
+		}), edits[0].Media.Caption)
 	})
 
 	t.Run("recent with FLAC and MP3 answers in full", func(t *testing.T) {
@@ -143,9 +146,11 @@ func TestNowPlayingAudio(t *testing.T) {
 }
 
 // nowPlayingText is the np text of what the result showed, at the
-// position it showed.
-func nowPlayingText(t *testing.T, s *harness.Scenario, user harness.User, result telegram.InlineResult, artist, title, album string) string {
+// position it showed, for a playing Track the bot holds with the metadata.
+func nowPlayingText(t *testing.T, s *harness.Scenario, user harness.User, result telegram.InlineResult, m library.Metadata) string {
 	t.Helper()
+
+	artist, title, album := m.Artist, m.Title, m.Album
 
 	var posMin, posSec, durMin, durSec int
 	_, err := fmt.Sscanf(strings.TrimPrefix(result.Description, album+" · "), "%d:%d / %d:%d", &posMin, &posSec, &durMin, &durSec)
@@ -154,7 +159,7 @@ func nowPlayingText(t *testing.T, s *harness.Scenario, user harness.User, result
 		Track:      appnd.Track{Artist: artist, Title: title, Album: album, Duration: durMin*60 + durSec},
 		PositionMs: (posMin*60 + posSec) * 1000,
 		State:      "playing",
-	}})
+	}, Track: &library.Track{Metadata: m}})
 }
 
 func mixedSong(t *testing.T, name, title string) string {

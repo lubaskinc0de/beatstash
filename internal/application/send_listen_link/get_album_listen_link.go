@@ -15,8 +15,9 @@ import (
 
 var ErrSingle = errors.New("the track belongs to no album")
 
+// AlbumLink's Album has only its key for a single.
 type AlbumLink struct {
-	Album library.AlbumKey
+	Album repositories.AlbumSummary
 	URL   string
 }
 
@@ -42,7 +43,13 @@ func (i *GetAlbumListenLink) Execute(ctx context.Context, trackID uint) (*AlbumL
 	if err != nil {
 		return nil, err
 	}
-	found := &AlbumLink{Album: track.AlbumKey()}
+	album := track.AlbumKey()
+	found := &AlbumLink{Album: repositories.AlbumSummary{AlbumKey: album}}
+	if !track.Single() {
+		if found.Album, err = i.Tracks.AlbumSummary(ctx, album); err != nil {
+			return nil, err
+		}
+	}
 	creds, err := i.ListenLinks.Credentials(ctx, user.ID)
 	if err != nil {
 		return found, err
@@ -50,7 +57,7 @@ func (i *GetAlbumListenLink) Execute(ctx context.Context, trackID uint) (*AlbumL
 	if track.Single() {
 		return found, ErrSingle
 	}
-	link, err := i.Links.OfAlbum(ctx, user.ID, found.Album)
+	link, err := i.Links.OfAlbum(ctx, user.ID, album)
 	if err != nil {
 		return found, err
 	}
@@ -58,7 +65,7 @@ func (i *GetAlbumListenLink) Execute(ctx context.Context, trackID uint) (*AlbumL
 		found.URL = link.URL
 		return found, nil
 	}
-	songID, err := i.anySong(ctx, found.Album, track)
+	songID, err := i.anySong(ctx, album, track)
 	if err != nil {
 		return found, err
 	}
@@ -68,12 +75,12 @@ func (i *GetAlbumListenLink) Execute(ctx context.Context, trackID uint) (*AlbumL
 	}
 	expires := i.Clock().Add(i.TTL)
 	url, err := i.Navidrome.CreateShare(ctx, creds, navidrome.Share{
-		ID: albumID, Description: description(found.Album.AlbumArtist, found.Album.Album), Expires: expires, Downloadable: i.Downloadable,
+		ID: albumID, Description: description(album.AlbumArtist, album.Album), Expires: expires, Downloadable: i.Downloadable,
 	})
 	if err != nil {
 		return found, err
 	}
-	if err := i.Links.Save(ctx, library.NewAlbumListenLink(user.ID, found.Album, url, expires)); err != nil {
+	if err := i.Links.Save(ctx, library.NewAlbumListenLink(user.ID, album, url, expires)); err != nil {
 		return found, err
 	}
 	found.URL = url

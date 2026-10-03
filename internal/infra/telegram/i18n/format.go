@@ -73,7 +73,9 @@ type nowPlayingLabels struct {
 	playing, paused string
 }
 
-func nowPlaying(track *show_playing.NowPlaying, labels nowPlayingLabels) string {
+// nowPlaying shows details under the artist: what the bot knows of the
+// Track.
+func nowPlaying(track *show_playing.NowPlaying, labels nowPlayingLabels, details string) string {
 	position := track.PositionMs / 1000
 	icon, header := "▶️", labels.playing
 	if track.Paused() {
@@ -84,8 +86,8 @@ func nowPlaying(track *show_playing.NowPlaying, labels nowPlayingLabels) string 
 	fmt.Fprintf(&b, "%s <b>%s:</b>\n\n", icon, header)
 	fmt.Fprintf(&b, "🎧 <b>%s</b>\n", esc(track.Title))
 	fmt.Fprintf(&b, "👤 %s\n", esc(track.Artist))
-	if track.Album != "" {
-		fmt.Fprintf(&b, "💿 <i>%s</i>\n", esc(track.Album))
+	if details != "" {
+		fmt.Fprintf(&b, "%s\n", details)
 	}
 	fmt.Fprintf(&b, "\n<code>%s</code>  %s / %s",
 		playbackBar(position, track.Duration), formatSeconds(position), formatSeconds(track.Duration))
