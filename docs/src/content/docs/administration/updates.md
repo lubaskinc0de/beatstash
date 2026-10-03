@@ -5,7 +5,27 @@ description: Update one part of the stack at a time and verify the result.
 
 Run deployment commands from `deploy`. The bot runs database migrations at startup. An older application may not understand a database changed by a newer one, so check the release notes for migration requirements before updating.
 
-## Update beatstash
+## Update with the installer
+
+Download the installer of the release you want, **{{release_tag}}** for the latest, and run its `upgrade` command on the server:
+
+```sh
+curl -fL https://github.com/lubaskinc0de/beatstash/releases/download/{{release_tag}}/install.sh -o install.sh
+curl -fL https://github.com/lubaskinc0de/beatstash/releases/download/{{release_tag}}/install.sh.sha256 -o install.sh.sha256
+sha256sum -c install.sh.sha256
+bash install.sh upgrade
+```
+
+It finds the running installation and asks you to confirm it, then moves it to that release:
+
+1. It shows how the release changes `compose.yml` and asks before replacing it. Edits you made by hand appear in that diff and are lost; the old file stays as `compose.yml.bak`.
+2. It adds settings new in this release to `config.toml` with their default values, keeping your values and comments, and asks before writing; the old file stays as `config.toml.bak`. Settings the release no longer uses are listed, not removed.
+3. It offers a database backup in `deploy/backups/`, which is the only way back: migrations cannot be undone, so the installer refuses to move to an older version.
+4. It sets `BEATSTASH_VERSION`, pulls the images, and restarts the stack once you agree.
+
+Running it with the installed version does nothing. Read the [release notes](https://github.com/lubaskinc0de/beatstash/releases) first all the same.
+
+## Update beatstash by hand
 
 Read the [release notes](https://github.com/lubaskinc0de/beatstash/releases), including configuration and migration changes.
 

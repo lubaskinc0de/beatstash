@@ -15,3 +15,4 @@ coverage.out
 __pycache__/
 
 .installer.env
+bin/

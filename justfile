@@ -7,6 +7,8 @@ up:
 
 test:
     python3 -m unittest discover -s .github/scripts -p 'test_*.py'
+    go test -count=1 ./internal/...
+    go test -count=1 ./e2e/installer/
     go test -count=1 -v ./e2e/ 2>&1 | grep -vE '^(\{|[0-9]{4}/|=== (RUN|PAUSE|CONT)|  [A-Z])'
 
 lint:
@@ -47,6 +49,17 @@ lint:
 
 fmt:
     "$(go env GOPATH)/bin/golangci-lint" fmt ./...
+
+# Setup tool scenarios alone; they run one at a time against real Docker.
+test-setup:
+    go test -count=1 -v ./e2e/installer/ 2>&1 | grep -E '^(ok|FAIL|---|    ---)|Error'
+
+# The version picks the bot image it installs: `just setup-tool 0.0.1 arm64`.
+# Builds the setup tool for a server without a release.
+setup-tool version arch="amd64":
+    CGO_ENABLED=0 GOOS=linux GOARCH={{arch}} go build -trimpath \
+        -ldflags "-s -w -X main.version={{version}}" \
+        -o bin/beatstash-setup-linux-{{arch}} ./cmd/beatstash-setup
 
 docs:
     npm --prefix docs run check

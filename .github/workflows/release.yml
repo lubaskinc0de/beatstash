@@ -113,7 +113,19 @@ jobs:
             org.opencontainers.image.licenses=MIT
           cache-from: type=gha,scope=release
           cache-to: type=gha,mode=max,scope=release
-      - name: Package installation templates
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          # A published binary must not come from a cache other runs wrote.
+          cache: false
+      - name: Build the setup tool
+        run: |
+          for arch in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath \
+              -ldflags "-s -w -X main.version=$VERSION -X main.repository=$GITHUB_REPOSITORY" \
+              -o "release-assets/beatstash-setup-linux-$arch" ./cmd/beatstash-setup
+          done
+      - name: Package installation files
         run: python3 .github/scripts/release.py package "$RELEASE_TAG" --repository "$GITHUB_REPOSITORY"
       - name: Decide whether this is the newest stable release
         id: latest
@@ -131,11 +143,10 @@ jobs:
           Docker image: \`$IMAGE:$VERSION\` (Linux AMD64 and ARM64).
           Digest: \`$IMAGE@$DIGEST\`.
 
-          Download \`beatstash-$RELEASE_TAG-deploy.tar.gz\` and its checksum below.
-          Follow the [installation guide](https://lubaskinc0de.github.io/beatstash/installation/new-server/) or [connect existing Navidrome](https://lubaskinc0de.github.io/beatstash/installation/existing-navidrome/).
+          Run \`bash install.sh\` from this release to install, \`bash install.sh upgrade\` to update an installation to this version, or \`bash install.sh uninstall\` to remove one.
+          Follow the [installation guide](https://lubaskinc0de.github.io/beatstash/installation/new-server/) or [connect existing Navidrome](https://lubaskinc0de.github.io/beatstash/installation/existing-navidrome/); see the [update steps](https://lubaskinc0de.github.io/beatstash/administration/updates/) before updating.
 
-          To update an installation, set \`BEATSTASH_VERSION="$VERSION"\` in its \`.env\`, then follow the [update steps](https://lubaskinc0de.github.io/beatstash/administration/updates/) before running:
-          \`docker compose pull bot && docker compose up -d bot\`
+          For a manual setup, download \`beatstash-$RELEASE_TAG-deploy.tar.gz\` and its checksum below.
           EOF
           gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
             -f tag_name="$RELEASE_TAG" -f target_commitish="$COMMIT" --jq .body >> "$RUNNER_TEMP/release-notes.md"

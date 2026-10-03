@@ -79,7 +79,9 @@ For ShellCheck, use your package manager or `uv tool install shellcheck-py==0.11
 
 If you use uv, install zizmor with `uv tool install zizmor==1.30.1`; other options are in its [installation guide](https://docs.zizmor.sh/installation/). Download the typos binary for your system from [release v1.50.3](https://github.com/crate-ci/typos/releases/tag/v1.50.3) and place it in `~/.local/bin`, or another directory on your `PATH`. `just lint` also searches Go's `bin` directory and `~/.local/bin`, and reports missing tools before starting the checks.
 
-`just test` runs release-policy and installer helper tests, plus end-to-end business scenarios. Docker must be running and your user must be able to use it. CI also collects coverage from the end-to-end tests.
+`just test` runs release-policy tests, unit tests, the setup tool scenarios, and end-to-end business scenarios. Docker must be running and your user must be able to use it. CI also collects coverage from the end-to-end tests.
+
+The setup tool scenarios in `e2e/installer` run the real installer against Docker with real Navidrome and Caddy containers and stand-ins for the bot and Telegram. They use the `beatstash` Compose project, host ports 80 and 443, and a test Caddy on host ports 18080, 18443 and 12019, so they run one at a time and need those ports free. Stop any other Caddy containers first: the installer would find them. To try the tool by hand, build it with a version, such as `go build -ldflags "-X main.version=0.0.1" ./cmd/beatstash-setup`.
 
 Use `just fmt` to change Go formatting. `just lint` leaves source files unchanged. The small audio samples are committed to the repository, and tests generate additional audio as needed. You do not need to regenerate them before running tests. `ffmpeg` is still required.
 

@@ -1,3 +1,4 @@
+import hashlib
 import subprocess
 import tarfile
 import tempfile
@@ -43,12 +44,37 @@ class ReleasePolicyTests(unittest.TestCase):
     def test_archive_contains_only_templates_and_pins_version(self):
         root = Path(__file__).resolve().parents[2]
         with tempfile.TemporaryDirectory() as directory:
+            build_tools(directory)
             archive = release.package("v1.2.3-rc.1", "Example/Beatstash", root, directory)
             with tarfile.open(archive) as tar:
-                self.assertEqual(set(tar.getnames()), {"deploy/compose.yml", "deploy/.env.example", "deploy/config.example.toml", "LICENSE"})
+                self.assertEqual(set(tar.getnames()), {"deploy/compose.yml", "deploy/compose.telegram-proxy.yml", "deploy/.env.example", "deploy/config.example.toml", "LICENSE"})
                 self.assertIn(b'BEATSTASH_VERSION="1.2.3-rc.1"', tar.extractfile("deploy/.env.example").read())
                 self.assertIn(b"ghcr.io/example/beatstash:", tar.extractfile("deploy/compose.yml").read())
             self.assertTrue(Path(f"{archive}.sha256").exists())
+
+    def test_installer_pins_release_and_tool_checksums(self):
+        root = Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory() as directory:
+            build_tools(directory)
+            release.package("v1.2.3", "Example/Beatstash", root, directory)
+            installer = (Path(directory) / "install.sh").read_text()
+            self.assertIn("TAG='v1.2.3'", installer)
+            self.assertIn("REPOSITORY='Example/Beatstash'", installer)
+            self.assertIn(f"SHA256_AMD64='{hashlib.sha256(b'amd64 tool').hexdigest()}'", installer)
+            self.assertIn(f"SHA256_ARM64='{hashlib.sha256(b'arm64 tool').hexdigest()}'", installer)
+            self.assertNotIn("__BEATSTASH", installer)
+            self.assertEqual((Path(directory) / "beatstash-setup-linux-arm64.sha256").read_text(),
+                             f"{hashlib.sha256(b'arm64 tool').hexdigest()}  beatstash-setup-linux-arm64\n")
+
+    def test_packaging_needs_the_tools(self):
+        root = Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory() as directory, self.assertRaises(ValueError):
+            release.package("v1.2.3", "Example/Beatstash", root, directory)
+
+
+def build_tools(directory):
+    for arch in ("amd64", "arm64"):
+        (Path(directory) / f"beatstash-setup-linux-{arch}").write_bytes(f"{arch} tool".encode())
 
 
 if __name__ == "__main__":

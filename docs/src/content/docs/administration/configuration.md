@@ -7,6 +7,31 @@ Non-secret settings belong in TOML. Passwords and tokens for startup belong in e
 
 The application reads `config.toml` in its working directory unless `CONFIG_FILE` points elsewhere. It does not load `.env` itself: Docker Compose or `just` loads it. The deployment sample mounts `deploy/config.toml` as `/app/config.toml`.
 
+## Change a setting
+
+Settings live in your installation's `deploy` directory, `~/beatstash/deploy` if you kept the installer's default: `config.toml` for the bot's settings, `.env` for secrets and service choices. The bot reads both only when it starts, so apply a change by recreating its container:
+
+```sh
+cd ~/beatstash/deploy
+nano config.toml        # or any editor
+docker compose up -d --force-recreate bot
+docker compose logs --tail=50 bot
+```
+
+`--force-recreate` matters for `config.toml`: Docker mounts that single file, and many editors save a new file in its place, which a running container never sees. A plain restart is not enough for the same reason.
+
+Look for `bot_started` in the log. If the bot exits right away, the log names the setting it rejects; the bot also refuses keys it does not know, so check the spelling against [`config.example.toml`](https://github.com/lubaskinc0de/beatstash/blob/master/config.example.toml).
+
+Other changes restart other services:
+
+| You changed | Run |
+|---|---|
+| `config.toml`, or `BOT_TOKEN`, `SECRET_KEY`, `NAVIDROME_PASSWORD` in `.env` | `docker compose up -d --force-recreate bot` |
+| `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` | `docker compose up -d --force-recreate telegram-bot-api bot` |
+| `COMPOSE_PROFILES`, `COMPOSE_FILE`, `TELEGRAM_PROXY`, or `compose.yml` | `docker compose up -d` |
+
+Rerunning the installer in the same directory changes the answers it asked about and restarts what needs it.
+
 ## Required startup values
 
 | Value | Location | Purpose |
@@ -61,10 +86,4 @@ Set `admin_contact` to a contact such as `@your_username` if strangers and parti
 
 Use the commented template for ingestion concurrency, retry delays, and timeouts. More provider concurrency can increase account throttling; the defaults use pauses and one download per Zvuk account.
 
-Restart the bot after TOML or startup environment changes:
-
-```sh
-docker compose up -d --force-recreate bot
-```
-
-Run this from your installation's `deploy` directory. Read [Telegram setup](../installation/telegram.md) for storage-chat settings and [updates](./updates.md) before changing service versions.
+Apply changes as described in [change a setting](#change-a-setting). Read [Telegram setup](../installation/telegram.md) for storage-chat settings and [updates](./updates.md) before changing service versions.

@@ -38,13 +38,40 @@ The bot and local API must share the `telegram_bot_api_data` volume at the same 
 
 Telegram documents the switch and local server capabilities in [Using a Local Bot API Server](https://core.telegram.org/bots/api#using-a-local-bot-api-server).
 
+## When Telegram is blocked on the server
+
+The local Bot API connects to Telegram's data centers directly. Where Telegram is blocked, in the country or by the hosting provider, it cannot sign in, and the bot fails to start with `getMe` timeouts in its log. Check from the server:
+
+```sh
+curl -m 10 -sS -o /dev/null https://api.telegram.org && echo reachable
+```
+
+The guided setup checks this itself and, only when Telegram is unreachable, asks for a proxy that reaches it. The step is optional; without it, the bot starts once the server can reach Telegram.
+
+The proxy is given as `http://host:port` or `socks5://host:port`. Usually it is a VPN client running on the same server, such as xray, v2ray or sing-box: take the protocol and port of its HTTP or SOCKS inbound from the `inbounds` section of its configuration. Containers address the server as `host.docker.internal`, so that inbound must listen on the Docker gateway `172.17.0.1`, not only on `127.0.0.1`. For example, with an xray HTTP inbound on port 10809:
+
+```json
+{ "protocol": "http", "listen": "172.17.0.1", "port": 10809 }
+```
+
+Check it with `curl -x http://172.17.0.1:10809 https://api.telegram.org`, then enter `http://host.docker.internal:10809`.
+
+The Bot API's own `--proxy` option covers webhooks only, so the deployment routes the whole Bot API container through the proxy instead: `compose.telegram-proxy.yml` adds a small `telegram-proxy` container (tun2socks) whose network the Bot API shares. Other services keep connecting directly. To enable it by hand, add to `deploy/.env`:
+
+```dotenv
+COMPOSE_FILE="compose.yml:compose.telegram-proxy.yml"
+TELEGRAM_PROXY="http://host.docker.internal:10809"
+```
+
+and run `docker compose up -d`. The server needs `/dev/net/tun`, which most virtual servers have. The installer's own logout from the cloud API goes through the same proxy.
+
 ## Optional storage chat
 
 A storage chat lets beatstash prepare Telegram audio files for music imported from elsewhere or read from an existing Navidrome library.
 
 1. Create a private channel and add your bot as an administrator with permission to post.
 2. Obtain the channel's numeric chat ID from a `channel_post` update while setting up the bot. Private channel IDs usually start with `-100`; use the actual ID from Telegram.
-3. Set `telegram.storage_chat_id` to that ID and restart the bot.
+3. Set `telegram.storage_chat_id` to that ID in `deploy/config.toml` and [apply the change](../administration/configuration.md#change-a-setting).
 
 With `fill_storage_chat = true`, the bot prepares files in the background. With it disabled, files are prepared as users request them. Leaving the chat ID at `0` skips background storage; some inline results depend on public listening links or preparing a file after selection.
 

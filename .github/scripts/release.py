@@ -1,4 +1,4 @@
-"""Validate release tags, select latest, and package installation templates."""
+"""Validate release tags, select latest, and package installation files."""
 
 import argparse
 import hashlib
@@ -55,6 +55,7 @@ def package(tag, repository, root, output):
     archive = output / f"beatstash-{tag}-deploy.tar.gz"
     files = {
         "deploy/compose.yml": root / "deploy/compose.yml",
+        "deploy/compose.telegram-proxy.yml": root / "deploy/compose.telegram-proxy.yml",
         "deploy/.env.example": root / "deploy/.env.example",
         "deploy/config.example.toml": root / "config.example.toml",
         "LICENSE": root / "LICENSE",
@@ -76,9 +77,18 @@ def package(tag, repository, root, output):
     checksum = hashlib.sha256(archive.read_bytes()).hexdigest()
     (output / f"{archive.name}.sha256").write_text(f"{checksum}  {archive.name}\n")
     installer = output / "install.sh"
-    installer.write_text((root / "deploy/install.sh").read_text()
-                         .replace("__BEATSTASH_INSTALLER_RELEASE_TAG__", tag)
-                         .replace("__BEATSTASH_INSTALLER_REPOSITORY__", repository))
+    script = ((root / "deploy/install.sh").read_text()
+              .replace("__BEATSTASH_INSTALLER_RELEASE_TAG__", tag)
+              .replace("__BEATSTASH_INSTALLER_REPOSITORY__", repository))
+    # The setup tool binaries are built into the output directory first.
+    for arch in ("amd64", "arm64"):
+        tool = output / f"beatstash-setup-linux-{arch}"
+        if not tool.is_file():
+            raise ValueError(f"Build {tool.name} before packaging.")
+        digest = hashlib.sha256(tool.read_bytes()).hexdigest()
+        (output / f"{tool.name}.sha256").write_text(f"{digest}  {tool.name}\n")
+        script = script.replace(f"__BEATSTASH_SETUP_SHA256_{arch.upper()}__", digest)
+    installer.write_text(script)
     installer.chmod(0o755)
     digest = hashlib.sha256(installer.read_bytes()).hexdigest()
     (output / "install.sh.sha256").write_text(f"{digest}  install.sh\n")

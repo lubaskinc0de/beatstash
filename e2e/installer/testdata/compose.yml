@@ -1,55 +1,45 @@
+# The deployment template with stand-ins where the real service needs Telegram.
 name: beatstash
 
 services:
   postgres:
-    image: postgres:18
-    restart: unless-stopped
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: beatstash
       POSTGRES_DB: beatstash
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     healthcheck:
       test: [CMD-SHELL, pg_isready -U beatstash -d beatstash]
-      interval: 5s
+      interval: 1s
       timeout: 5s
-      retries: 10
+      retries: 30
     volumes:
       - postgres_data:/var/lib/postgresql
 
+  # Answers every Bot API request with success.
   telegram-bot-api:
-    image: aiogram/telegram-bot-api:latest
-    restart: unless-stopped
-    environment:
-      TELEGRAM_API_ID: ${TELEGRAM_API_ID:?Set TELEGRAM_API_ID in .env}
-      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:?Set TELEGRAM_API_HASH in .env}
-      TELEGRAM_LOCAL: '1'
+    image: caddy:2
+    command: [caddy, respond, --listen, ':8081', --body, '{"ok":true}']
     volumes:
       - telegram_bot_api_data:/var/lib/telegram-bot-api
 
   bot:
-    image: ghcr.io/lubaskinc0de/beatstash:${BEATSTASH_VERSION:?Set BEATSTASH_VERSION in .env}
-    restart: unless-stopped
+    image: alpine:3.24
+    init: true
+    command: [sleep, '86400']
     depends_on:
       postgres:
         condition: service_healthy
-      telegram-bot-api:
-        condition: service_started
     env_file: .env
-    environment:
-      DB_DSN: host=postgres user=beatstash password=${POSTGRES_PASSWORD} dbname=beatstash port=5432 sslmode=disable
-      CONFIG_FILE: /app/config.toml
     volumes:
       - ./config.toml:/app/config.toml:ro
       - ./music:/music
-      - telegram_bot_api_data:/var/lib/telegram-bot-api
 
-  # Only a new server runs its own Navidrome: COMPOSE_PROFILES=navidrome.
   navidrome:
     image: deluan/navidrome:0.64.2
     profiles: [navidrome]
-    restart: unless-stopped
     ports:
-      - '127.0.0.1:4533:4533'
+      - '127.0.0.1::4533'
     environment:
       ND_MUSICFOLDER: /music/shared
       ND_DATAFOLDER: /data
@@ -58,12 +48,9 @@ services:
       - ./music:/music:ro
       - ./data/navidrome:/data
 
-  # HTTPS for Navidrome when no other proxy holds ports 80 and 443:
-  # COMPOSE_PROFILES=proxy, with the site in ./Caddyfile.
   caddy:
     image: caddy:2
     profiles: [proxy]
-    restart: unless-stopped
     ports:
       - '80:80'
       - '443:443'

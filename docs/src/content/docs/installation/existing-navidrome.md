@@ -24,7 +24,7 @@ Your existing collection does not use up your beatstash storage quota. Adding on
 
 ## Connect with the guided setup
 
-Install Bash 4 or later, curl, jq, OpenSSL, and Docker Engine with the Compose plugin on the server where beatstash will run. Download the installer for **{{release_tag}}**:
+Install curl and Docker Engine with the Compose plugin on the Linux server where beatstash will run. Download the installer for **{{release_tag}}**:
 
 ```sh
 curl -fL https://github.com/lubaskinc0de/beatstash/releases/download/{{release_tag}}/install.sh -o install.sh
@@ -45,7 +45,7 @@ Rerun the installer in the same directory if you need to finish setup. Press Ent
 
 Download the installation archive for your chosen release and prepare `deploy/.env`, `deploy/config.toml`, and Telegram as described in [steps 1 to 3 of the new-server guide](./new-server.md). The bot runs from the ready-made Docker image. Do not start the sample's Navidrome service or create a new Navidrome administrator.
 
-Work from the `deploy` directory. In your copy of `compose.yml`, remove the `navidrome` service. Keep `postgres`, `telegram-bot-api`, and `bot`.
+Work from the `deploy` directory. In `.env`, set `COMPOSE_PROFILES=""`, so the sample's own `navidrome` service does not start. `postgres`, `telegram-bot-api`, and `bot` always run.
 
 ## 2. Mount the new music directory
 

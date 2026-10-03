@@ -1,0 +1,23 @@
+# For servers where Telegram is blocked: the local Bot API reaches it through
+# a proxy, such as a VPN client's HTTP or SOCKS inbound. Enable it in .env:
+#   COMPOSE_FILE="compose.yml:compose.telegram-proxy.yml"
+#   TELEGRAM_PROXY="http://host.docker.internal:10809"
+# host.docker.internal is the host as containers see it: the proxy must
+# listen on the Docker gateway (172.17.0.1), not only on 127.0.0.1.
+services:
+  # Sends every connection of the containers sharing its network through
+  # the proxy, since the Bot API's own --proxy covers webhooks only.
+  telegram-proxy:
+    image: xjasonlyu/tun2socks:v2.6.0
+    restart: unless-stopped
+    cap_add: [NET_ADMIN]
+    devices: [/dev/net/tun]
+    extra_hosts: ['host.docker.internal:host-gateway']
+    environment:
+      PROXY: ${TELEGRAM_PROXY:?Set TELEGRAM_PROXY in .env}
+    networks:
+      default:
+        aliases: [telegram-bot-api]
+
+  telegram-bot-api:
+    network_mode: service:telegram-proxy

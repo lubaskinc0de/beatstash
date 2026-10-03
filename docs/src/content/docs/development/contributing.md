@@ -15,9 +15,11 @@ Set up [local development](./local.md) and work on a branch. Keep the change foc
 
 The project's tests are end-to-end business scenarios at the bot boundary. They run the real database, Navidrome, filesystem, and `ffmpeg`; HTTP doubles stand in for Telegram and external providers. For behavior changes, write an observable scenario using Arrange, Act, Assert and a failing test before the implementation. Avoid unit tests that only repeat a use case's internals.
 
+The setup tool has its own scenarios in `e2e/installer`: they run the installer with typed answers against real Docker, Navidrome, and Caddy, with stand-ins for the bot and Telegram. Unit tests are kept for its pure text edits only, the Caddyfile block and `config.toml` merging, where a scenario per edge case would be slow.
+
 Run `just test`, `just lint`, and `just fmt` for Go changes. Mention which checks ran and any check you could not complete. Do not mark a blocked check as passed.
 
-CI runs formatting and lint checks, `go vet`, module verification, actionlint, zizmor, spelling checks with typos, documentation checks, and the complete end-to-end suite. Run static checks locally with `just lint` and tests with `just test`. Every release must pass the same checks before its Docker image is published. Coverage reports include the application packages exercised by the end-to-end scenarios.
+CI runs formatting and lint checks, `go vet`, module verification, actionlint, zizmor, spelling checks with typos, documentation checks, the setup tool tests, and the complete end-to-end suite. Run static checks locally with `just lint` and tests with `just test`. Every release must pass the same checks before its Docker image is published. Coverage reports include the application and setup tool packages exercised by the scenarios.
 
 ## Add an integration
 

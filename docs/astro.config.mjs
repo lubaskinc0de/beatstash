@@ -27,7 +27,7 @@ export default defineConfig({
         { label: 'Start here', items: ['index', 'introduction/comparison', 'installation/existing-navidrome', 'installation/new-server', 'installation/telegram'] },
         { label: 'Use beatstash', items: ['using/getting-started', 'using/uploading', 'using/listening', 'using/sharing', 'using/libraries'] },
         { label: 'Import and sync', items: ['import/sources', 'import/zvuk'] },
-        { label: 'Run your server', items: ['administration/configuration', 'administration/https', 'administration/updates', 'administration/troubleshooting'] },
+        { label: 'Run your server', items: ['administration/configuration', 'administration/https', 'administration/updates', 'administration/uninstall', 'administration/troubleshooting'] },
         { label: 'Contribute', items: ['development/local', 'development/contributing'] },
       ],
     }),
