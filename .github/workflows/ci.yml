@@ -18,4 +18,29 @@ jobs:
     uses: $/.github/workflows/checks.yml
     permissions:
       contents: read
-      id-token: write # Allow the reusable coverage job to authenticate to Codecov.
+
+  coverage-badge:
+    name: Publish coverage badge
+    needs: checks
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # Replace the badge on the badges branch.
+    steps:
+      - name: Replace the badge on the badges branch
+        env:
+          COVERAGE: ${{ needs.checks.outputs.coverage }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          [[ "$COVERAGE" =~ ^[0-9]+(\.[0-9]+)?%$ ]] || { echo "Unexpected coverage: $COVERAGE"; exit 1; }
+          color=$(awk -v p="${COVERAGE%\%}" 'BEGIN { print (p >= 80 ? "brightgreen" : p >= 60 ? "yellow" : "red") }')
+          git init -q -b badges "$RUNNER_TEMP/badges"
+          cd "$RUNNER_TEMP/badges"
+          printf '{"schemaVersion":1,"label":"coverage","message":"%s","color":"%s"}\n' "$COVERAGE" "$color" > coverage.json
+          git add coverage.json
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -q -m "Coverage $COVERAGE"
+          # The branch is one commit, replaced each time, so it never grows.
+          git push -q --force "https://x-access-token:$GH_TOKEN@github.com/$REPOSITORY.git" badges

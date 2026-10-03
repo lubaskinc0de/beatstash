@@ -14,7 +14,7 @@ For behavior changes, add an end-to-end business scenario at the bot boundary. T
 
 Run `just test`, `just lint`, and `just fmt` for Go changes. For documentation, run `npm ci` and `npm run check` from `docs`. State any checks you could not complete.
 
-CI checks formatting, lint, `go vet`, module consistency, workflow syntax and security with actionlint and zizmor, spelling with typos, secret leaks with Gitleaks, the documentation build, and all end-to-end scenarios. Coverage measures application packages exercised by those scenarios and is uploaded to Codecov on `master`. Run static checks locally with `just lint` and tests with `just test`.
+CI checks formatting, lint, `go vet`, module consistency, workflow syntax and security with actionlint and zizmor, spelling with typos, secret leaks with Gitleaks, the documentation build, and all end-to-end scenarios. Coverage measures application packages exercised by those scenarios; on `master` its total goes to the README badge through the `badges` branch. Run static checks locally with `just lint` and tests with `just test`.
 
 New integrations need tests for their actual capabilities and failures, an updated source-support table, and a user setup guide. Full guidance is in [contributing documentation](https://lubaskinc0de.github.io/beatstash/development/contributing/).
 

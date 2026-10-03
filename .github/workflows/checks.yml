@@ -8,6 +8,10 @@ on:
         required: false
         type: string
         default: ''
+    outputs:
+      coverage:
+        description: Statements the end-to-end tests cover, as a percentage
+        value: ${{ jobs.e2e.outputs.coverage }}
 
 permissions:
   contents: read
@@ -120,9 +124,8 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: read
-      id-token: write # Authenticate master coverage uploads to Codecov using OIDC.
+    outputs:
+      coverage: ${{ steps.summary.outputs.coverage }}
     steps:
       - name: Require every shard to pass
         if: needs.e2e-shard.result != 'success'
@@ -146,21 +149,17 @@ jobs:
             tail -qn +2 coverage-[0-9]*.out
           } > coverage.out
       - name: Summarize coverage
-        run: go tool cover -func=coverage.out | tail -1 >> "$GITHUB_STEP_SUMMARY"
+        id: summary
+        run: |
+          total=$(go tool cover -func=coverage.out | awk 'END { print $NF }')
+          echo "Coverage: $total" >> "$GITHUB_STEP_SUMMARY"
+          echo "coverage=$total" >> "$GITHUB_OUTPUT"
       - name: Save coverage report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-${{ github.run_id }}-${{ github.run_attempt }}
           path: coverage.out
           retention-days: 14
-      - name: Update coverage badge on master
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
-        with:
-          files: coverage.out
-          disable_search: true
-          use_oidc: true
-          fail_ci_if_error: false
 
   docs:
     name: Documentation checks

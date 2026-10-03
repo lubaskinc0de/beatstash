@@ -294,7 +294,7 @@ ensure_secret() {
 }
 verify_archive() {
   local archive="$1" manifest
-  manifest=$(tar -tzf "$archive" | sort)
+  manifest=$(tar -tzf "$archive" | LC_ALL=C sort)
   [[ "$manifest" == $'LICENSE\ndeploy/.env.example\ndeploy/compose.yml\ndeploy/config.example.toml' ]] || fail 'Unexpected files in the deployment archive.'
   # Reject links and special files before extracting.
   tar -tvzf "$archive" | awk 'substr($0,1,1)!="-" {exit 1}' || fail 'Archive must contain regular files only.'

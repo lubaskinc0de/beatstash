@@ -4,7 +4,7 @@ A self-hosted Telegram bot for your [Navidrome](https://www.navidrome.org/) musi
 
 [![CI](https://img.shields.io/github/actions/workflow/status/lubaskinc0de/beatstash/ci.yml?branch=master&label=CI)](https://github.com/lubaskinc0de/beatstash/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/lubaskinc0de/beatstash)](https://github.com/lubaskinc0de/beatstash/releases)
-[![Coverage](https://img.shields.io/codecov/c/github/lubaskinc0de/beatstash/master)](https://codecov.io/gh/lubaskinc0de/beatstash)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/lubaskinc0de/beatstash/badges/coverage.json)](https://github.com/lubaskinc0de/beatstash/actions/workflows/ci.yml?query=branch%3Amaster)
 [![License: MIT](https://img.shields.io/github/license/lubaskinc0de/beatstash)](LICENSE)
 
 <!-- TODO: GIF — forward a track to the bot, then share it with `@your_music_bot np` in a chat. -->
