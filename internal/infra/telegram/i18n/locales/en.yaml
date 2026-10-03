@@ -48,7 +48,7 @@ home:
     {{.Service}} is your music library on <a href="https://www.navidrome.org">Navidrome</a>. You can fill it right from here.
 
     1. Send an audio file or forward it from any chat — it lands in your library.
-    2. Listen in a browser or in a player on your phone.
+    2. Listen in a browser{{if .NavidromeURL}} at <a href="{{.NavidromeURL}}">{{.NavidromeURL}}</a>{{end}} or in a Subsonic player on your phone (Symfonium, Amperfy): sign in with your Navidrome login and password.
     3. Share tracks in «🎵 Music» or in any chat with <code>@{{.Bot}}</code>.
   usage: "📦 Space for music: {{.Used}} of {{.Quota}} used"
   more: How to set up a player and everything else is in «❓ Help».
