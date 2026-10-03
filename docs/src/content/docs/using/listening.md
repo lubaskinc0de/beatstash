@@ -5,7 +5,7 @@ description: Play your music through Navidrome or a Subsonic-compatible app.
 
 ## In a browser
 
-Open the Navidrome address supplied by your administrator and sign in with your linked account. The bot shows the configured address in **Help > How to listen**.
+Open the [Navidrome](https://www.navidrome.org/) address supplied by your administrator and sign in with your linked account. The bot shows the configured address in **Help > How to listen**.
 
 Your personal library, the shared library, and any existing libraries you can access are available through Navidrome. Imported likes become stars, and imported playlists appear once their tracks are indexed.
 

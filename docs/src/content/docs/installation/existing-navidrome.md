@@ -3,7 +3,7 @@ title: Connect an existing Navidrome server
 description: Add beatstash without moving your existing music collection.
 ---
 
-Connect beatstash to the Navidrome server you already use. You can then find your music in Telegram, send tracks to friends, and add more music by forwarding audio files to the bot or importing from a supported music service.
+Connect beatstash to the [Navidrome](https://www.navidrome.org/) server you already use. You can then find your music in Telegram, send tracks to friends, and add more music by forwarding audio files to the bot or importing from a supported music service.
 
 ## What happens to your existing music
 
@@ -20,11 +20,11 @@ Your existing collection does not use up your beatstash storage quota. Adding on
 - Administrative access to your Navidrome server. A regular listening account cannot set up this integration.
 - A Navidrome instance with multi-library support. The project's tests use version **0.64.1**; a minimum compatible version has not been established.
 - A new writable music directory for beatstash, mounted into Navidrome too.
-- Postgres and the local Telegram Bot API server from the deployment sample.
+- [Postgres](https://www.postgresql.org/) and the local [Telegram Bot API server](https://github.com/tdlib/telegram-bot-api) from the deployment sample.
 
 ## Connect with the guided setup
 
-Install curl and Docker Engine with the Compose plugin on the Linux server where beatstash will run. Download the installer for **{{release_tag}}**:
+Install [curl](https://curl.se/) and [Docker Engine](https://docs.docker.com/engine/install/) with the [Compose plugin](https://docs.docker.com/compose/install/linux/) on the Linux server where beatstash will run. Download the installer for **{{release_tag}}**:
 
 ```sh
 curl -fL https://github.com/lubaskinc0de/beatstash/releases/download/{{release_tag}}/install.sh -o install.sh
@@ -43,7 +43,7 @@ Rerun the installer in the same directory if you need to finish setup. Press Ent
 
 ## 1. Prepare beatstash
 
-Download the installation archive for your chosen release and prepare `deploy/.env`, `deploy/config.toml`, and Telegram as described in [steps 1 to 3 of the new-server guide](./new-server.md). The bot runs from the ready-made Docker image. Do not start the sample's Navidrome service or create a new Navidrome administrator.
+Download the installation archive for your chosen release and prepare `deploy/.env`, `deploy/config.toml`, and Telegram as described in [steps 1 to 3 of the new-server guide](./new-server.md). The bot runs from the ready-made [Docker](https://docs.docker.com/) image. Do not start the sample's Navidrome service or create a new Navidrome administrator.
 
 Work from the `deploy` directory. In `.env`, set `COMPOSE_PROFILES=""`, so the sample's own `navidrome` service does not start. `postgres`, `telegram-bot-api`, and `bot` always run.
 

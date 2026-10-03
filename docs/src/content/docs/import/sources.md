@@ -3,7 +3,7 @@ title: Supported sources
 description: What you can bring into your library and which streaming integrations are available.
 ---
 
-You can upload your own audio files, import a supported streaming collection, or use music already on your Navidrome server. Support for one service does not imply support for another.
+You can upload your own audio files, import a supported streaming collection, or use music already on your [Navidrome](https://www.navidrome.org/) server. Support for one service does not imply support for another.
 
 | Source | Audio | Likes | Saved albums | Playlists | Automatic sync | Requirements |
 |---|---|---|---|---|---|---|

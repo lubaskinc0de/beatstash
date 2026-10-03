@@ -7,7 +7,7 @@ description: Who can see each library, how invitations work, and what counts tow
 
 Only beatstash administrators issue invitations. Open **Invite** on the home screen, copy the link, and send it to one person. Use **New invite** for another participant. Each link is single-use and expires after seven days by default.
 
-An invited participant creates a Navidrome account or links an existing one. They receive their own personal library and access to the shared library. Access to an existing attached library can be granted in Navidrome.
+An invited participant creates a [Navidrome](https://www.navidrome.org/) account or links an existing one. They receive their own personal library and access to the shared library. Access to an existing attached library can be granted in Navidrome.
 
 ## Library access
 

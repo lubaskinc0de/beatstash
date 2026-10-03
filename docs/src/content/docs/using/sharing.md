@@ -18,7 +18,7 @@ In any chat, type your bot's username followed by a query, then select a result.
 | Query | Results |
 |---|---|
 | Any track, artist, or album name | Search your personal and accessible attached libraries |
-| `np` | What your linked Navidrome account is playing now |
+| `np` | What your linked [Navidrome](https://www.navidrome.org/) account is playing now |
 | `recent` or `last` | Your ten most recent tracks |
 | `shared` | Recent tracks in the shared library |
 | `top` | Participants who share the most |

@@ -9,9 +9,9 @@ From `deploy`, begin with `docker compose ps` and `docker compose logs --tail=10
 
 Read the configuration errors: the loader reports missing environment values and unknown TOML keys. Confirm that `config.toml` is a file, not a directory accidentally created by a missing bind mount.
 
-Check the Postgres health status. In the deployment sample, `POSTGRES_PASSWORD` configures a new database; changing that environment value later does not change an existing Postgres role's password. Update the role and connection settings together.
+Check the [Postgres](https://www.postgresql.org/) health status. In the deployment sample, `POSTGRES_PASSWORD` configures a new database; changing that environment value later does not change an existing Postgres role's password. Update the role and connection settings together.
 
-If Navidrome is unavailable, the bot may start while logging library-creation failures. Create the Navidrome administrator first, correct its credentials, then restart the bot so it can finish startup work.
+If [Navidrome](https://www.navidrome.org/) is unavailable, the bot may start while logging library-creation failures. Create the Navidrome administrator first, correct its credentials, then restart the bot so it can finish startup work.
 
 ## Telegram polling conflicts
 

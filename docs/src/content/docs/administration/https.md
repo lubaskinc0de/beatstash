@@ -3,7 +3,7 @@ title: HTTPS and public access
 description: Put Navidrome behind a reverse proxy with HTTPS and enable public listening links.
 ---
 
-The deployment sample exposes Navidrome only on `127.0.0.1:4533`. To open it from your phone or another computer, and to send public listening links, it needs an HTTPS address served by a reverse proxy. beatstash itself uses Telegram long polling and needs no inbound webhook.
+The deployment sample exposes [Navidrome](https://www.navidrome.org/) only on `127.0.0.1:4533`. To open it from your phone or another computer, and to send public listening links, it needs an HTTPS address served by a reverse proxy. beatstash itself uses Telegram long polling and needs no inbound webhook.
 
 ## Before you start
 
@@ -12,20 +12,20 @@ You need:
 - a domain or subdomain, such as `music.example.com`, with an **A record** pointing to your server's public IPv4 address. Add an AAAA record only if the server actually accepts IPv6 connections;
 - inbound ports **80 and 443** open at your hosting provider and in the server's firewall. Port 80 is needed for certificate checks even if all traffic uses HTTPS.
 
-Keep Postgres and the local Telegram Bot API off the public network: only Navidrome goes behind the proxy.
+Keep [Postgres](https://www.postgresql.org/) and the local Telegram Bot API off the public network: only Navidrome goes behind the proxy.
 
 ## With the guided setup
 
 When you install on a new server and enter an `https://` public listening URL, the installer offers to set up HTTPS. Every step is optional and explained before it runs.
 
-- **Caddy already serves other sites on this server** (a container on the host network, or a systemd service): the installer adds a site for your domain at the end of its Caddyfile, between `# beatstash:begin` and `# beatstash:end` markers, and reloads Caddy. Other sites stay as they are and keep working during the reload. Before writing, it checks that:
+- **[Caddy](https://caddyserver.com/docs/) already serves other sites on this server** (a container on the host network, or a systemd service): the installer adds a site for your domain at the end of its Caddyfile, between `# beatstash:begin` and `# beatstash:end` markers, and reloads Caddy. Other sites stay as they are and keep working during the reload. Before writing, it checks that:
   - the domain is not already served elsewhere in that Caddyfile;
   - the running Caddy config matches the file, so a reload cannot undo changes made through Caddy's admin API;
   - Caddy accepts the changed file.
 
   It then shows the change and asks before writing it and again before reloading. The previous file is saved as `Caddyfile.backup` in your installation's `deploy` directory, and a failed reload puts it back. For a systemd service, it uses `sudo`.
 - **No proxy uses ports 80 and 443**: the installer can start Caddy as part of the beatstash stack, with its site in `deploy/Caddyfile`. You can give an email for certificate notices.
-- **Anything else** (nginx, Traefik, Caddy on a Docker network, ports taken by another program): the installer prints the address to proxy to and links here. Follow the manual setup below.
+- **Anything else** ([nginx](https://nginx.org/en/docs/), [Traefik](https://doc.traefik.io/traefik/), Caddy on a [Docker](https://docs.docker.com/) network, ports taken by another program): the installer prints the address to proxy to and links here. Follow the manual setup below.
 
 Finally, it checks that `https://your-domain/ping` answers and, if not, shows how the domain resolves and Caddy's latest log lines. A new DNS record can take a while to propagate; you can check again or skip. Caddy keeps retrying the certificate in the background.
 
@@ -56,7 +56,7 @@ The proxy must:
 - pass the original `Host` and the client address (`X-Forwarded-For`, `X-Forwarded-Proto`);
 - allow long responses and large bodies for streaming and downloads.
 
-**Caddy** handles certificates and headers by itself:
+**[Caddy](https://caddyserver.com/docs/)** handles certificates and headers by itself:
 
 ```text
 music.example.com {
@@ -66,7 +66,7 @@ music.example.com {
 
 Check and apply it with `caddy validate --config /etc/caddy/Caddyfile` and `systemctl reload caddy`, or `docker exec <container> caddy reload --config /etc/caddy/Caddyfile` for a container.
 
-**nginx** needs a certificate from a tool such as Certbot:
+**[nginx](https://nginx.org/en/docs/)** needs a certificate from a tool such as [Certbot](https://certbot.eff.org/):
 
 ```nginx
 server {

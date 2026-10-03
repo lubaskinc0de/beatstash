@@ -3,7 +3,7 @@ title: Your Navidrome library, through Telegram
 description: Upload music, import your collection, invite friends, and share tracks in Telegram with beatstash.
 ---
 
-beatstash helps you build and manage a Navidrome music library through Telegram. Bring over a collection from a supported streaming service, upload new music, and share tracks or what you're listening to in your chats. You can connect an existing Navidrome server or set up a new one.
+beatstash helps you build and manage a [Navidrome](https://www.navidrome.org/) music library through Telegram. Bring over a collection from a supported streaming service, upload new music, and share tracks or what you're listening to in your chats. You can connect an existing Navidrome server or set up a new one.
 
 ## Already have Navidrome?
 

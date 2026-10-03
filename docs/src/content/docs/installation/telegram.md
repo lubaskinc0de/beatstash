@@ -48,7 +48,7 @@ curl -m 10 -sS -o /dev/null https://api.telegram.org && echo reachable
 
 The guided setup checks this itself and, only when Telegram is unreachable, asks for a proxy that reaches it. The step is optional; without it, the bot starts once the server can reach Telegram.
 
-The proxy is given as `http://host:port` or `socks5://host:port`. Usually it is a VPN client running on the same server, such as xray, v2ray or sing-box: take the protocol and port of its HTTP or SOCKS inbound from the `inbounds` section of its configuration. Containers address the server as `host.docker.internal`, so that inbound must listen on the Docker gateway `172.17.0.1`, not only on `127.0.0.1`. For example, with an xray HTTP inbound on port 10809:
+The proxy is given as `http://host:port` or `socks5://host:port`. Usually it is a VPN client running on the same server, such as [xray](https://xtls.github.io/en/), [v2ray](https://www.v2fly.org/en_US/) or [sing-box](https://sing-box.sagernet.org/): take the protocol and port of its HTTP or SOCKS inbound from the `inbounds` section of its configuration. Containers address the server as `host.docker.internal`, so that inbound must listen on the [Docker](https://docs.docker.com/) gateway `172.17.0.1`, not only on `127.0.0.1`. For example, with an xray HTTP inbound on port 10809:
 
 ```json
 { "protocol": "http", "listen": "172.17.0.1", "port": 10809 }
@@ -56,7 +56,7 @@ The proxy is given as `http://host:port` or `socks5://host:port`. Usually it is 
 
 Check it with `curl -x http://172.17.0.1:10809 https://api.telegram.org`, then enter `http://host.docker.internal:10809`.
 
-The Bot API's own `--proxy` option covers webhooks only, so the deployment routes the whole Bot API container through the proxy instead: `compose.telegram-proxy.yml` adds a small `telegram-proxy` container (tun2socks) whose network the Bot API shares. Other services keep connecting directly. To enable it by hand, add to `deploy/.env`:
+The Bot API's own `--proxy` option covers webhooks only, so the deployment routes the whole Bot API container through the proxy instead: `compose.telegram-proxy.yml` adds a small `telegram-proxy` container ([tun2socks](https://github.com/xjasonlyu/tun2socks)) whose network the Bot API shares. Other services keep connecting directly. To enable it by hand, add to `deploy/.env`:
 
 ```dotenv
 COMPOSE_FILE="compose.yml:compose.telegram-proxy.yml"
@@ -67,7 +67,7 @@ and run `docker compose up -d`. The server needs `/dev/net/tun`, which most virt
 
 ## Optional storage chat
 
-A storage chat lets beatstash prepare Telegram audio files for music imported from elsewhere or read from an existing Navidrome library. Without one, np, recent and search send such tracks as listening links; with one, they arrive as audio.
+A storage chat lets beatstash prepare Telegram audio files for music imported from elsewhere or read from an existing [Navidrome](https://www.navidrome.org/) library. Without one, np, recent and search send such tracks as listening links; with one, they arrive as audio.
 
 1. Create a private channel in Telegram, named as you like. Nobody else needs to join it.
 2. Open the channel's info, then **Administrators** > **Add Admin**, find your bot by its username, and keep **Post Messages** allowed.

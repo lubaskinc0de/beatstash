@@ -3,13 +3,13 @@ title: Install on a new server
 description: Set up Navidrome, Postgres, a local Telegram Bot API server, and beatstash with Docker Compose.
 ---
 
-This guide installs the whole stack on a Linux server. If you already run Navidrome, use [the connection guide](./existing-navidrome.md) instead.
+This guide installs the whole stack on a Linux server. If you already run [Navidrome](https://www.navidrome.org/), use [the connection guide](./existing-navidrome.md) instead.
 
 ## Before you start
 
-You need SSH access to a Linux AMD64 or ARM64 server with Bash, curl, and Docker Engine with the Compose plugin. Install Docker using its [Linux installation guide](https://docs.docker.com/engine/install/), and make sure your user can run `docker` without `sudo`. You also need enough disk space for your music and databases. No Go compiler or source checkout is needed.
+You need SSH access to a Linux AMD64 or ARM64 server with [Bash](https://www.gnu.org/software/bash/), [curl](https://curl.se/), and [Docker Engine](https://docs.docker.com/engine/install/) with the [Compose plugin](https://docs.docker.com/compose/install/linux/). Install [Docker](https://docs.docker.com/) using its [Linux installation guide](https://docs.docker.com/engine/install/), and make sure your user can run `docker` without `sudo`. You also need enough disk space for your music and databases. No [Go](https://go.dev/doc/install) compiler or source checkout is needed.
 
-The sample uses Navidrome **0.64.1**, the version used by the project's end-to-end tests. Other versions need checking before use. It includes a local Telegram Bot API server to handle larger files.
+The sample uses Navidrome **0.64.1**, the version used by the project's end-to-end tests. Other versions need checking before use. It includes a local [Telegram Bot API server](https://github.com/tdlib/telegram-bot-api) to handle larger files.
 
 ## Install with the guided setup
 
@@ -26,7 +26,7 @@ Choose `new` when asked about Navidrome. The installer walks you through creatin
 
 If Telegram is blocked on the server, the installer notices and asks for a proxy that reaches it; see [when Telegram is blocked](./telegram.md#when-telegram-is-blocked-on-the-server). The installation directory may start with `~`, such as `~/beatstash`; the installer shows the full path it uses. On a server reached over SSH, it prints the Telegram links to open on your own computer or phone instead of trying to open a browser on the server.
 
-If you enter an `https://` public listening URL, the installer offers to set up HTTPS: it can add a site to a Caddy already running on the server, or start Caddy with beatstash when no proxy uses ports 80 and 443. Each change is shown and confirmed first. See [HTTPS and public access](../administration/https.md#with-the-guided-setup) for what it checks.
+If you enter an `https://` public listening URL, the installer offers to set up HTTPS: it can add a site to a [Caddy](https://caddyserver.com/docs/) already running on the server, or start Caddy with beatstash when no proxy uses ports 80 and 443. Each change is shown and confirmed first. See [HTTPS and public access](../administration/https.md#with-the-guided-setup) for what it checks.
 
 Passwords and tokens are hidden while you enter them. If you stop partway through, run the installer again and choose the same directory. Press Enter at a filled prompt to keep its saved value. It keeps your Compose file, configuration, and generated secrets. To update later, run `bash install.sh upgrade` with the installer of the new release; see [updates](../administration/updates.md).
 

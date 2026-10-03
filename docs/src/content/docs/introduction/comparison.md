@@ -3,7 +3,7 @@ title: Navidrome, beatstash, and beets
 description: Compare the steps needed to add music, invite friends, share tracks, and organize your files.
 ---
 
-Navidrome makes files on your server available to listen to. beatstash adds a Telegram workflow for getting music onto that server, inviting people, and sharing recommendations. beets helps identify releases, correct tags, and organize files.
+[Navidrome](https://www.navidrome.org/) makes files on your server available to listen to. beatstash adds a Telegram workflow for getting music onto that server, inviting people, and sharing recommendations. [beets](https://beets.io/) helps identify releases, correct tags, and organize files.
 
 | What you want to do | Navidrome on its own | With beatstash | beets |
 |---|---|---|---|

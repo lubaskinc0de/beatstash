@@ -51,7 +51,7 @@ Play a track, upload a small file, search through inline mode, and check a linke
 
 ## Update other services
 
-The sample pins Navidrome to `0.64.1`, matching the project's current test image. Change its tag deliberately after reviewing Navidrome's release and compatibility notes. If you already run Navidrome elsewhere, update it through that installation's own procedure.
+The sample pins [Navidrome](https://www.navidrome.org/) to `0.64.1`, matching the project's current test image. Change its tag deliberately after reviewing Navidrome's release and compatibility notes. If you already run Navidrome elsewhere, update it through that installation's own procedure.
 
 The local Telegram API image uses `latest`. Record its current digest before pulling an update. Update services separately so you can identify which change caused a failure:
 
@@ -63,7 +63,7 @@ docker compose logs --tail=100 telegram-bot-api
 
 Restart the bot if its connection does not recover. After choosing a tested image digest, you can replace the mutable tag with that digest in your local Compose file.
 
-The Postgres sample uses major version 17. A major-version database upgrade requires a separate migration procedure; changing the image to a different major is not a database upgrade plan.
+The [Postgres](https://www.postgresql.org/) sample uses major version 17. A major-version database upgrade requires a separate migration procedure; changing the image to a different major is not a database upgrade plan.
 
 ## Roll back
 

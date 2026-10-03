@@ -11,7 +11,7 @@ Send an audio file or an audio document to the bot in a private chat. You can al
 | 👍 | Processing finished successfully |
 | 👎 | Processing failed; read the accompanying message |
 
-New uploads go into your personal library. They appear in Navidrome after its scanner indexes them. Uploading does not publish a track in the shared library or send it to other chats.
+New uploads go into your personal library. They appear in [Navidrome](https://www.navidrome.org/) after its scanner indexes them. Uploading does not publish a track in the shared library or send it to other chats.
 
 ## Track details and artwork
 

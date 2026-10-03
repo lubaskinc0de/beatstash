@@ -7,7 +7,7 @@ description: Accept an invitation, create or link a Navidrome account, and add y
 
 Open the invite link the server administrator sent you and press **Start** in Telegram. Invites work for one person and expire after seven days by default. Ask the administrator for a new one if it has expired or was already used.
 
-Choose a Navidrome login when the bot asks. It must contain 3 to 32 characters: Latin letters, digits, dots, hyphens, or underscores. The bot creates the account and shows its password once. Save it before deleting the message.
+Choose a [Navidrome](https://www.navidrome.org/) login when the bot asks. It must contain 3 to 32 characters: Latin letters, digits, dots, hyphens, or underscores. The bot creates the account and shows its password once. Save it before deleting the message.
 
 If you already have an account on this Navidrome server, select **I already have an account**. Send `login password` when prompted. The bot deletes that input message. An account already linked to another participant cannot be linked again by you.
 

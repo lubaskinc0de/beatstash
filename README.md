@@ -18,7 +18,7 @@ Forward a track to the bot and it lands in your library. Listen in Navidrome or 
 - **Libraries for friends.** Invite people to your server. Each gets a personal library with a storage limit you set and can add tracks to a shared collection.
 - **Share in any chat.** Type `@your_music_bot np` or search by artist or title, then send the track as audio or as a listening link.
 - **Works with an existing Navidrome.** Your music stays in its current folders, and you can find and share it through Telegram.
-- **Guided setup.** One command on the server asks a few questions and starts everything with Docker. It creates the Navidrome administrator for you. It can also put Navidrome behind HTTPS, either in the Caddy that already serves your other sites or in a Caddy of its own. Where Telegram is blocked, it sends the bot through your proxy. Every change is shown before it is made. The same tool updates the installation and removes it, asking about each part.
+- **Guided setup.** One command on the server asks a few questions and starts everything with [Docker](https://docs.docker.com/). It creates the Navidrome administrator for you. It can also put Navidrome behind HTTPS, either in the [Caddy](https://caddyserver.com/docs/) that already serves your other sites or in a Caddy of its own. Where Telegram is blocked, it sends the bot through your proxy. Every change is shown before it is made. The same tool updates the installation and removes it, asking about each part.
 
 | Streaming service | Status |
 |---|---|
@@ -33,7 +33,7 @@ See [supported sources](https://lubaskinc0de.github.io/beatstash/import/sources/
 
 You need:
 
-- a Linux server (AMD64 or ARM64) with Docker Compose;
+- a Linux server (AMD64 or ARM64) with [Docker Compose](https://docs.docker.com/compose/);
 - a bot token from [@BotFather](https://t.me/BotFather);
 - `api_id` and `api_hash` from [my.telegram.org](https://my.telegram.org), used by the local Bot API server for large files.
 
@@ -46,7 +46,7 @@ bash install.sh
 
 Run it again in the same directory to finish an interrupted setup. Later, `bash install.sh upgrade` with a newer release's installer updates the installation, and `bash install.sh uninstall` removes it.
 
-Step-by-step guides: [connect to an existing Navidrome](https://lubaskinc0de.github.io/beatstash/installation/existing-navidrome/) or [set up a new server](https://lubaskinc0de.github.io/beatstash/installation/new-server/). The [documentation](https://lubaskinc0de.github.io/beatstash/) also covers everyday use, HTTPS, and updates. For how beatstash differs from Navidrome and beets, see the [comparison](https://lubaskinc0de.github.io/beatstash/introduction/comparison/).
+Step-by-step guides: [connect to an existing Navidrome](https://lubaskinc0de.github.io/beatstash/installation/existing-navidrome/) or [set up a new server](https://lubaskinc0de.github.io/beatstash/installation/new-server/). The [documentation](https://lubaskinc0de.github.io/beatstash/) also covers everyday use, HTTPS, and updates. For how beatstash differs from Navidrome and [beets](https://beets.io/), see the [comparison](https://lubaskinc0de.github.io/beatstash/introduction/comparison/).
 
 ## Contributing
 

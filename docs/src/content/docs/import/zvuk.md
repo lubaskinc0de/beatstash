@@ -18,7 +18,7 @@ Treat the token as an account credential. If the profile response has no usable 
 
 Choose **Import** to see the plan: saved tracks, tracks missing from your library, an estimated download size, and available quota. Choose **Start the import** to begin.
 
-The bot downloads liked tracks, saved album tracks, and playlist tracks. Likes become stars in Navidrome. Playlists keep their names and track order. Available FLAC is preferred; otherwise the provider uses its high-quality MP3 stream.
+The bot downloads liked tracks, saved album tracks, and playlist tracks. Likes become stars in [Navidrome](https://www.navidrome.org/). Playlists keep their names and track order. Available FLAC is preferred; otherwise the provider uses its high-quality MP3 stream.
 
 Downloads include pauses and are limited per account, so a large collection takes time. View **Import progress** to see results. Navidrome must index downloaded files before stars and playlists can be applied; a playlist may be incomplete while that happens.
 

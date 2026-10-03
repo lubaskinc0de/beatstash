@@ -5,7 +5,7 @@ description: Set addresses, library paths, administrator access, quotas, and imp
 
 Non-secret settings belong in TOML. Passwords and tokens for startup belong in environment variables. The full commented template is [`config.example.toml`](https://github.com/lubaskinc0de/beatstash/blob/master/config.example.toml).
 
-The application reads `config.toml` in its working directory unless `CONFIG_FILE` points elsewhere. It does not load `.env` itself: Docker Compose or `just` loads it. The deployment sample mounts `deploy/config.toml` as `/app/config.toml`.
+The application reads `config.toml` in its working directory unless `CONFIG_FILE` points elsewhere. It does not load `.env` itself: [Docker Compose](https://docs.docker.com/compose/) or [`just`](https://just.systems/man/en/) loads it. The deployment sample mounts `deploy/config.toml` as `/app/config.toml`.
 
 ## Change a setting
 
@@ -18,7 +18,7 @@ docker compose up -d --force-recreate bot
 docker compose logs --tail=50 bot
 ```
 
-`--force-recreate` matters for `config.toml`: Docker mounts that single file, and many editors save a new file in its place, which a running container never sees. A plain restart is not enough for the same reason.
+`--force-recreate` matters for `config.toml`: [Docker](https://docs.docker.com/) mounts that single file, and many editors save a new file in its place, which a running container never sees. A plain restart is not enough for the same reason.
 
 Look for `bot_started` in the log. If the bot exits right away, the log names the setting it rejects; the bot also refuses keys it does not know, so check the spelling against [`config.example.toml`](https://github.com/lubaskinc0de/beatstash/blob/master/config.example.toml).
 
@@ -38,10 +38,10 @@ Rerunning the installer in the same directory changes the answers it asked about
 |---|---|---|
 | `admins` | TOML | Administrator identities such as `telegram:123456789` |
 | `library.music_dir` | TOML | Writable managed music directory as seen by the bot |
-| `navidrome.url` | TOML | Navidrome address reachable by the bot |
+| `navidrome.url` | TOML | [Navidrome](https://www.navidrome.org/) address reachable by the bot |
 | `navidrome.user` | TOML | Navidrome administrator login |
 | `BOT_TOKEN` | Environment | Telegram bot credential |
-| `DB_DSN` | Environment | Postgres connection string; set by the deployment Compose file |
+| `DB_DSN` | Environment | [Postgres](https://www.postgresql.org/) connection string; set by the deployment Compose file |
 | `SECRET_KEY` | Environment | Base64-encoded 32-byte encryption key |
 | `NAVIDROME_PASSWORD` | Environment | Password for `navidrome.user` |
 | `POSTGRES_PASSWORD` | Deployment `.env` | Database password used by the deployment sample |

@@ -18,9 +18,9 @@ It finds the running installation, asks you to confirm it, and then asks about e
 | --- | --- | --- |
 | Return the bot to Telegram's cloud API | no | Logs the bot out of the local Bot API, so it can run elsewhere on the cloud API, which can take up to 10 minutes to accept it |
 | Containers and network | yes | The running services; the downloaded images stay |
-| The beatstash site in a shared Caddy | yes | The block between the `beatstash` markers, with the same checks as when it was added; see [HTTPS](./https.md#with-the-guided-setup) |
+| The beatstash site in a shared [Caddy](https://caddyserver.com/docs/) | yes | The block between the `beatstash` markers, with the same checks as when it was added; see [HTTPS](./https.md#with-the-guided-setup) |
 | Volumes | no | The bot's database and the local Bot API's data: accounts, libraries, links, imports |
-| Navidrome's data | no | Navidrome's own database: its users, playlists and play counts |
+| [Navidrome](https://www.navidrome.org/)'s data | no | Navidrome's own database: its users, playlists and play counts |
 | Music | no | Everything uploaded and imported through the bot; the question shows its size |
 | Installation directory | no | `.env` and `config.toml`, offered only when everything above is gone |
 
