@@ -1,6 +1,7 @@
 # beatstash
 
-A self-hosted Telegram bot for your [Navidrome](https://www.navidrome.org/) music library.
+A self-hosted Telegram bot for managing your [Navidrome](https://www.navidrome.org/) music library.
+And also the best tool for switching to self-hosted music.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/lubaskinc0de/beatstash/ci.yml?branch=master&label=CI)](https://github.com/lubaskinc0de/beatstash/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/lubaskinc0de/beatstash)](https://github.com/lubaskinc0de/beatstash/releases)
@@ -9,17 +10,21 @@ A self-hosted Telegram bot for your [Navidrome](https://www.navidrome.org/) musi
 
 <!-- TODO: GIF — forward a track to the bot, then share it with `@your_music_bot np` in a chat. -->
 
-Forward a track to the bot and it lands in your library. Listen in Navidrome or any Subsonic-compatible app. To recommend a song, type the bot's username in any chat and pick the track. The files stay on your server.
-
 ## Features
+- [**Manage your library through telegram.**](https://lubaskinc0de.github.io/beatstash/using/sharing/) Forward a track or send files from your phone. The bot fills in track details and checks for duplicates, then, it neatly organizes the music on your server. 
+Supports MP3, FLAC, M4A, OGG, Opus, and WAV.
 
-- **Save from Telegram.** Forward a track or send files from your phone. The bot fills in track details and checks for duplicates. Supports MP3, FLAC, M4A, OGG, Opus, and WAV.
-- **Import from streaming.** Bring over liked tracks, albums, and playlists, then keep them in sync. Downloaded music stays after you disconnect the account.
-- **Libraries for friends.** Invite people to your server. Each gets a personal library with a storage limit you set and can add tracks to a shared collection.
-- **Share in any chat.** Type `@your_music_bot np` or search by artist or title, then send the track as audio or as a listening link.
-- **Works with an existing Navidrome.** Your music stays in its current folders, and you can find and share it through Telegram.
-- **Guided setup.** One command on the server asks a few questions and starts everything with [Docker](https://docs.docker.com/). It creates the Navidrome administrator for you. It can also put Navidrome behind HTTPS, either in the [Caddy](https://caddyserver.com/docs/) that already serves your other sites or in a Caddy of its own. Where Telegram is blocked, it sends the bot through your proxy. Every change is shown before it is made. The same tool updates the installation and removes it, asking about each part.
+- [**A single Navidrome instance for friends.**](https://lubaskinc0de.github.io/beatstash/using/libraries/) Invite people to your server. Each gets a personal library with a storage limit you set. Everyone can share their music with others via a shared collection, and you can compete to see who shares the most.
 
+- [**Works with an existing Navidrome.**](https://lubaskinc0de.github.io/beatstash/installation/existing-navidrome/) Your music stays in its current folders, and you can find and share it through Telegram.
+
+- [**Still using music streaming services and want to switch to self-hosted music?**](https://lubaskinc0de.github.io/beatstash/import/sources/#streaming-collections) A bot can help you set everything up and transfer your entire library with a single click, while also automatically syncing new albums and tracks from your connected accounts.
+
+- [**Share your music in chats.**](https://lubaskinc0de.github.io/beatstash/using/sharing/) Invoke the bot directly in the any Telegram chat to share what you are currently listening to, your recently played tracks, or any track or album from your library.
+
+- [**Guided setup.**](https://lubaskinc0de.github.io/beatstash/installation/new-server/) An interactive setup wizard will help you connect the bot to an existing Navidrome instance or set everything up from scratch, including HTTPS configuration and a fresh Navidrome installation.
+
+## Music services you can import from
 | Streaming service | Status |
 |---|---|
 | Zvuk | Liked tracks, albums, playlists, periodic sync. Requires a subscription. |
