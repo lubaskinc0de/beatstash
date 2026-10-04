@@ -16,7 +16,7 @@ import (
 	"github.com/lubaskinc0de/beatstash/internal/installer/config"
 )
 
-const httpsGuide = "https://lubaskinc0de.github.io/beatstash/administration/https/"
+const httpsGuide = "https://lubaskinc0de.github.io/beatstash/installation/https/"
 
 // domain is the host of an https:// address with a domain name, which a
 // proxy can get a certificate for; empty otherwise.

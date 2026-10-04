@@ -392,7 +392,7 @@ func (s *setup) start(ctx context.Context, in *installation) error {
 	s.t.Say("After editing config.toml or .env there: docker compose up -d --force-recreate bot")
 	s.t.Say("Open your bot in Telegram and send /start. Link your Navidrome account in Settings.")
 	if in.publicURL == "" {
-		s.t.Say("For HTTPS and listening links: https://lubaskinc0de.github.io/beatstash/administration/https/")
+		s.t.Say("For HTTPS and listening links: https://lubaskinc0de.github.io/beatstash/installation/https/")
 	}
 	return nil
 }

@@ -1,0 +1,57 @@
+---
+import { Image } from 'astro:assets';
+import { findScreenshot } from './screenshots';
+
+interface Props {
+  // File name in src/assets/screenshots without the extension.
+  name: string;
+  // Describes the picture; the dev placeholder shows it as what to capture.
+  alt: string;
+  // Phone captures are narrow and tall; desktop ones take the full width.
+  size?: 'phone' | 'wide';
+}
+
+const { name, alt, size = 'phone' } = Astro.props;
+const file = findScreenshot(name);
+---
+
+{
+  file ? (
+    <figure class:list={['screenshot', size]}>
+      <Image src={file} alt={alt} />
+    </figure>
+  ) : (
+    import.meta.env.DEV && (
+      <div class="screenshot-missing">
+        <strong>Screenshot:</strong> <code>src/assets/screenshots/{name}.png</code>
+        <br />
+        {alt}
+      </div>
+    )
+  )
+}
+
+<style>
+  .screenshot img {
+    display: block;
+    height: auto;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.75rem;
+  }
+
+  .screenshot.phone img {
+    width: min(100%, 22rem);
+  }
+
+  .screenshot.wide img {
+    width: 100%;
+  }
+
+  .screenshot-missing {
+    padding: 1rem 1.25rem;
+    border: 2px dashed var(--sl-color-accent);
+    border-radius: 0.75rem;
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-sm);
+  }
+</style>

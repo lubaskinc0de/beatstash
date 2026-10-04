@@ -148,7 +148,8 @@ type profile struct {
 }
 
 type subscription struct {
-	Status string `json:"status"`
+	Status            string   `json:"status"`
+	ServicesAvailable []string `json:"services_available"`
 	// Expiration is in Unix milliseconds.
 	Expiration int64 `json:"expiration"`
 }

@@ -1,4 +1,4 @@
-# beatstash settings: https://lubaskinc0de.github.io/beatstash/administration/configuration/
+# beatstash settings: https://lubaskinc0de.github.io/beatstash/reference/configuration/
 # Secrets go to environment variables (.env.example). With docker compose,
 # copy this file to config.docker.toml and write paths and addresses as the
 # bot's container sees them ("In compose" below).

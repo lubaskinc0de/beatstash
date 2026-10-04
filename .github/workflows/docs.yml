@@ -23,6 +23,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          # Starlight dates each page by its last commit.
+          fetch-depth: 0
       - name: Select the latest stable release for installation examples
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

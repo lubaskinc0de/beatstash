@@ -65,6 +65,11 @@ const (
 
 type Account struct {
 	subscription bool
+	// SubscriptionStatus defaults to confirmed for subscribed accounts.
+	SubscriptionStatus   string
+	SubscriptionServices []string
+	// SubscriptionExpiration defaults to 30 days from now, in Unix milliseconds.
+	SubscriptionExpiration int64
 	// Liked goes from the newest like to the oldest, as Zvuk lists them.
 	Liked     []string
 	Releases  []string
@@ -387,8 +392,17 @@ func (z *API) tiny(w http.ResponseWriter, r *http.Request) {
 	case "/api/v2/tiny/profile":
 		var subscription any
 		if account.subscription {
+			status := account.SubscriptionStatus
+			if status == "" {
+				status = "confirmed"
+			}
+			expiration := account.SubscriptionExpiration
+			if expiration == 0 {
+				expiration = time.Now().Add(30 * 24 * time.Hour).UnixMilli()
+			}
 			subscription = map[string]any{
-				"title": "СберПрайм", "status": "confirmed", "expiration": time.Now().Add(30 * 24 * time.Hour).UnixMilli(),
+				"title": "СберПрайм", "status": status, "expiration": expiration,
+				"services_available": account.SubscriptionServices,
 			}
 		}
 		writeJSON(w, map[string]any{"result": map[string]any{

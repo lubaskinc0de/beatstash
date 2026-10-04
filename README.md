@@ -1,7 +1,8 @@
 # beatstash
 
-A self-hosted Telegram bot for managing your [Navidrome](https://www.navidrome.org/) music library.
-And also the best tool for switching to self-hosted music.
+A self-hosted Telegram bot that fills your [Navidrome](https://www.navidrome.org/) music library, lets friends in, and shares music in your chats.
+
+**[Documentation](https://lubaskinc0de.github.io/beatstash/)** · [Install](https://lubaskinc0de.github.io/beatstash/installation/requirements/) · [Join a server](https://lubaskinc0de.github.io/beatstash/using/getting-started/) · [Configuration](https://lubaskinc0de.github.io/beatstash/reference/configuration/) · [Troubleshooting](https://lubaskinc0de.github.io/beatstash/administration/troubleshooting/)
 
 [![CI](https://img.shields.io/github/actions/workflow/status/lubaskinc0de/beatstash/ci.yml?branch=master&label=CI)](https://github.com/lubaskinc0de/beatstash/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/lubaskinc0de/beatstash)](https://github.com/lubaskinc0de/beatstash/releases)
@@ -10,52 +11,48 @@ And also the best tool for switching to self-hosted music.
 
 https://github.com/user-attachments/assets/10977953-8934-4261-9c3b-bfe9485822a7
 
+Navidrome is a good way to listen to your own music, but filling it is up to you. A friend sends a track in Telegram, and you copy it to the server over SSH. A friend wants in, and you create their account, pick their libraries, and upload their files. You leave a streaming service, and your likes and playlists stay behind. 
+
+**Beatstash** moves that work into a Telegram chat. Navidrome keeps doing the playback.
+
+**Never self-hosted music?** You don't need Navidrome yet. On a fresh Linux server the installer sets up Navidrome, the bot, and HTTPS, the bot imports your streaming likes and playlists, and you listen in a phone app such as [Symfonium](https://symfonium.app/) or [Amperfy](https://github.com/BLeeEZ/amperfy).
+
 ## Features
-- [**Manage your library through telegram.**](https://lubaskinc0de.github.io/beatstash/using/sharing/) Forward a track or send files from your phone. The bot fills in track details and checks for duplicates, then, it neatly organizes the music on your server. 
-Supports MP3, FLAC, M4A, OGG, Opus, and WAV.
 
-- [**A single Navidrome instance for friends.**](https://lubaskinc0de.github.io/beatstash/using/libraries/) Invite people to your server. Each gets a personal library with a storage limit you set. Everyone can share their music with others via a shared collection, and you can compete to see who shares the most.
+- [Add music from Telegram.](https://lubaskinc0de.github.io/beatstash/using/uploading/) Forward a track or send files from your phone. The bot fills in the tags, skips duplicates, and files the music into artist and album folders. MP3, FLAC, M4A, OGG, Opus, and WAV work.
+- [Bring your streaming collection.](https://lubaskinc0de.github.io/beatstash/import/sources/) Import your likes, saved albums, and playlists from a supported service. Afterwards the bot keeps syncing what you save there.
+- [One server for your friends.](https://lubaskinc0de.github.io/beatstash/using/libraries/) Send an invite link, and each person gets a Navidrome account, a personal library, and a storage limit you set. Tracks they want to show the group go into a shared library.
+- [Share music in any chat.](https://lubaskinc0de.github.io/beatstash/using/sharing/) Type `@your_music_bot np` to send what's playing, or search your library right inside a conversation.
+- [Works with the Navidrome you have.](https://lubaskinc0de.github.io/beatstash/installation/existing-navidrome/) Your music stays in its folders, and you can find and share it from Telegram.
+- [An installer that does the setup.](https://lubaskinc0de.github.io/beatstash/installation/new-server/) It connects an existing Navidrome or installs everything from scratch, HTTPS included.
 
-- [**Works with an existing Navidrome.**](https://lubaskinc0de.github.io/beatstash/installation/existing-navidrome/) Your music stays in its current folders, and you can find and share it through Telegram.
+## Import from streaming services
 
-- [**Still using music streaming services and want to switch to self-hosted music?**](https://lubaskinc0de.github.io/beatstash/import/sources/#streaming-collections) A bot can help you set everything up and transfer your entire library with a single click, while also automatically syncing new albums and tracks from your connected accounts.
-
-- [**Share your music in chats.**](https://lubaskinc0de.github.io/beatstash/using/sharing/) Invoke the bot directly in the any Telegram chat to share what you are currently listening to, your recently played tracks, or any track or album from your library.
-
-- [**Guided setup.**](https://lubaskinc0de.github.io/beatstash/installation/new-server/) An interactive setup wizard will help you connect the bot to an existing Navidrome instance or set everything up from scratch, including HTTPS configuration and a fresh Navidrome installation.
-
-## Music services you can import from
-| Streaming service | Status |
+| Service | Status |
 |---|---|
-| Zvuk | Liked tracks, albums, playlists, periodic sync. Requires a subscription. |
-| Yandex Music | Planned |
-| YouTube Music | Planned |
-| Spotify | Planned |
+| Zvuk | Likes, saved albums, playlists, and sync. Needs a subscription. |
+| Yandex Music, YouTube Music, Spotify | Planned |
 
-See [supported sources](https://lubaskinc0de.github.io/beatstash/import/sources/) for details.
+Details are in [supported sources](https://lubaskinc0de.github.io/beatstash/import/sources/).
 
 ## Quick start
 
-You need:
+You need a Linux server (AMD64 or ARM64) with [Docker Compose](https://docs.docker.com/compose/), a bot token from [@BotFather](https://t.me/BotFather), and `api_id` and `api_hash` from [my.telegram.org](https://my.telegram.org). The full list is in [requirements](https://lubaskinc0de.github.io/beatstash/installation/requirements/).
 
-- a Linux server (AMD64 or ARM64) with [Docker Compose](https://docs.docker.com/compose/);
-- a bot token from [@BotFather](https://t.me/BotFather);
-- `api_id` and `api_hash` from [my.telegram.org](https://my.telegram.org), used by the local Bot API server for large files.
-
-Run the installer on the server. It walks you through Telegram setup and asks whether to connect your existing Navidrome or install a new one:
+Run the installer on the server. It walks you through Telegram setup and asks whether to connect your Navidrome or install a new one:
 
 ```sh
 curl -fL https://github.com/lubaskinc0de/beatstash/releases/latest/download/install.sh -o install.sh
 bash install.sh
 ```
 
-Run it again in the same directory to finish an interrupted setup. Later, `bash install.sh upgrade` with a newer release's installer updates the installation, and `bash install.sh uninstall` removes it.
+Run it again in the same folder to finish an interrupted setup. Later, `bash install.sh upgrade` with a newer release's installer updates the installation, and `bash install.sh uninstall` removes it.
 
-Step-by-step guides: [connect to an existing Navidrome](https://lubaskinc0de.github.io/beatstash/installation/existing-navidrome/) or [set up a new server](https://lubaskinc0de.github.io/beatstash/installation/new-server/). The [documentation](https://lubaskinc0de.github.io/beatstash/) also covers everyday use, HTTPS, and updates. For how beatstash differs from Navidrome and [beets](https://beets.io/), see the [comparison](https://lubaskinc0de.github.io/beatstash/introduction/comparison/).
+The [documentation](https://lubaskinc0de.github.io/beatstash/) covers both install paths step by step, everyday use, HTTPS, and updates. To see how beatstash fits next to Navidrome and [beets](https://beets.io/), read the [comparison](https://lubaskinc0de.github.io/beatstash/introduction/comparison/).
 
 ## Contributing
 
-Bug reports and new music providers are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup and checks.
+Bug reports and new music providers are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

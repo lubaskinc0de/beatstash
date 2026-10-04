@@ -1,56 +1,62 @@
 ---
 title: Troubleshooting
-description: Check common startup, upload, import, library, and listening-link failures.
+description: Find the cause of common startup, upload, import, library, and listening-link failures.
 ---
 
-From `deploy`, begin with `docker compose ps` and `docker compose logs --tail=100 bot`. Also check the affected service's logs. When sharing logs, remove tokens, passwords, private URLs, and personal data.
+Start in `deploy` with `docker compose ps` and `docker compose logs --tail=100 bot`, then check the logs of the service that misbehaves.
 
-## The bot does not start
+:::caution
+Before sharing logs, remove tokens, passwords, private addresses, and personal data.
+:::
 
-Read the configuration errors: the loader reports missing environment values and unknown TOML keys. Confirm that `config.toml` is a file, not a directory accidentally created by a missing bind mount.
+## The bot doesn't start
 
-Check the [Postgres](https://www.postgresql.org/) health status. In the deployment sample, `POSTGRES_PASSWORD` configures a new database; changing that environment value later does not change an existing Postgres role's password. Update the role and connection settings together.
+The log names missing environment values and unknown TOML keys. Check that `config.toml` is a file: a missing bind mount makes Docker create a directory in its place.
 
-If [Navidrome](https://www.navidrome.org/) is unavailable, the bot may start while logging library-creation failures. Create the Navidrome administrator first, correct its credentials, then restart the bot so it can finish startup work.
+Check that [Postgres](https://www.postgresql.org/) is healthy. `POSTGRES_PASSWORD` sets the password only when the database is first created; changing it later doesn't change the existing role's password. Change the role and the setting together.
 
-## Telegram polling conflicts
+If [Navidrome](https://www.navidrome.org/) is down, the bot may start but log failures to create libraries. Create the Navidrome administrator, fix its credentials, and restart the bot so it finishes its startup work.
 
-Only one bot process should poll a token. Stop another development or production instance using the same token. When moving to the local API, perform cloud logout first and check local API credentials and logs. Do not run a manual `getUpdates` request while beatstash is polling.
+If the log shows `getMe` timeouts, the server can't reach Telegram; see [when Telegram is blocked](./blocked-telegram.md).
+
+## Two bots fight over updates
+
+Only one process may poll a token. Stop any other development or production copy that uses it. When moving to the local Bot API, log out of the cloud API first and check the local API's credentials and logs. Don't call `getUpdates` by hand while the bot is running.
 
 ## Uploading fails
 
-Read the message beside the thumbs-down reaction. Check the file's format and integrity, your personal quota, and the server's free disk space. For larger files, confirm that the bot is using the local API and shares its file volume.
+Read the message next to 👎. Check the file's format and integrity, your quota, and the server's free disk space. For large files, make sure the bot uses the local Bot API and shares its file volume.
 
-For filesystem errors, check write access to the bot's music directory and read access from Navidrome. Keep `shared`, `users`, and `.beatstash` on one filesystem. An `invalid cross-device link` error indicates an unsupported mount layout.
+For file system errors, check that the bot can write to its music folder and Navidrome can read it. An `invalid cross-device link` error means the [managed folders](../reference/glossary.md#managed-folders) are on different filesystems.
 
 ## A track is missing from Navidrome
 
-A successful upload means the file is in the bot's library; Navidrome still needs to index it. Check the library's path in Navidrome and the corresponding container mount. Allow the scanner to finish, or trigger a scan through Navidrome's administration interface.
+A successful upload means the file is in the bot's library; Navidrome still has to scan it. Check the library path in Navidrome and the matching container mount. Wait for the scan, or start one from Navidrome's admin screens.
 
-If a duplicate was skipped, the matching track may already be in an attached library. Look there before uploading it again.
+If the upload was skipped as a duplicate, the track may already be in an existing library. Look there first.
 
 ## Existing music is missing from the bot
 
-Check that the linked Navidrome account can see the library. The library must be separate from the bot's managed folders. A library covering all of the bot's music directory is ignored to prevent exposure of personal libraries.
+Check that the linked Navidrome account can see the library, and that the library doesn't overlap the bot's managed folders. A library covering the whole music folder is ignored, because it would show everyone's personal libraries.
 
-Set `navidrome.attach_interval` to a positive duration; `0` disables attached libraries. Records refresh at startup and periodically, after Navidrome has indexed the files. The default refresh period is one hour, and access permissions are cached for up to 30 seconds.
+`navidrome.attach_interval` must be above `0`; `0` turns existing libraries off. The bot refreshes them at startup and then hourly, after Navidrome has scanned the files. Access changes take up to 30 seconds to reach the bot.
 
 ## Inline results or listening links are missing
 
-Verify BotFather inline mode, and that `/setinlinefeedback` is **Enabled**: with 1/100 or 1/10, most tracks picked in np or search stay at ⏳. Confirm a Navidrome account is linked. An imported or attached track may need a Telegram file prepared in the storage chat, or a public listening link as a fallback.
+Check that inline mode is on in BotFather and `/setinlinefeedback` is **Enabled**: with 1/10 or 1/100, most tracks picked in `np` or a search stay at ⏳. Check that the person has a linked Navidrome account. An imported track, or one from an existing library, may need the [storage chat](./storage-chat.md) or a listening link.
 
-For links, check `navidrome.public_url`, sharing enabled in Navidrome, and proxy access to `/share`. Test a generated link from a private browser window outside your server network. Localhost, private IPs, and local-only names disable links in the bot.
+For listening links, check `navidrome.public_url`, that sharing is on in Navidrome, and that the proxy passes `/share`. Open a generated link in a private window from outside your network. `localhost`, private IP addresses, and local-only names turn links off.
 
-If a storage chat is configured, check its numeric ID and the bot's posting permission.
+If you use a storage chat, check its numeric ID and that the bot may post there.
 
 ## Zvuk connection or import fails
 
-Reconnect with a fresh token and confirm the account has an active subscription. If there is no **Start the import** action because all collection tracks are already present, check the existing library rather than expecting duplicate downloads.
+Reconnect with a fresh token and check that the subscription is active. If there is no **Start the import** button, every track in the collection is already in your library.
 
-Look at the import summary for failed, unavailable, or over-quota tracks. Stars and playlists wait for Navidrome indexing. After a quota increase, a later sync retries tracks that did not fit.
+The import summary lists failed, unavailable, and over-quota tracks. Stars and playlists wait until Navidrome scans the files. After a quota increase, the next sync retries tracks that didn't fit.
 
-If fresh credentials fail repeatedly, Zvuk's web API may have changed. Record the symptom and sanitized logs for an issue; the integration is unofficial.
+If fresh tokens keep failing, Zvuk may have changed its unofficial API. Open an issue with the symptom and cleaned-up logs.
 
-## Saved credentials cannot be decrypted
+## Saved credentials can't be decrypted
 
-Confirm that `SECRET_KEY` is the original key used with this database. A newly generated key cannot decrypt the old values.
+`SECRET_KEY` must be the key this database was used with. A newly generated key can't decrypt old values.

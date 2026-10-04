@@ -1,0 +1,64 @@
+---
+title: Set up Telegram
+description: Create the bot, turn on inline mode, find your user ID, and connect the local Bot API server.
+---
+
+import Screenshot from '../../../components/Screenshot.astro';
+
+The installer walks you through all of this. Use this page for a manual setup, or to check a step the installer asked about.
+
+## Create a bot
+
+1. Open [@BotFather](https://t.me/BotFather) in Telegram.
+2. Send `/newbot`, choose a name and username, and put the token in `BOT_TOKEN` in `deploy/.env`.
+3. Send `/setinline`, select your bot, and set a placeholder such as `Search your music`. This lets people call the bot from any chat.
+4. Send `/setinlinefeedback`, select your bot, and choose **Enabled**.
+
+<Screenshot name="botfather-inline-feedback" alt="BotFather after /setinlinefeedback, with the Enabled option highlighted among the fractions." size="wide" />
+
+:::caution[Choose Enabled, not a fraction]
+The bot prepares a track or listening link after someone picks an inline result, and it learns about the pick from this feedback. With 1/10 or 1/100, most picked tracks stay at ⏳.
+:::
+
+## Find your numeric user ID
+
+Open [@Get_myidrobot](https://t.me/Get_myidrobot), press **Start**, and copy the number from its reply. Put it in `deploy/config.toml`:
+
+```toml title="deploy/config.toml"
+admins = ["telegram:123456789"]
+```
+
+Use the number, not your username. Accounts in `admins` are the bot's [administrators](../reference/glossary.md#administrator): they invite people and manage quotas.
+
+## Run the local Bot API
+
+Through Telegram's cloud API, a bot can download files up to 20 MB and send files up to 50 MiB. The stack runs a local [Bot API server](https://github.com/tdlib/telegram-bot-api) instead, which raises the bot's limit to 2000 MiB, enough for FLAC albums.
+
+1. Sign in at [my.telegram.org](https://my.telegram.org), open **API development tools**, and create an application.
+2. Put its `api_id` and `api_hash` in `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` in `deploy/.env`.
+3. Stop any other copy of this bot and log it out of the cloud API. Paste the token when asked; the input is hidden:
+
+   ```sh
+   read -r -s -p 'Bot token: ' bot_token
+   printf '\n'
+   printf 'url = "https://api.telegram.org/bot%s/logOut"\n' "$bot_token" | \
+     curl --config - --fail --silent --request POST
+   unset bot_token
+   ```
+
+   Expect `"ok":true`.
+4. Set `telegram.bot_api_url` to `http://telegram-bot-api:8081` and start the local service together with the bot.
+
+The bot and the local API share the `telegram_bot_api_data` volume at `/var/lib/telegram-bot-api`, because the local API hands the bot file paths instead of URLs. The deployment sample already mounts it.
+
+:::note
+Keep `.env` as a Compose file and don't `source` it in a shell: the shell can change values that contain special characters.
+:::
+
+Telegram describes the switch in [Using a Local Bot API Server](https://core.telegram.org/bots/api#using-a-local-bot-api-server). If Telegram is blocked where your server is, see [when Telegram is blocked](../administration/blocked-telegram.md).
+
+## Use the cloud API instead
+
+Leave `telegram.bot_api_url` empty to use Telegram's cloud API, and remove the local API service from your Compose setup. The file limits above then apply: 20 MB for files the bot receives and 50 MiB for files it sends.
+
+To switch back to the cloud API later, stop the bot and log it out through the local API first. After a logout, Telegram makes you wait before the cloud API accepts the bot again. Never let two copies of the bot poll at the same time.

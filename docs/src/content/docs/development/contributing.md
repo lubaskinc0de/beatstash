@@ -15,17 +15,23 @@ Set up [local development](./local.md) and work on a branch. Keep the change foc
 
 The project's tests are end-to-end business scenarios at the bot boundary. They run the real database, Navidrome, filesystem, and [`ffmpeg`](https://ffmpeg.org/); HTTP doubles stand in for Telegram and external providers. For behavior changes, write an observable scenario using Arrange, Act, Assert and a failing test before the implementation. Avoid unit tests that only repeat a use case's internals.
 
-The setup tool has its own scenarios in `e2e/installer`: they run the installer with typed answers against real [Docker](https://docs.docker.com/), Navidrome, and [Caddy](https://caddyserver.com/docs/), with stand-ins for the bot and Telegram. Unit tests are kept for its pure text edits only, the Caddyfile block and `config.toml` merging, where a scenario per edge case would be slow.
+The installer has its own scenarios in `e2e/installer`: they run the installer with typed answers against real [Docker](https://docs.docker.com/), Navidrome, and [Caddy](https://caddyserver.com/docs/), with stand-ins for the bot and Telegram. Unit tests are kept for its pure text edits only, the Caddyfile block and `config.toml` merging, where a scenario per edge case would be slow.
 
 Run `just test`, `just lint`, and `just fmt` for [Go](https://go.dev/doc/install) changes. Mention which checks ran and any check you could not complete. Do not mark a blocked check as passed.
 
-CI runs formatting and lint checks, `go vet`, module verification, [actionlint](https://github.com/rhysd/actionlint), [zizmor](https://docs.zizmor.sh/), spelling checks with [typos](https://github.com/crate-ci/typos), documentation checks, the setup tool tests, and the complete end-to-end suite. Run static checks locally with `just lint` and tests with `just test`. Every release must pass the same checks before its Docker image is published. Coverage reports include the application and setup tool packages exercised by the scenarios.
+CI runs formatting and lint checks, `go vet`, module verification, workflow checks with [actionlint](https://github.com/rhysd/actionlint) and [zizmor](https://docs.zizmor.sh/), spelling with [typos](https://github.com/crate-ci/typos), secret scanning with [Gitleaks](https://github.com/gitleaks/gitleaks), documentation checks, the installer tests, and the complete end-to-end suite. Run static checks locally with `just lint` and tests with `just test`. Every release must pass the same checks before its Docker image is published. Coverage counts the application and installer packages the scenarios exercise. On `master`, the total goes to the README badge through the `badges` branch.
 
 ## Add an integration
 
 Check the provider interfaces and current Zvuk implementation before choosing a design. A source can support only some capabilities; distinguish collection metadata, audio download, and sync.
 
-Cover connection failure, unavailable tracks, duplicates, quotas, and later collection changes in business-scenario tests. Update the [source table](../import/sources.md), add a setup guide, and describe the exact sync behavior and credentials it requires.
+Cover connection failure, unavailable tracks, duplicates, quotas, and later collection changes in business-scenario tests. Update the [source table](../import/sources.md) and the provider table in the README, add a setup guide, and describe the exact sync behavior and credentials it requires.
+
+Maintainers set up checks, coverage, and image publishing with the [CI and release guide](https://github.com/lubaskinc0de/beatstash/blob/master/.github/README.md).
+
+## Documentation
+
+The site is built with [Starlight](https://starlight.astro.build/) from `docs/src/content/docs`. Run `npm ci` and `npm run check` in `docs`, or `just docs`, before opening a pull request. Use the terms from the [glossary](../reference/glossary.md). Instead of version numbers, write the placeholders `release_tag`, `release_version`, `navidrome_version`, or `postgres_version` in double curly braces. The build fills them in from the latest release and `deploy/compose.yml`.
 
 ## License
 

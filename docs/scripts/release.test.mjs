@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import remarkReleaseVersion from './remark-release-version.mjs';
 import { latestRelease } from './resolve-release.mjs';
+import { imageVersions } from './versions.mjs';
 
 test('renders the selected version in prose, shell commands and environment examples', () => {
   const tree = { children: [
@@ -30,4 +31,15 @@ test('rejects draft, prerelease and unsafe version values', async () => {
   for (const release of [{ tag_name: 'v1.2.3', draft: true }, { tag_name: 'v1.2.3-rc.1', prerelease: true }, { tag_name: 'v1.2.3\nINJECTED=value' }]) {
     await assert.rejects(latestRelease('example/beatstash', undefined, async () => ({ ok: true, json: async () => release })));
   }
+});
+
+test('renders placeholders that MDX parsed as expressions', () => {
+  const tree = { children: [{ type: 'mdxTextExpression', value: '{release_tag}', data: { estree: {} } }] };
+  remarkReleaseVersion({ tag: 'v2.10.3' })(tree);
+  assert.deepEqual(tree.children[0], { type: 'text', value: 'v2.10.3' });
+});
+
+test('reads service versions from the deployment sample', () => {
+  const versions = imageVersions('    image: postgres:18\n    image: deluan/navidrome:0.64.2\n');
+  assert.deepEqual(versions, { '{{navidrome_version}}': '0.64.2', '{{postgres_version}}': '18' });
 });

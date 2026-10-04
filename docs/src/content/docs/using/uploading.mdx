@@ -1,0 +1,55 @@
+---
+title: Upload music
+description: Add audio files from Telegram, read the reactions, and handle duplicates or missing tags.
+---
+
+import Screenshot from '../../../components/Screenshot.astro';
+
+Send an audio file or an audio document to the bot in your private chat with it, or forward one from another chat. The bot tags the file, puts it in your library, and Navidrome picks it up. You don't need SSH or a file manager on the server.
+
+The bot accepts MP3, FLAC, M4A, OGG, Opus, and WAV. It converts WAV to FLAC, which loses no audio quality.
+
+| Reaction | Meaning |
+|---|---|
+| 👀 | The bot took the file and is working on it |
+| 👍 | The track is in your library |
+| 👎 | Something went wrong; the bot explains in a message |
+
+<Screenshot name="upload-reactions" alt="A chat with the bot: several forwarded audio files, each with a 👍 reaction." />
+
+New tracks go to your personal library and show up in [Navidrome](https://www.navidrome.org/) after it scans them. Uploading doesn't put the track in the shared library or send it anywhere else.
+
+## Track details and artwork
+
+The bot fills in the artist, title, album, album artist, year, and track number, then writes these tags into the file. Navidrome and your player then show the same details as the bot.
+
+For each field it takes the first of these sources that has a value:
+
+1. Details from the streaming service, for imported tracks.
+2. Tags already in the file.
+3. Artist and title that Telegram shows for the audio.
+4. A file name in the form `Artist - Title`.
+
+So an MP3 with no tags still gets an artist and title from Telegram or its file name, while tags in the file win over Telegram's labels. The bot trims stray whitespace and uses the track artist as album artist when the file has none.
+
+Zvuk imports also bring the album, year, track number, and cover. The bot embeds the cover in the downloaded file.
+
+New music is filed into artist and album folders; singles get a folder of their own. You can't edit tags by hand in the bot yet. Files in [existing libraries](../reference/glossary.md#existing-library) keep their tags untouched.
+
+## Duplicates
+
+The bot compares tags and duration to find matching tracks. In your personal library, a better copy replaces a worse one: lossless beats lossy, and between two lossy copies the higher bitrate wins.
+
+If the match is in an existing library you can access, the bot skips the new copy whatever its quality, and leaves the existing file alone.
+
+## Missing artist or title
+
+A file without an artist or title goes to **Inbox**. You can keep and play it, but you can't share it until it has both. Tag such files before uploading when you can.
+
+If the server's administrator retags a file on disk, the bot picks up the change on its next pass over the library, hourly by default.
+
+## When an upload fails
+
+Read the bot's message next to 👎 first. The usual causes are a full quota, an unsupported or damaged file, or Telegram's size limit. If Telegram failed to deliver the file, send it again. For quotas or errors that keep coming back, ask the administrator.
+
+See also [libraries and quotas](./libraries.md) and [troubleshooting](../administration/troubleshooting.md#uploading-fails).

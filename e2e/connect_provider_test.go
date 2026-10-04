@@ -3,6 +3,7 @@ package e2e
 import (
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/go-telegram/bot/models"
 	"github.com/stretchr/testify/assert"
@@ -37,6 +38,56 @@ func TestZvukAccount(t *testing.T) {
 
 		assert.Contains(t, s.Telegram.DeletedMessages(), strconv.Itoa(msg.Message.ID))
 		assert.Contains(t, rejected, c.TokenInvalid("zvuk"))
+		assert.Contains(t, s.WindowText(), c.Provider("zvuk", "not_connected"))
+	})
+
+	t.Run("pending SberPrime subscription with premium connects Zvuk", func(t *testing.T) {
+		s := harness.New(t)
+		s.Zvuk.AddAccount(harness.ZvukToken, true)
+		s.Zvuk.Update(harness.ZvukToken, func(a *zvuk.Account) {
+			a.SubscriptionStatus = "pending"
+			a.SubscriptionServices = []string{"premium"}
+		})
+		c := s.Catalog(alice)
+
+		s.SendZvukToken(alice, harness.ZvukToken)
+
+		assert.Contains(t, s.WindowText(), c.Connected("zvuk"))
+		assert.Contains(t, s.WindowText(), c.Provider("zvuk", "connected"))
+	})
+
+	t.Run("expired pending premium subscription is rejected", func(t *testing.T) {
+		s := harness.New(t)
+		s.Zvuk.AddAccount(harness.ZvukToken, true)
+		s.Zvuk.Update(harness.ZvukToken, func(a *zvuk.Account) {
+			a.SubscriptionStatus = "pending"
+			a.SubscriptionServices = []string{"premium"}
+			a.SubscriptionExpiration = time.Now().Add(-24 * time.Hour).UnixMilli()
+		})
+		c := s.Catalog(alice)
+
+		s.SendZvukToken(alice, harness.ZvukToken)
+		rejected := s.WindowText()
+		s.OpenZvuk(alice)
+
+		assert.Contains(t, rejected, c.NoSubscription("zvuk"))
+		assert.Contains(t, s.WindowText(), c.Provider("zvuk", "not_connected"))
+	})
+
+	t.Run("pending subscription without premium is rejected", func(t *testing.T) {
+		s := harness.New(t)
+		s.Zvuk.AddAccount(harness.ZvukToken, true)
+		s.Zvuk.Update(harness.ZvukToken, func(a *zvuk.Account) {
+			a.SubscriptionStatus = "pending"
+			a.SubscriptionServices = []string{"other"}
+		})
+		c := s.Catalog(alice)
+
+		s.SendZvukToken(alice, harness.ZvukToken)
+		rejected := s.WindowText()
+		s.OpenZvuk(alice)
+
+		assert.Contains(t, rejected, c.NoSubscription("zvuk"))
 		assert.Contains(t, s.WindowText(), c.Provider("zvuk", "not_connected"))
 	})
 

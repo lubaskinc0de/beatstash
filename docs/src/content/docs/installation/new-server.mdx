@@ -1,0 +1,178 @@
+---
+title: Install on a new server
+description: Set up Navidrome, Postgres, a local Telegram Bot API server, and beatstash with Docker Compose.
+---
+
+import { Steps, Tabs, TabItem, FileTree } from '@astrojs/starlight/components';
+import Installer from '../../../components/Installer.astro';
+
+This guide installs the whole stack on one Linux server: Navidrome, Postgres, a local Telegram Bot API server, and the bot. If you already run [Navidrome](https://www.navidrome.org/), [connect it instead](./existing-navidrome.mdx).
+
+Check the [requirements](./requirements.md) first.
+
+<Tabs syncKey="install">
+<TabItem label="Installer">
+
+Download the installer of the latest release, **{{release_tag}}**, and run it on the server:
+
+<Installer />
+
+Choose `new` when it asks about Navidrome. The installer then:
+
+- walks you through creating a Telegram bot, turning on inline mode, and getting the Telegram credentials;
+- generates the database password and the encryption key;
+- starts Navidrome and creates its first administrator with the login and password you enter (if Navidrome already has accounts, it checks that this one signs in);
+- starts the bot.
+
+On a server reached over SSH, it prints Telegram links for you to open on your computer or phone. If Telegram is blocked on the server, it notices and asks for a proxy; see [when Telegram is blocked](../administration/blocked-telegram.md).
+
+If you enter an `https://` public address, the installer offers to set up HTTPS. It can add a site to a [Caddy](https://caddyserver.com/docs/) already running on the server, or start its own Caddy when nothing else uses ports 80 and 443. It shows each change and asks first. [HTTPS and public access](./https.md#with-the-installer) lists what it checks.
+
+Passwords and tokens are hidden as you type them. If you stop partway, run the installer again in the same directory: press Enter at a filled prompt to keep the saved value. It keeps your Compose file, configuration, and generated secrets.
+
+</TabItem>
+<TabItem label="Manual">
+
+Follow these steps if you'd rather configure the stack yourself.
+
+<Steps>
+
+1. **Download the installation files.** These commands fetch the Compose and configuration templates of **{{release_tag}}**, with the matching Docker image version already set:
+
+   ```sh
+   release_tag="{{release_tag}}"
+   mkdir -p beatstash
+   cd beatstash
+   curl --fail --location --remote-name \
+     "https://github.com/lubaskinc0de/beatstash/releases/download/$release_tag/beatstash-$release_tag-deploy.tar.gz"
+   curl --fail --location --remote-name \
+     "https://github.com/lubaskinc0de/beatstash/releases/download/$release_tag/beatstash-$release_tag-deploy.tar.gz.sha256"
+   sha256sum -c "beatstash-$release_tag-deploy.tar.gz.sha256"
+   tar -xzf "beatstash-$release_tag-deploy.tar.gz"
+   cp deploy/.env.example deploy/.env
+   cp deploy/config.example.toml deploy/config.toml
+   mkdir -p deploy/music/shared deploy/music/users deploy/data/navidrome
+   chmod 600 deploy/.env deploy/config.toml
+   cd deploy
+   ```
+
+   :::caution
+   Stop if the checksum does not match.
+   :::
+
+   You get this layout:
+
+   <FileTree>
+   - beatstash/deploy/
+     - compose.yml services of the stack
+     - .env secrets and service choices
+     - config.toml bot settings
+     - music/ the bot's managed folders
+       - shared/
+       - users/
+     - data/navidrome/
+   </FileTree>
+
+   `compose.yml` pulls `ghcr.io/lubaskinc0de/beatstash` at the version in `BEATSTASH_VERSION`. Keep that exact version instead of `latest`, so a restart never picks up a different release. Optional services are Compose profiles listed in `COMPOSE_PROFILES`: the example turns on `navidrome`; add `proxy` only for the bundled Caddy described in [HTTPS](./https.md).
+
+   Keep everything under `music/` on one filesystem. The bot moves files between these folders with hardlinks and renames.
+
+2. **Set up Telegram and secrets.** Follow [Set up Telegram](./telegram.mdx) to create the bot, turn on inline mode, find your numeric user ID, and get `api_id` and `api_hash`. Then fill in `.env`:
+
+   ```dotenv title="deploy/.env"
+   BOT_TOKEN="<token from BotFather>"
+   SECRET_KEY="<output of openssl rand -base64 32>"
+   NAVIDROME_PASSWORD="<password for the Navidrome administrator>"
+   TELEGRAM_API_ID="<your api_id>"
+   TELEGRAM_API_HASH="<your api_hash>"
+   POSTGRES_PASSWORD="<output of openssl rand -hex 32>"
+   ```
+
+   Generate the two random values separately:
+
+   ```sh
+   openssl rand -base64 32
+   openssl rand -hex 32
+   ```
+
+   :::danger[Keep `SECRET_KEY`]
+   The bot encrypts saved Navidrome passwords and streaming tokens with it. With a different key, it can't read them back.
+   :::
+
+   Leave `BEATSTASH_VERSION` as the archive set it. Compose sets `DB_DSN` itself. Before the first start, log the bot out of Telegram's cloud API as described in [Run the local Bot API](./telegram.mdx#run-the-local-bot-api).
+
+3. **Configure the bot.** Edit these existing sections, keeping the rest of the example:
+
+   ```toml title="deploy/config.toml" ins="123456789" ins="@your_telegram_username"
+   admins = ["telegram:123456789"]
+   admin_contact = "@your_telegram_username"
+
+   [telegram]
+   bot_api_url = "http://telegram-bot-api:8081"
+
+   [library]
+   music_dir = "/music"
+   navidrome_music_dir = "/music"
+
+   [navidrome]
+   url = "http://navidrome:4533"
+   public_url = ""
+   user = "admin"
+   ```
+
+   Put your own numeric ID in `admins`. Addresses such as `http://navidrome:4533` work only inside the Compose network. Leave `public_url` empty until you set up [HTTPS](./https.md); uploads work without it.
+
+4. **Create the first Navidrome administrator.** The bot doesn't create it, so do this before starting the bot:
+
+   ```sh
+   docker compose up -d postgres navidrome
+   docker compose ps
+   ```
+
+   Navidrome listens only on the server's loopback interface. Open an SSH tunnel from your computer:
+
+   ```sh
+   ssh -L 4533:127.0.0.1:4533 your_user@your_server
+   ```
+
+   Open `http://localhost:4533` and create an administrator named `admin` with the password from `NAVIDROME_PASSWORD`. If you pick another login, change `navidrome.user` to match.
+
+   Without a browser, use Navidrome's first-run API on the server. It works only while Navidrome has no accounts. Type the password when `read` waits, so it stays out of your shell history:
+
+   ```sh
+   read -rs password
+   curl -fsS http://127.0.0.1:4533/auth/createAdmin -H 'Content-Type: application/json' \
+     -d "$(jq -n --arg password "$password" '{username: "admin", password: $password}')" > /dev/null
+   ```
+
+5. **Start beatstash.**
+
+   ```sh
+   docker compose pull telegram-bot-api bot
+   docker compose up -d telegram-bot-api bot
+   docker compose logs --tail=100 bot
+   docker compose ps
+   ```
+
+   Open your bot in Telegram and send `/start`. You should see **Admin** on the home screen; invites are made there. In **Settings > Navidrome account**, choose **Link** and send `login password`. The bot deletes that message.
+
+   This administrator account sees every Navidrome library. For everyday listening with a private library, link a separate regular account.
+
+</Steps>
+
+</TabItem>
+</Tabs>
+
+## Check the installation
+
+<Steps>
+
+1. Send the bot a tagged audio file and wait for 👍.
+2. Open Navidrome, let it scan the track, and play it.
+3. Create an invite and have someone join with a new account.
+4. Check that they see their personal library and the shared library, but not yours.
+5. Share the track from **Music > Mine**. Check that they find it under **Shared**.
+
+</Steps>
+
+Next, set up [HTTPS](./https.md) if you skipped it, so players and listening links work from anywhere. To change limits or intervals later, see [configuration](../administration/configuration.md). To update, see [updates](../administration/updates.mdx).

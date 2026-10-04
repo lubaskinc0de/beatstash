@@ -10,13 +10,13 @@ export default function remarkDocLinks({ base }) {
     function visit(node) {
       if (['link', 'definition'].includes(node.type) && /^\.{1,2}\//.test(node.url)) {
         const [path, hash] = node.url.split('#');
-        if (path.endsWith('.md')) {
+        if (/\.mdx?$/.test(path)) {
           const target = resolve(dirname(file.path), path);
           const local = relative(docsRoot, target);
           if (local.startsWith(`..${sep}`) || !existsSync(target)) {
             throw new Error(`Invalid documentation link in ${file.path}: ${node.url}`);
           }
-          const slug = local.replaceAll(sep, '/').replace(/\.md$/, '').replace(/(^|\/)index$/, '');
+          const slug = local.replaceAll(sep, '/').replace(/\.mdx?$/, '').replace(/(^|\/)index$/, '');
           node.url = `${base.replace(/\/$/, '')}/${slug}${slug ? '/' : ''}${hash ? `#${hash}` : ''}`;
         }
       }

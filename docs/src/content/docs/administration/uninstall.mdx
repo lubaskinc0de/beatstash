@@ -1,0 +1,30 @@
+---
+title: Uninstall
+description: Remove a beatstash installation and keep as much of its data as you choose.
+---
+
+import Installer from '../../../components/Installer.astro';
+
+Run the installer's `uninstall` command on the server. The installer of any release works:
+
+<Installer command="uninstall" />
+
+It finds the running installation, asks you to confirm it, and then asks about each part separately. Enter takes the default in brackets:
+
+| Part | Default | What goes away |
+| --- | --- | --- |
+| Return the bot to Telegram's cloud API | no | Logs the bot out of the local Bot API, so it can run elsewhere; the cloud API can take up to 10 minutes to accept it |
+| Containers and network | yes | The running services; downloaded images stay |
+| The beatstash site in a shared [Caddy](https://caddyserver.com/docs/) | yes | The block between the `beatstash` markers, with the same checks as when it was added; see [HTTPS](../installation/https.md#with-the-installer) |
+| Volumes | no | The bot's database and the local Bot API's data: accounts, libraries, links, imports |
+| [Navidrome](https://www.navidrome.org/)'s data | no | Navidrome's own database: its users, playlists, and play counts |
+| Music | no | Everything uploaded and imported through the bot; the question shows its size |
+| Installation folder | no | `.env` and `config.toml`, offered only once everything above is gone |
+
+Data is offered for deletion only after the containers are gone. Whatever you keep still works: run the installer in the same folder to start again with it.
+
+A Navidrome you connected as an existing server is never touched, and neither is the music it had. If you no longer need them, remove the beatstash music mount and its libraries from that Navidrome yourself.
+
+## By hand
+
+From `deploy`, `docker compose down` removes the containers, and `docker compose down -v` also deletes the volumes. Then delete the installation folder; the containers wrote files as root, so you need `sudo rm -rf`. Remove the site you added to your reverse proxy and reload it.

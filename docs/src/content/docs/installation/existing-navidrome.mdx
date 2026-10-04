@@ -1,0 +1,106 @@
+---
+title: Connect an existing Navidrome
+description: Add beatstash to the Navidrome you already run, without moving your music.
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Installer from '../../../components/Installer.astro';
+
+Connect beatstash to the [Navidrome](https://www.navidrome.org/) you already use. Your collection stays where it is, and you get Telegram on top of it: search your music from any chat, send tracks to friends, add new music by forwarding files, and import from a supported streaming service.
+
+## What happens to your music
+
+Your music stays in its current folders, and you keep listening in Navidrome and your usual apps. The bot registers your current libraries as [existing libraries](../reference/glossary.md#existing-library) and reads their tracks. It never moves, retags, or deletes those files.
+
+After you link your Navidrome account, you can search those libraries, request a track's audio file, or share it in a chat. If a friend asks about an album you own, you can send a song from it without leaving the conversation. Other participants see only the existing libraries their Navidrome accounts can access.
+
+New uploads and imports go to a new folder that the bot manages, into your personal library. If an import finds a track you already have in an existing library, it uses that track instead of downloading another copy.
+
+Existing libraries don't count toward quotas. Putting one of their tracks in the shared library makes a copy, and the copy counts toward the shared library's quota. See [libraries and quotas](../using/libraries.md).
+
+## Before you start
+
+Check the [requirements](./requirements.md). For this setup you also need Navidrome administrator access: a regular account can't set up the integration.
+
+<Tabs syncKey="install">
+<TabItem label="Installer">
+
+Download the installer of **{{release_tag}}** on the Linux server where beatstash will run:
+
+<Installer />
+
+Choose `existing`. The installer asks for your Navidrome address and administrator account, walks you through Telegram setup, and starts the bot's services next to your Navidrome.
+
+You still add one folder for new music to Navidrome yourself. The installer prints the exact mount for your installation directory and waits while you apply it. Keep your current music folders and libraries as they are. For a Navidrome installed without Docker, use the host path and make sure the Navidrome user can read the folder and its parents.
+
+If setup stops partway, run the installer again in the same directory and press Enter to keep saved values. When it finishes, [link your account](#link-accounts) and [check the connection](#check-the-connection).
+
+</TabItem>
+<TabItem label="Manual">
+
+<Steps>
+
+1. **Prepare beatstash.** Download the installation archive and fill in `deploy/.env`, `deploy/config.toml`, and Telegram as in steps 1 and 2 of the [manual new-server setup](./new-server.mdx). Don't start the sample's Navidrome or create a new Navidrome administrator.
+
+   Work from `deploy`. In `.env`, set `COMPOSE_PROFILES=""` so the sample's `navidrome` service stays off. `postgres`, `telegram-bot-api`, and `bot` always run.
+
+2. **Mount the new music folder in Navidrome.** If you unpacked the archive into `/srv/beatstash`, the bot writes to `/srv/beatstash/deploy/music`. Add it to your Navidrome container:
+
+   ```yaml title="your Navidrome compose file"
+   volumes:
+     # Keep your existing data and music mounts here.
+     - /srv/beatstash/deploy/music:/beatstash-music:ro
+   ```
+
+   Create its `shared` and `users` subfolders before restarting Navidrome, and keep them on one filesystem. Navidrome needs read access; the bot needs write access. If Navidrome runs directly on the host, use the host path instead of `/beatstash-music` in the next step.
+
+   :::caution[Don't make `/beatstash-music` a library]
+   It contains every participant's personal folder. The bot ignores a library pointing there and removes it from linked regular accounts. It creates libraries for the subfolders itself.
+   :::
+
+3. **Set the addresses and administrator account.** Edit these existing sections:
+
+   ```toml title="deploy/config.toml"
+   [library]
+   music_dir = "/music"
+   navidrome_music_dir = "/beatstash-music"
+
+   [navidrome]
+   url = "https://music.example.com"
+   public_url = "https://music.example.com"
+   user = "admin"
+   ```
+
+   `music_dir` is the folder as the bot sees it; `navidrome_music_dir` is the same folder as Navidrome sees it. `url` must be reachable from the bot container, so `localhost` won't work there: it points to the bot itself. Your existing HTTPS address is one option. Another is to attach both containers to one Docker network and use Navidrome's service name. `public_url` stays the address your listeners open.
+
+   Set `NAVIDROME_PASSWORD` in `deploy/.env` to the password of the administrator in `navidrome.user`. To use [listening links](./https.md), turn on sharing in Navidrome.
+
+4. **Start the bot.**
+
+   ```sh
+   cd /srv/beatstash/deploy
+   docker compose pull
+   docker compose up -d
+   docker compose logs --tail=100 bot
+   ```
+
+</Steps>
+
+</TabItem>
+</Tabs>
+
+## Link accounts
+
+Open the bot and send `/start`. In **Settings > Navidrome account**, choose **Link** and send your existing login and password. People you invite can choose **I already have an account** when they register.
+
+When a regular account is linked, it keeps access to existing libraries, gains its personal library and the shared library, and loses access to other participants' personal libraries and to any library that covers all the bot's managed folders. A linked Navidrome administrator keeps seeing every library.
+
+The bot also sets the shared library as the default library for accounts created in Navidrome from then on. To give a new participant access to an existing library, grant it in Navidrome.
+
+## Check the connection
+
+Search **Music > Mine** for a track from an existing library, and request its file or share it. Upload something new: it should land in your personal library while your original files stay put.
+
+Navidrome scans changes first, then the bot registers them. The bot refreshes existing libraries at startup and every hour, and access changes reach it within 30 seconds. Both intervals are [configurable](../reference/configuration.md#intervals).
+
+Next, send [the participant guide](../using/getting-started.mdx) to your friends. If a library is missing, see [troubleshooting](../administration/troubleshooting.md#existing-music-is-missing-from-the-bot).

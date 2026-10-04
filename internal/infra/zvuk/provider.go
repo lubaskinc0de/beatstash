@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"math/rand/v2"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -43,7 +44,8 @@ func (p *Provider) CheckToken(ctx context.Context, token string) error {
 		return providers.ErrUnauthorized
 	}
 	sub := profile.Subscription
-	if sub == nil || sub.Status != "confirmed" || time.UnixMilli(sub.Expiration).Before(time.Now()) {
+	// SberPrime can remain pending while Zvuk already grants premium access.
+	if sub == nil || (sub.Status != "confirmed" && !slices.Contains(sub.ServicesAvailable, "premium")) || time.UnixMilli(sub.Expiration).Before(time.Now()) {
 		return providers.ErrNoSubscription
 	}
 	return nil

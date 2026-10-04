@@ -1,33 +1,24 @@
 ---
 title: Supported sources
-description: What you can bring into your library and which streaming integrations are available.
+description: What you can bring into your library, and which streaming services the bot imports from.
 ---
 
-You can upload your own audio files, import a supported streaming collection, or use music already on your [Navidrome](https://www.navidrome.org/) server. Support for one service does not imply support for another.
+Moving to your own server is easier when your saved music comes with you. There are three ways to fill a library: import a streaming collection, upload files you have, or connect a Navidrome that already holds your music.
 
-| Source | Audio | Likes | Saved albums | Playlists | Automatic sync | Requirements |
-|---|---|---|---|---|---|---|
-| Telegram files | Upload or forward | No import | Upload individual files | No import | No | Supported format; file fits Telegram limits and your quota |
-| Zvuk | Collection download | Navidrome stars | Album tracks downloaded | Names and track order imported | Yes, after the first import | Token and active subscription |
-| Existing Navidrome | Existing tracks registered; files stay in place | Existing Navidrome state remains | Existing collection remains | Existing Navidrome state remains | Refresh of library records | Server administrator connects beatstash; account has access |
-| Yandex Music | Not available yet | No | No | No | No | Planned integration |
-| YouTube Music | Not available yet | No | No | No | No | Planned integration |
-| Spotify | Not available yet | No | No | No | No | Planned integration |
-| Apple Music | No built-in import | No | No | No | No | Integration not implemented |
-| Other streaming services | No built-in import | No | No | No | No | Check this table when integrations are added |
+| Source | Audio | Likes | Playlists | Sync after the first import | You need |
+|---|---|---|---|---|---|
+| [Zvuk](./zvuk.mdx) | Liked tracks, saved albums, and playlist tracks downloaded | Become Navidrome stars | Names and track order copied | Yes, every 6 hours | A Zvuk token and an active subscription |
+| [Telegram files](../using/uploading.mdx) | Each file you send or forward | Not carried over | Not carried over | No | A supported format within Telegram's limits and your quota |
+| [Existing Navidrome](../installation/existing-navidrome.mdx) | Tracks stay where they are | Stay in Navidrome | Stay in Navidrome | Records refresh hourly | The server's administrator connects the bot |
 
-## Existing files
+Yandex Music, YouTube Music, and Spotify are planned and can't be imported yet. Other services, such as Apple Music, have no import. Their music can still go through Telegram as files, without likes or playlists.
 
-If your files already live in Navidrome, the administrator can [connect that server](../installation/existing-navidrome.md). The bot adds the libraries and tracks to its own database without moving the originals.
+## Before you cancel a subscription
 
-If you have files on a computer or phone, [send them through Telegram](../using/uploading.md). This does not carry over a streaming service's likes, listening history, or playlists.
+Check the imported collection first: make sure the tracks you care about downloaded and play in Navidrome. Tracks the service won't serve, failed downloads, and a full quota can all leave gaps.
 
-## Streaming collections
+Music you imported stays in your library after you disconnect the service. After that, new music comes only from files or another connected service.
 
-[Zvuk import](./zvuk.md) currently handles the saved collection. Sending the bot a Zvuk track, album, or playlist URL does not import it. Other streaming services do not have direct import support yet.
+## Links to single tracks
 
-Yandex Music, YouTube Music, and Spotify integrations are planned. No release dates or specific import capabilities have been announced for them. Their entries will be updated when support is implemented and checked.
-
-Check the collection before cancelling a subscription: confirm that the expected tracks downloaded and play through Navidrome. Unavailable tracks, download failures, and quotas can leave an import incomplete.
-
-The downloaded audio remains after you disconnect the source. Adding new music later still requires files or a supported connected source.
+Sending the bot a Zvuk link to a track, album, or playlist doesn't import it. The Zvuk import works on your saved collection as a whole.

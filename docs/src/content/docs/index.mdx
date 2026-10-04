@@ -1,0 +1,71 @@
+---
+title: beatstash
+description: A Telegram bot that gets music into your Navidrome library and shares it with friends.
+template: splash
+sidebar:
+  label: Overview
+next:
+  link: installation/requirements/
+  label: Requirements
+hero:
+  title: Your Navidrome library, filled from Telegram
+  image:
+    dark: ../../assets/hero-dark.svg
+    light: ../../assets/hero-light.svg
+    alt: A chat with the bot. A forwarded track got a thumbs-up, and typing @your_music_bot np suggests the track playing now. Behind it, album covers in the Navidrome library.
+  tagline: Navidrome plays the music on your server. beatstash gets music onto that server, lets friends in, and sends tracks back out to your chats.
+  actions:
+    - text: New server
+      link: installation/new-server/
+      icon: right-arrow
+    - text: Existing Navidrome
+      link: installation/existing-navidrome/
+      variant: secondary
+    - text: I got an invite
+      link: using/getting-started/
+      variant: secondary
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Feature from '../../components/Feature.astro';
+
+## What gets in the way
+
+A self-hosted library is pleasant to listen to and tedious to fill. A friend sends you a track in Telegram, and to hear it in [Navidrome](https://www.navidrome.org/) you save the file, copy it to the server over SSH, and wait for a scan. A friend wants their own music on your server, so you create an account, decide which libraries they see, and upload their files for them. You want to leave a streaming service, and nothing brings your likes and playlists along.
+
+beatstash takes these chores into a Telegram chat. Navidrome keeps doing the playback.
+
+<Feature title="Add music from Telegram" screenshot="upload-reactions" alt="Tracks forwarded to the bot, each marked with a thumbs-up once it is in the library.">
+Forward a track or send files from your phone. The bot fills in the tags, skips tracks you already have, and files the music into artist and album folders. A 👍 means the track is in your library.
+
+[How uploading works](./using/uploading.mdx)
+</Feature>
+
+<Feature title="Share music in any chat" screenshot="inline-sent" alt="A track sent into a chat with np, captioned with its album, year, and genre." flip>
+Type `@your_music_bot np` in any conversation to send what you're playing, or search your library by artist or title. Friends get the audio with its album and year, not just a song name to look up.
+
+[Sharing in Telegram](./using/sharing.mdx)
+</Feature>
+
+<Feature title="One server for your friends" screenshot="shared-tab" alt="A track in the shared library showing who shared it, with Already yours and Send the file buttons.">
+Send an invite link. Each person gets a Navidrome account, a personal library, and a storage limit you choose. When someone finds a track worth passing around, they share it, and others take it into their own library.
+
+[Libraries and quotas](./using/libraries.md)
+</Feature>
+
+<Feature title="Leave streaming with your collection" screenshot="zvuk-plan" alt="The plan of a Zvuk import with the number of tracks, their size, and the Start the import button." flip>
+Connect a supported service and import your likes, saved albums, and playlists. After the first import, the bot keeps pulling in what you save there.
+
+[Supported sources](./import/sources.md)
+</Feature>
+
+## Pick your starting point
+
+<CardGrid>
+  <LinkCard title="You already run Navidrome" href="installation/existing-navidrome/" description="Connect the bot. Your music stays in its folders, and you can search and share it from Telegram." />
+  <LinkCard title="You've never self-hosted music" href="installation/new-server/" description="All you need is a Linux server. The installer sets up Navidrome, the bot, and HTTPS; then import your streaming likes and listen in a phone app." />
+  <LinkCard title="You are moving off a streaming service" href="import/sources/" description="Check what can be imported today, then install and connect your account." />
+  <LinkCard title="Someone invited you" href="using/getting-started/" description="Open the invite link. You don't need to install anything." />
+</CardGrid>
+
+beatstash and Navidrome cost nothing; you pay for the server and its disk. Importing from Zvuk needs an active Zvuk subscription. For how the bot fits next to Navidrome and beets, see the [comparison](./introduction/comparison.md).

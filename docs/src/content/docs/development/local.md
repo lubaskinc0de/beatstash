@@ -5,7 +5,7 @@ description: Run the Go application with local services and execute its checks.
 
 ## Tools
 
-Use the [Go](https://go.dev/doc/install) version declared in `go.mod`, currently **1.27.1**, plus [Docker Engine](https://docs.docker.com/engine/install/) with [Compose](https://docs.docker.com/compose/), [`ffmpeg`](https://ffmpeg.org/), [Bash](https://www.gnu.org/software/bash/), and [just](https://just.systems/man/en/). Install a compatible [golangci-lint](https://golangci-lint.run/docs/welcome/install/) v2 executable under `$(go env GOPATH)/bin` for the existing lint and formatting recipes.
+Use the [Go](https://go.dev/doc/install) version declared in `go.mod`, currently **1.27.1**, plus [Docker Engine](https://docs.docker.com/engine/install/) with [Compose](https://docs.docker.com/compose/), [`ffmpeg`](https://ffmpeg.org/), [Bash](https://www.gnu.org/software/bash/), and [just](https://just.systems/man/en/). The lint tools are listed under [checks](#checks).
 
 End-to-end tests use real [Postgres](https://www.postgresql.org/) and [Navidrome](https://www.navidrome.org/) containers, the real filesystem, and `ffmpeg`. Telegram and provider APIs are HTTP test doubles; no real bot token or Zvuk subscription is needed for the test suite.
 
@@ -50,7 +50,7 @@ just up
 
 `just` loads `.env`; the Go application does not. `just up` starts Postgres and Navidrome, then runs `go run cmd/beatstash/main.go` on the host. It does not start the local Telegram API or a containerized bot.
 
-For small files, leave `telegram.bot_api_url` empty and use the cloud API. For local API development, follow [Telegram setup](../installation/telegram.md) and configure host access plus identical local file paths; the production-style shared volume assumes the bot also runs in [Docker](https://docs.docker.com/). Use a separate development token rather than polling the production token simultaneously.
+For small files, leave `telegram.bot_api_url` empty and use the cloud API. For local API development, follow [Telegram setup](../installation/telegram.mdx) and configure host access plus identical local file paths; the production-style shared volume assumes the bot also runs in [Docker](https://docs.docker.com/). Use a separate development token rather than polling the production token simultaneously.
 
 ## Checks
 
@@ -59,31 +59,27 @@ just lint
 just test
 ```
 
-`just lint` runs Go lint, formatting checks, vet, compilation, module checks, [actionlint](https://github.com/rhysd/actionlint), [zizmor](https://docs.zizmor.sh/), [typos](https://github.com/crate-ci/typos), [ShellCheck](https://www.shellcheck.net/), installer syntax, and [Gitleaks](https://github.com/gitleaks/gitleaks) secret scanning. Use `just docs` to check and build the documentation. Install Gitleaks **8.30.1**, ShellCheck **0.11.0**, actionlint **1.7.12**, zizmor **1.30.1**, and typos **1.50.3** on your `PATH`, in addition to the Go lint tools. Install documentation dependencies with `npm --prefix docs ci` using [Node](https://nodejs.org/en/download) 24.
+`just lint` runs Go lint and formatting checks, `go vet`, compilation, module checks, workflow linting, spelling, ShellCheck, installer syntax, and secret scanning. It leaves files unchanged; `just fmt` fixes Go formatting. `just docs` checks and builds this documentation.
 
-Install actionlint with Go:
+`just lint` looks for tools on your `PATH`, in Go's `bin` folder, and in `~/.local/bin`, and lists any that are missing before it starts.
 
-```sh
-go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-```
+| Tool | Version | Install |
+|---|---|---|
+| [golangci-lint](https://golangci-lint.run/docs/welcome/install/) | v2 | Into `$(go env GOPATH)/bin` |
+| [actionlint](https://github.com/rhysd/actionlint) | 1.7.12 | `go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12` |
+| [Gitleaks](https://github.com/gitleaks/gitleaks) | 8.30.1 | `go install github.com/zricethezav/gitleaks/v8@v8.30.1` |
+| [ShellCheck](https://www.shellcheck.net/) | 0.11.0 | Your package manager, or `uv tool install shellcheck-py==0.11.0.1` |
+| [zizmor](https://docs.zizmor.sh/) | 1.30.1 | `uv tool install zizmor==1.30.1`, or see its [installation guide](https://docs.zizmor.sh/installation/) |
+| [typos](https://github.com/crate-ci/typos) | 1.50.3 | Binary from [release v1.50.3](https://github.com/crate-ci/typos/releases/tag/v1.50.3) into `~/.local/bin` |
+| [Node](https://nodejs.org/en/download) | 24 | For the docs: `npm --prefix docs ci` |
 
-Install Gitleaks with Go:
+Secret scanning covers all local Git history plus tracked and new files. Ignored local credentials and generated files are skipped, but a tracked file is scanned even if it matches `.gitignore`. Findings fail the check, with secret values redacted in the log. The only exception is the fixed test encryption key in the test harness.
 
-```sh
-go install github.com/zricethezav/gitleaks/v8@v8.30.1
-```
+`just test` runs release-policy tests, unit tests, the installer scenarios, and the end-to-end business scenarios. Docker must be running and your user must be able to use it. CI also collects coverage from the end-to-end tests.
 
-Secret scanning checks all locally available Git history and current tracked or new files. Ignored local credentials and generated files are excluded from the current-file scan. A tracked file is checked even if it matches `.gitignore`. Findings fail the check, and secret values are redacted in logs. The only project exception matches the fixed test encryption key in its current and former test-harness files.
+The installer scenarios in `e2e/installer` run the real installer against Docker with real Navidrome and [Caddy](https://caddyserver.com/docs/) containers and stand-ins for the bot and Telegram. They use the `beatstash` Compose project, host ports 80 and 443, and a test Caddy on host ports 18080, 18443 and 12019, so they run one at a time and need those ports free. Stop any other Caddy containers first: the installer would find them. To try the installer by hand, build it with a version, such as `go build -ldflags "-X main.version=0.0.1" ./cmd/beatstash-setup`.
 
-For ShellCheck, use your package manager or `uv tool install shellcheck-py==0.11.0.1`.
-
-If you use [uv](https://docs.astral.sh/uv/), install zizmor with `uv tool install zizmor==1.30.1`; other options are in its [installation guide](https://docs.zizmor.sh/installation/). Download the typos binary for your system from [release v1.50.3](https://github.com/crate-ci/typos/releases/tag/v1.50.3) and place it in `~/.local/bin`, or another directory on your `PATH`. `just lint` also searches Go's `bin` directory and `~/.local/bin`, and reports missing tools before starting the checks.
-
-`just test` runs release-policy tests, unit tests, the setup tool scenarios, and end-to-end business scenarios. Docker must be running and your user must be able to use it. CI also collects coverage from the end-to-end tests.
-
-The setup tool scenarios in `e2e/installer` run the real installer against Docker with real Navidrome and [Caddy](https://caddyserver.com/docs/) containers and stand-ins for the bot and Telegram. They use the `beatstash` Compose project, host ports 80 and 443, and a test Caddy on host ports 18080, 18443 and 12019, so they run one at a time and need those ports free. Stop any other Caddy containers first: the installer would find them. To try the tool by hand, build it with a version, such as `go build -ldflags "-X main.version=0.0.1" ./cmd/beatstash-setup`.
-
-Use `just fmt` to change Go formatting. `just lint` leaves source files unchanged. The small audio samples are committed to the repository, and tests generate additional audio as needed. You do not need to regenerate them before running tests. `ffmpeg` is still required.
+The small audio samples are committed to the repository, and tests generate additional audio as needed. You do not need to regenerate them before running tests. `ffmpeg` is still required.
 
 For unfiltered test output or one test:
 

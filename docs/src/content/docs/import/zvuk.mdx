@@ -3,6 +3,10 @@ title: Import and sync Zvuk
 description: Bring your saved Zvuk collection into Navidrome and understand how later changes are synced.
 ---
 
+import Screenshot from '../../../components/Screenshot.astro';
+
+Connect your Zvuk account once, and the bot downloads your likes, saved albums, and playlists into your library. Afterwards it checks Zvuk every few hours and brings in what you saved there since.
+
 ## Connect your account
 
 You need an active Zvuk subscription and enough room in your personal library.
@@ -10,19 +14,29 @@ You need an active Zvuk subscription and enough room in your personal library.
 1. Sign in at [zvuk.com](https://zvuk.com) in a browser.
 2. Open [the profile endpoint](https://zvuk.com/api/tiny/profile) in that signed-in browser and copy the `token` field.
 3. In the bot, open **Import from a service > Zvuk > Connect**.
-4. Send the token when asked. The bot deletes that input message and stores the token encrypted.
+4. Send the token when asked. The bot deletes your message and stores the token encrypted.
 
-Treat the token as an account credential. If the profile response has no usable token or Zvuk rejects it, sign in again and retry.
+:::danger
+The token gives full access to your Zvuk account. Don't paste it anywhere else.
+:::
+
+If the profile page has no usable token or Zvuk rejects it, sign in again and retry.
 
 ## Start the first import
 
 Choose **Import** to see the plan: saved tracks, tracks missing from your library, an estimated download size, and available quota. Choose **Start the import** to begin.
 
+<Screenshot name="zvuk-plan" alt="The Zvuk import plan with the number of tracks, their estimated size, and the Start the import button." />
+
 The bot downloads liked tracks, saved album tracks, and playlist tracks. Likes become stars in [Navidrome](https://www.navidrome.org/). Playlists keep their names and track order. Available FLAC is preferred; otherwise the provider uses its high-quality MP3 stream.
 
-Downloads include pauses and are limited per account, so a large collection takes time. View **Import progress** to see results. Navidrome must index downloaded files before stars and playlists can be applied; a playlist may be incomplete while that happens.
+Downloads include pauses and are limited per account, so a large collection takes time. View **Import progress** to see results.
 
-A track already in your personal library or an attached library you can access may be skipped as a duplicate. The existing Navidrome track is then used for stars and playlists.
+<Screenshot name="zvuk-progress" alt="The Import progress screen of a running Zvuk import." />
+
+ Navidrome must index downloaded files before stars and playlists can be applied; a playlist may be incomplete while that happens.
+
+A track already in your personal library, or in an existing library you can access, may be skipped as a duplicate. The existing Navidrome track is then used for stars and playlists.
 
 ## What sync does
 
@@ -36,7 +50,7 @@ Automatic sync begins after the first import. Connecting a token alone does not 
 | Rename a playlist | The existing Navidrome playlist keeps its current name |
 | Delete a playlist | Its Navidrome copy is not deleted |
 
-This is not a full mirror of every provider action. The initial likes keep their order, and application of later stars may wait for earlier tracks to finish downloading and indexing.
+The initial likes keep their order. A new star may wait until earlier tracks finish downloading and Navidrome scans them.
 
 ## Missing tracks and full quotas
 
@@ -50,4 +64,4 @@ Choose **Disconnect** on the Zvuk screen to delete the saved token and stop new 
 
 If the token stops working, the bot notifies you. Use **Connect again** and provide a fresh token.
 
-The integration uses unofficial Zvuk web endpoints. Provider changes can break connection, downloads, or sync. See [troubleshooting](../administration/troubleshooting.md) if reconnecting does not resolve the issue.
+The integration uses Zvuk's unofficial web API, so a change on their side can break connecting, downloads, or sync. See [troubleshooting](../administration/troubleshooting.md) if reconnecting does not resolve the issue.

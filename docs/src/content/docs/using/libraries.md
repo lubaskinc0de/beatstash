@@ -1,36 +1,22 @@
 ---
-title: Friends, libraries, and quotas
-description: Who can see each library, how invitations work, and what counts toward storage limits.
+title: Libraries and quotas
+description: Who sees each library, what goes where, and what counts toward your storage limit.
 ---
 
-## Invite a friend
+Everyone on the server keeps their own music apart and picks what to show the group. That works through three kinds of library.
 
-Only beatstash administrators issue invitations. Open **Invite** on the home screen, copy the link, and send it to one person. Use **New invite** for another participant. Each link is single-use and expires after seven days by default.
-
-An invited participant creates a [Navidrome](https://www.navidrome.org/) account or links an existing one. They receive their own personal library and access to the shared library. Access to an existing attached library can be granted in Navidrome.
-
-## Library access
-
-| Library | Contents | Who sees it |
+| Library | What's in it | Who sees it |
 |---|---|---|
-| Personal | Your new uploads, imports, and tracks taken from the shared library | You and the server owner |
-| Shared | Tracks participants deliberately publish | Server participants |
-| Attached | A pre-existing Navidrome collection registered in the bot's database | Accounts allowed to access it in Navidrome |
+| Personal | Your uploads, imports, and tracks you took from the shared library | You and the server's administrator |
+| Shared | Tracks participants chose to share | Every participant |
+| Existing | A Navidrome collection that was there before the bot | Accounts Navidrome lets in |
 
-Inviting someone does not give them access to your personal music. Publishing to the shared library is an explicit action. Navidrome administrator accounts can see all libraries.
+An invite doesn't give anyone access to your personal library. A track reaches the shared library only when someone shares it. Navidrome administrator accounts see every library.
 
-Attached libraries remain on disk in their original folders. The bot refreshes their records after Navidrome scans changes. It does not edit or remove their original files.
+Existing libraries stay in their original folders. The bot refreshes its records after Navidrome scans changes and never edits or deletes those files.
 
 ## What a quota measures
 
-A personal quota is the total size of tracks in your managed personal library. Tracks taken from the shared library count in full, even when the copies share disk storage through hardlinks. The shared library has a separate server-wide quota. Attached libraries do not count toward these quotas.
+Your quota is the total size of the tracks in your personal library. Tracks you took from the shared library count in full, even though on disk they share space with the original. The shared library has its own quota for the whole server. Existing libraries count toward neither.
 
-When your personal quota is full, new uploads and imports cannot fit. When the shared quota is full, publication stops. The home screen shows usage when your space is limited.
-
-## Change quotas as an administrator
-
-Open **Admin > Quotas** to change the default personal quota or shared quota. Open **Admin > Users**, choose a participant, then **Change the quota** for an individual limit.
-
-You can enter values such as `25 GB` or `500 MB`, choose **Unlimited**, or revert to the default/configuration value. GB and MB are interpreted as binary units. Changing the default affects participants without an individual override.
-
-The administrator screen shows promised capacity and free disk space. Quotas can promise more space than the disk has; they do not reserve physical storage.
+When your quota is full, new uploads and imports don't fit. When the shared quota is full, nobody can share more tracks. If your space is limited, the home screen shows how much you've used. To get more, ask the administrator; they [set quotas](../administration/participants.mdx#set-quotas) in the bot.

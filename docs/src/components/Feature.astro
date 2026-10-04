@@ -1,0 +1,89 @@
+---
+import { Image } from 'astro:assets';
+import { findScreenshot } from './screenshots';
+
+interface Props {
+  title: string;
+  // Screenshot file name in src/assets/screenshots without the extension.
+  screenshot: string;
+  alt: string;
+  // Puts the screenshot on the left, so consecutive rows alternate.
+  flip?: boolean;
+}
+
+const { title, screenshot, alt, flip = false } = Astro.props;
+const image = findScreenshot(screenshot);
+---
+
+<section class:list={['feature', { flip, 'no-image': !image }]}>
+  <div class="text">
+    <h3>{title}</h3>
+    <slot />
+  </div>
+  {
+    image && (
+      <div class="shot">
+        <Image src={image} alt={alt} />
+      </div>
+    )
+  }
+</section>
+
+<style>
+  .feature {
+    display: grid;
+    gap: 1.5rem;
+    align-items: center;
+    margin-block: 3rem;
+  }
+
+  .text :global(h3) {
+    margin: 0 0 0.5rem;
+    font-size: var(--sl-text-2xl);
+  }
+
+  .shot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 1rem;
+    background:
+      radial-gradient(circle at 30% 20%, var(--sl-color-accent-low), transparent 70%),
+      var(--sl-color-gray-6);
+  }
+
+  .shot img {
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    max-height: 20rem;
+    border-radius: 0.6rem;
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.25);
+  }
+
+  @media (min-width: 50rem) {
+    .shot {
+      min-height: 16rem;
+      padding: 1.75rem;
+    }
+
+    .feature {
+      grid-template-columns: 5fr 6fr;
+      gap: 3rem;
+    }
+
+    .feature.flip {
+      grid-template-columns: 6fr 5fr;
+    }
+
+    .feature.flip .shot {
+      order: -1;
+    }
+
+    .feature.no-image {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

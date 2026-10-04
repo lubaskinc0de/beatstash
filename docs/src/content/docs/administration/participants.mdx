@@ -1,0 +1,29 @@
+---
+title: Invite people and set quotas
+description: Hand out invites, limit how much music each participant stores, and watch disk usage.
+---
+
+import Screenshot from '../../../components/Screenshot.astro';
+
+With Navidrome alone, every new person means creating an account, choosing their libraries, and uploading their music. Here you send a link, and the bot does the rest. Only [administrators](../reference/glossary.md#administrator), the accounts in `admins`, can do the steps on this page.
+
+## Invite someone
+
+Open **Admin > Invite** and send the link to one person. For the next person, use **New invite**. Each link works once and expires after seven days by default (`invites.ttl`).
+
+<Screenshot name="invite-link" alt="The Invite screen of the bot with a fresh one-time invite link and the New invite button." />
+
+The invited person creates a Navidrome account in the bot or links one they have. They get a personal library and access to the shared library. To give them an existing library too, grant it in Navidrome. Send them the [participant guide](../using/getting-started.mdx).
+
+## Set quotas
+
+Quotas stop one person from filling the disk. What counts toward them is explained in [libraries and quotas](../using/libraries.md#what-a-quota-measures).
+
+- **Admin > Quotas** changes the default personal quota and the shared library's quota.
+- **Admin > Users**, then a participant, then **Change the quota** sets a limit for one person.
+
+<Screenshot name="admin-quotas" alt="The Admin > Quotas screen with the default and shared quotas, promised space, and free disk space." />
+
+Enter values such as `25 GB` or `500 MB`, choose **Unlimited**, or go back to the default or the configured value. GB and MB are binary units. A new default applies to everyone without a personal limit. Values set in the bot override `quota.default` and `quota.shared` in the [configuration](../reference/configuration.md#administrators-and-quotas).
+
+The admin screen shows the total of all quotas next to the free disk space. Quotas don't reserve disk space, so their total can be larger than the disk.

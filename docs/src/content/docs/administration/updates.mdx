@@ -1,0 +1,97 @@
+---
+title: Update your installation
+description: Move to a new release with the installer or by hand, update other services, and roll back.
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Installer from '../../../components/Installer.astro';
+
+The bot migrates its database when it starts. An older release may not understand a database a newer one has migrated, so read the [release notes](https://github.com/lubaskinc0de/beatstash/releases) before every update.
+
+## Update beatstash
+
+<Tabs syncKey="install">
+<TabItem label="Installer">
+
+Download the installer of the release you want, **{{release_tag}}** for the latest, and run its `upgrade` command on the server:
+
+<Installer command="upgrade" />
+
+It finds the running installation, asks you to confirm it, and then:
+
+<Steps>
+
+1. Shows how the release changes `compose.yml` and asks before replacing it. Edits you made by hand show up in that diff and will be lost; the old file stays as `compose.yml.bak`.
+2. Adds settings that are new in this release to `config.toml` with their defaults, keeping your values and comments, and asks before writing. The old file stays as `config.toml.bak`. Settings the release no longer uses are listed but not removed.
+3. Offers a database backup in `deploy/backups/`.
+4. Sets `BEATSTASH_VERSION`, pulls the images, and restarts the stack once you agree.
+
+</Steps>
+
+:::danger[The backup is your only way back]
+Migrations can't be undone, so the installer refuses to move to an older version.
+:::
+
+Running it with the version you already have changes nothing.
+
+</TabItem>
+<TabItem label="Manual">
+
+<Steps>
+
+1. Read the release notes, including configuration and migration changes.
+
+2. Download the new release's installation archive into a separate folder. Compare its `config.example.toml` and `compose.yml` with yours and carry over the changes you need. Keep your `.env`, database password, and `SECRET_KEY`; don't overwrite them with the empty templates.
+
+3. Stop the bot:
+
+   ```sh
+   docker compose stop bot
+   ```
+
+4. Set `BEATSTASH_VERSION` in `.env` to the new version without the leading `v`. The latest is `{{release_version}}`.
+
+5. Pull and start it:
+
+   ```sh
+   docker compose pull bot
+   docker compose up -d bot
+   docker compose logs --tail=100 bot
+   ```
+
+   If the pull fails, fix the image name or the connection before going on. Check the running version with `docker compose images bot`.
+
+</Steps>
+
+Pin exact versions. `latest` follows the newest stable release, and release candidates have their own tags such as `1.2.3-rc.1`.
+
+</TabItem>
+</Tabs>
+
+Then play a track, upload a small file, try an inline search, and check a linked account. Look at import progress, but don't start a large import just to test.
+
+## Update other services
+
+The sample pins [Navidrome](https://www.navidrome.org/) to {{navidrome_version}}. Change that tag on purpose, after reading Navidrome's release notes. If you run Navidrome elsewhere, update it the way that installation is updated.
+
+The local Telegram Bot API image uses `latest`. Note its current digest before pulling. Update one service at a time, so you know which change broke something:
+
+```sh
+docker compose pull telegram-bot-api
+docker compose up -d telegram-bot-api
+docker compose logs --tail=100 telegram-bot-api
+```
+
+Restart the bot if it doesn't reconnect. Once a digest works for you, you can pin it in your Compose file in place of the tag.
+
+The sample runs [Postgres](https://www.postgresql.org/) {{postgres_version}}. Moving to another major version needs a database migration of its own; changing the image tag doesn't upgrade the data.
+
+## Roll back
+
+If only the application changed and the database is still compatible, set `BEATSTASH_VERSION` back and run `docker compose pull bot` and `docker compose up -d bot`. If the release migrated the database, changing the tag alone won't roll the database back.
+
+Keep the bot stopped while you sort out a failed update.
+
+:::danger
+Don't delete volumes to "fix" an update. They hold the database and the Telegram Bot API's state.
+:::

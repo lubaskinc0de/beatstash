@@ -1,0 +1,32 @@
+---
+title: Listen to your library
+description: Play your music in a browser, a Subsonic app, or straight in Telegram.
+---
+
+import Screenshot from '../../../components/Screenshot.astro';
+
+The bot fills the library; you listen in [Navidrome](https://www.navidrome.org/) or any app that speaks its protocol. You don't need a streaming subscription to play music stored on your server.
+
+## In a browser
+
+Open the Navidrome address your administrator gave you and sign in with your linked account. The bot shows the address in **Help > How to listen**.
+
+You'll see your personal library, the shared library, and any existing libraries you have access to. Imported likes show up as stars, and imported playlists appear once their tracks are scanned.
+
+<Screenshot name="navidrome-libraries" alt="The Navidrome web player with music from your personal library and the shared library." size="wide" />
+
+## In an app
+
+Pick a client from [Navidrome's list of apps](https://www.navidrome.org/apps/). For example, [Symfonium](https://symfonium.app/), [Tempo](https://github.com/CappielloAntonio/tempo), or [Ultrasonic](https://ultrasonic.gitlab.io/) on Android, and [Amperfy](https://github.com/BLeeEZ/amperfy), [play:Sub](https://michaelsapps.dk/playsubapp/), or [substreamer](https://apps.apple.com/app/substreamer/id1012991665) on iPhone. Add a Navidrome or Subsonic server with:
+
+- the HTTPS address you use in the browser;
+- your Navidrome login;
+- your Navidrome password.
+
+Offline downloads, background playback, and integration with your device depend on the app, so check its documentation.
+
+## In Telegram
+
+Choose **Send the file** on a track's card to get the audio in Telegram. Albums can also go out as listening links when the administrator has set them up. See [sharing](./sharing.mdx).
+
+If a new track is in the bot but not in the player yet, give Navidrome time to scan it. If an imported playlist looks short, some of its tracks may still be downloading or waiting for the scan.

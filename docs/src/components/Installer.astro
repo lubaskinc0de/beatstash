@@ -1,0 +1,18 @@
+---
+import { Code } from '@astrojs/starlight/components';
+
+interface Props {
+  command?: 'upgrade' | 'uninstall';
+}
+
+const { command } = Astro.props;
+const url = `https://github.com/lubaskinc0de/beatstash/releases/download/${__RELEASE_TAG__}/install.sh`;
+const code = [
+  `curl -fL ${url} -o install.sh`,
+  `curl -fL ${url}.sha256 -o install.sh.sha256`,
+  'sha256sum -c install.sh.sha256',
+  command ? `bash install.sh ${command}` : 'bash install.sh',
+].join('\n');
+---
+
+<Code code={code} lang="sh" wrap />
