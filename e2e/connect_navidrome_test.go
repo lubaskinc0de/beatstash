@@ -297,6 +297,28 @@ func TestLinkAfterMove(t *testing.T) {
 func TestRegistration(t *testing.T) {
 	t.Parallel()
 
+	t.Run("start resumes choosing a login", func(t *testing.T) {
+		for _, withInvite := range []bool{false, true} {
+			t.Run(strconv.FormatBool(withInvite), func(t *testing.T) {
+				s := harness.New(t)
+				carol := harness.Newcomer("carol")
+				code := s.Invite()
+				s.SendText(carol, "/start "+code)
+				start := "/start"
+				if withInvite {
+					start += " " + code
+				}
+
+				s.SendText(carol, start)
+				prompt := s.WindowText()
+				s.SendText(carol, carol.Username)
+
+				assert.Contains(t, prompt, s.Catalog(carol).ChooseLogin())
+				assert.True(t, s.Navidrome.CanLogin(s.IssuedAccount()))
+			})
+		}
+	})
+
 	t.Run("invited person chooses a Navidrome login", func(t *testing.T) {
 		s := harness.New(t)
 		carol := harness.Newcomer("carol")
@@ -308,6 +330,21 @@ func TestRegistration(t *testing.T) {
 		account := s.IssuedAccount()
 		assert.Equal(t, carol.Username, account.Login)
 		assert.True(t, s.Navidrome.CanLogin(account))
+		assert.Contains(t, s.WindowText(), s.Catalog(carol).Home(carol.Username, telegram.BotUsername, library.Usage{}))
+	})
+
+	t.Run("start resumes linking an account during registration", func(t *testing.T) {
+		s := harness.New(t)
+		carol := harness.Newcomer("carol")
+		account := s.Navidrome.CreateAccount(t, carol.Username)
+		s.SendText(carol, "/start "+s.Invite())
+		s.Go(carol, s.Catalog(carol).HaveAccount())
+
+		s.SendText(carol, "/start")
+		prompt := s.WindowText()
+		s.SendText(carol, account.Login+" "+account.Password)
+
+		assert.Contains(t, prompt, s.Catalog(carol).LinkPrompt())
 		assert.Contains(t, s.WindowText(), s.Catalog(carol).Home(carol.Username, telegram.BotUsername, library.Usage{}))
 	})
 

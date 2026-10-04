@@ -48,6 +48,17 @@ func (h *Home) handleStart(ctx context.Context, _ *bot.Bot, update *models.Updat
 		return
 	}
 	at := place{screen: screenHome}
+	current, err := h.Telegram.Windows.Get(ctx, chatID)
+	if err != nil {
+		slog.Error("get_start_window", "error", err)
+		return
+	}
+	// A repeated start must not abandon account setup after the invite
+	// has already been redeemed.
+	if current != nil && (current.Screen == string(screenRegister) ||
+		(current.Screen == string(screenLink) && current.Arg == argJoin)) {
+		at = place{screen: screen(current.Screen), arg: current.Arg}
+	}
 	if code == startUnsendable {
 		at = place{screen: screenUnsendable}
 	}

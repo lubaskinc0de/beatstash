@@ -125,10 +125,13 @@ func (s *Scenario) join(user User) {
 	s.Join(user, s.Invite())
 }
 
-// Join lets the user in by the invite code and leaves them Home.
+// Join lets the user in and navigates Home without creating a Navidrome
+// account, so tests can exercise linking and missing-account behavior.
 func (s *Scenario) Join(user User, code string) {
 	s.t.Helper()
 	s.Send(s.TextMessage(user, "/start "+code))
+	on := s.Telegram.MessageWith(s.Button(s.Catalog(user).HaveAccount()))
+	s.PressOn(user, telegram.Button{Data: "go:home"}, on)
 	s.Open(user)
 }
 
