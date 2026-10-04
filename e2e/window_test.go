@@ -40,12 +40,13 @@ func TestHome(t *testing.T) {
 		s := harness.New(t)
 		carol := harness.Newcomer("carol")
 		carol.LanguageCode = ""
-		s.Send(s.TextMessage(carol, "/start "+s.Invite()))
+		s.Join(carol, s.Invite())
 
 		s.Open(carol)
-
-		assert.Contains(t, s.WindowText(), s.Catalog(carol).Home(carol.Username, telegram.BotUsername, library.Usage{}))
+		home := s.WindowText()
 		s.Go(carol, s.Catalog(carol).SettingsButton())
+
+		assert.Contains(t, home, s.Catalog(carol).Home(carol.Username, telegram.BotUsername, library.Usage{}))
 		assert.Contains(t, telegram.ButtonTexts(s.Telegram.Buttons(t)), s.Catalog(alice).LanguageButton())
 	})
 

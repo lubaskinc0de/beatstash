@@ -7,8 +7,8 @@ up:
 
 test:
     python3 -m unittest discover -s .github/scripts -p 'test_*.py'
-    go test -count=1 ./internal/...
-    go test -count=1 ./e2e/installer/
+    go test -count=1 -v ./internal/... 2>&1 | grep -vE '^(\{|[0-9]{4}/|=== (RUN|PAUSE|CONT)|  [A-Z])'
+    go test -count=1 -v ./e2e/installer/ 2>&1 | grep -vE '^(\{|[0-9]{4}/|=== (RUN|PAUSE|CONT)|  [A-Z])'
     go test -count=1 -v ./e2e/ 2>&1 | grep -vE '^(\{|[0-9]{4}/|=== (RUN|PAUSE|CONT)|  [A-Z])'
 
 lint:
