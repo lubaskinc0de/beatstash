@@ -8,7 +8,7 @@ And also the best tool for switching to self-hosted music.
 [![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/lubaskinc0de/beatstash/badges/coverage.json)](https://github.com/lubaskinc0de/beatstash/actions/workflows/ci.yml?query=branch%3Amaster)
 [![License: MIT](https://img.shields.io/github/license/lubaskinc0de/beatstash)](LICENSE)
 
-<!-- TODO: GIF — forward a track to the bot, then share it with `@your_music_bot np` in a chat. -->
+https://github.com/user-attachments/assets/10977953-8934-4261-9c3b-bfe9485822a7
 
 ## Features
 - [**Manage your library through telegram.**](https://lubaskinc0de.github.io/beatstash/using/sharing/) Forward a track or send files from your phone. The bot fills in track details and checks for duplicates, then, it neatly organizes the music on your server. 
