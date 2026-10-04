@@ -1,13 +1,13 @@
 # beatstash
 
-A self-hosted Telegram bot that fills your [Navidrome](https://www.navidrome.org/) music library, lets friends in, and shares music in your chats.
-
-**[Documentation](https://lubaskinc0de.github.io/beatstash/)** · [Install](https://lubaskinc0de.github.io/beatstash/installation/requirements/) · [Join a server](https://lubaskinc0de.github.io/beatstash/using/getting-started/) · [Configuration](https://lubaskinc0de.github.io/beatstash/reference/configuration/) · [Troubleshooting](https://lubaskinc0de.github.io/beatstash/administration/troubleshooting/)
-
 [![CI](https://img.shields.io/github/actions/workflow/status/lubaskinc0de/beatstash/ci.yml?branch=master&label=CI)](https://github.com/lubaskinc0de/beatstash/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/lubaskinc0de/beatstash)](https://github.com/lubaskinc0de/beatstash/releases)
 [![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/lubaskinc0de/beatstash/badges/coverage.json)](https://github.com/lubaskinc0de/beatstash/actions/workflows/ci.yml?query=branch%3Amaster)
 [![License: MIT](https://img.shields.io/github/license/lubaskinc0de/beatstash)](LICENSE)
+**[Documentation](https://lubaskinc0de.github.io/beatstash/)** · [Install](https://lubaskinc0de.github.io/beatstash/installation/requirements/) · [Join a server](https://lubaskinc0de.github.io/beatstash/using/getting-started/) · [Configuration](https://lubaskinc0de.github.io/beatstash/reference/configuration/) · [Troubleshooting](https://lubaskinc0de.github.io/beatstash/administration/troubleshooting/)
+
+
+A self-hosted Telegram bot that fills your [Navidrome](https://www.navidrome.org/) music library, lets friends in, and shares music in your chats.
 
 https://github.com/user-attachments/assets/10977953-8934-4261-9c3b-bfe9485822a7
 
