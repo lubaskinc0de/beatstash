@@ -3,9 +3,11 @@ package installer_test
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -33,59 +35,93 @@ const (
 	apiHash  = "00000000000000000000000000000000"
 	password = "navidrome-secret"
 	domain   = "music.example.test"
-	// The test Caddy listens on these instead of 80, 443 and 2019.
-	caddyHTTPS = "127.0.0.1:18443"
-	caddyAdmin = "localhost:12019"
-	caddyName  = "beatstash-test-caddy"
 )
 
-// caddyGlobals keep the test Caddy off the usual ports and away from Let's
+// CaddyGlobals keeps the test Caddy off the usual ports and away from Let's
 // Encrypt: it signs certificates with its own authority.
-const caddyGlobals = `{
-	admin ` + caddyAdmin + `
-	http_port 18080
-	https_port 18443
+func (s *Setup) CaddyGlobals() string {
+	_, httpsPort, _ := net.SplitHostPort(s.CaddyHTTPS)
+	return fmt.Sprintf(`{
+	admin %s
+	http_port %s
+	https_port %s
 	local_certs
 }
 
 other.example.test {
 	respond "other site"
 }
-`
+`, s.CaddyAdmin, s.CaddyHTTPPort, httpsPort)
+}
 
 // Setup is one server the installer runs on: its home directory, a fake
 // Telegram cloud, and the release the installer brings.
 type Setup struct {
-	t        *testing.T
-	Home     string
-	Telegram *Telegram
-	Version  string
-	Compose  string
-	Config   string
-	HTTP     *http.Client
+	t             *testing.T
+	Home          string
+	Telegram      *Telegram
+	Version       string
+	Compose       string
+	Config        string
+	HTTP          *http.Client
+	ProjectName   string
+	CaddyName     string
+	CaddyHTTPS    string
+	CaddyAdmin    string
+	CaddyHTTPPort string
 	// TelegramDC is where the installer checks that Telegram is reachable.
 	TelegramDC string
 }
 
 func newSetup(t *testing.T) *Setup {
 	t.Helper()
-	removeStack(t)
+	t.Parallel()
 	home := t.TempDir()
+	sum := sha256.Sum256([]byte(home))
+	project := fmt.Sprintf("beatstash-test-%x", sum[:6])
 	t.Cleanup(func() {
-		removeStack(t)
-		// Containers leave root-owned files the test user cannot delete.
-		docker(t, "run", "--rm", "-v", home+":/home", "alpine:3.24", "sh", "-c", "rm -rf /home/* /home/.[!.]*")
+		removeStack(t, project)
+		// Usually the test user owns all files; keep a fallback for images
+		// that leave root-owned files behind.
+		if err := os.RemoveAll(home); err != nil {
+			docker(t, "run", "--rm", "-v", home+":/home", "alpine:3.24", "sh", "-c", "rm -rf /home/* /home/.[!.]*")
+		}
 	})
 	s := &Setup{
-		t:        t,
-		Home:     home,
-		Telegram: newTelegram(t),
-		Version:  "1.0.0",
-		Compose:  composeTemplate,
-		Config:   beatstash.ConfigTemplate,
-		HTTP:     client(),
+		t:           t,
+		Home:        home,
+		Telegram:    newTelegram(t),
+		Version:     "1.0.0",
+		Compose:     strings.Replace(composeTemplate, "name: beatstash\n", "name: "+project+"\n", 1),
+		Config:      beatstash.ConfigTemplate,
+		ProjectName: project,
+		CaddyName:   project + "-caddy",
+		CaddyHTTPS:  freeAddress(t),
+		CaddyAdmin:  freeAddress(t),
 	}
+	// Navidrome writes its database as the test user, so cleanup does not
+	// need to start another container just to delete its files.
+	s.Compose = strings.Replace(s.Compose, "image: deluan/navidrome:0.64.2\n",
+		fmt.Sprintf("image: deluan/navidrome:0.64.2\n    user: '%d:%d'\n", os.Getuid(), os.Getgid()), 1)
+	require.NoError(t, os.MkdirAll(s.Deploy("data/navidrome"), 0o750))
+	_, s.CaddyHTTPPort, _ = net.SplitHostPort(freeAddress(t))
+	s.HTTP = client(s.CaddyHTTPS)
 	s.TelegramDC = strings.TrimPrefix(s.Telegram.URL, "http://")
+	return s
+}
+
+// savedInstallation provides installed files for checks that need no running
+// services, such as refusing a downgrade or detecting the current release.
+func savedInstallation(t *testing.T) *Setup {
+	t.Helper()
+	s := newSetup(t)
+	for name, content := range map[string]string{
+		"compose.yml": s.Compose,
+		"config.toml": s.Config,
+		".env":        `BEATSTASH_VERSION="1.0.0"` + "\n",
+	} {
+		require.NoError(t, os.WriteFile(s.Deploy(name), []byte(content), 0o600))
+	}
 	return s
 }
 
@@ -94,17 +130,19 @@ func (s *Setup) Run(args []string, answers ...string) (string, error) {
 	var out bytes.Buffer
 	env := map[string]string{"HOME": s.Home, "SSH_CONNECTION": "10.0.0.1 50000 10.0.0.2 22"}
 	err := installer.Run(context.Background(), installer.Options{
-		In:              strings.NewReader(strings.Join(answers, "\n") + "\n"),
-		Out:             &out,
-		Getenv:          func(key string) string { return env[key] },
-		Version:         s.Version,
-		ComposeTemplate: s.Compose,
-		ConfigTemplate:  s.Config,
-		ProxyTemplate:   beatstash.TelegramProxyTemplate,
-		TelegramURL:     s.Telegram.URL,
-		TelegramDC:      s.TelegramDC,
-		HTTP:            s.HTTP,
-		HTTPSWait:       5 * time.Second,
+		In:                   strings.NewReader(strings.Join(answers, "\n") + "\n"),
+		Out:                  &out,
+		Getenv:               func(key string) string { return env[key] },
+		Version:              s.Version,
+		ProjectName:          s.ProjectName,
+		CaddyContainerFilter: "label=beatstash.installer.test=" + s.ProjectName,
+		ComposeTemplate:      s.Compose,
+		ConfigTemplate:       s.Config,
+		ProxyTemplate:        beatstash.TelegramProxyTemplate,
+		TelegramURL:          s.Telegram.URL,
+		TelegramDC:           s.TelegramDC,
+		HTTP:                 s.HTTP,
+		HTTPSWait:            5 * time.Second,
 	}, args)
 	return out.String(), err
 }
@@ -136,14 +174,14 @@ func (s *Setup) Settings() map[string]any {
 // Running lists the services of the stack that run.
 func (s *Setup) Running() []string {
 	s.t.Helper()
-	return strings.Fields(docker(s.t, "ps", "--filter", "label=com.docker.compose.project=beatstash",
+	return strings.Fields(docker(s.t, "ps", "--filter", "label=com.docker.compose.project="+s.ProjectName,
 		"--format", `{{.Label "com.docker.compose.service"}}`))
 }
 
 // Navidrome is where the host reaches the installed Navidrome.
 func (s *Setup) Navidrome() string {
 	s.t.Helper()
-	id := strings.TrimSpace(docker(s.t, "ps", "-q", "--filter", "label=com.docker.compose.project=beatstash", "--filter", "label=com.docker.compose.service=navidrome"))
+	id := strings.TrimSpace(docker(s.t, "ps", "-q", "--filter", "label=com.docker.compose.project="+s.ProjectName, "--filter", "label=com.docker.compose.service=navidrome"))
 	port := strings.TrimSpace(docker(s.t, "port", id, "4533"))
 	return "http://" + port
 }
@@ -188,7 +226,7 @@ func (s *Setup) install(publicURL string, https ...string) string {
 
 // client reaches every *.example.test site through the test Caddy and
 // trusts its own certificate authority.
-func client() *http.Client {
+func client(caddyHTTPS string) *http.Client {
 	var dialer net.Dialer
 	return &http.Client{
 		Timeout: 10 * time.Second,
@@ -276,15 +314,15 @@ func (tg *Telegram) Calls() []string {
 
 // startCaddy runs Caddy on the host network, as a shared proxy on a server
 // does, and returns its Caddyfile on the host.
-func startCaddy(t *testing.T, caddyfile string) string {
+func (s *Setup) startCaddy(caddyfile string) string {
+	t := s.t
 	t.Helper()
 	file := filepath.Join(t.TempDir(), "Caddyfile")
 	require.NoError(t, os.WriteFile(file, []byte(caddyfile), 0o600))
-	docker(t, "rm", "-f", caddyName)
-	docker(t, "run", "-d", "--name", caddyName, "--network", "host", "-v", file+":/etc/caddy/Caddyfile:ro", "caddy:2")
-	t.Cleanup(func() { docker(t, "rm", "-f", caddyName) })
+	docker(t, "run", "-d", "--name", s.CaddyName, "--label", "beatstash.installer.test="+s.ProjectName, "--network", "host", "-v", file+":/etc/caddy/Caddyfile:ro", "caddy:2")
+	t.Cleanup(func() { docker(t, "rm", "-f", s.CaddyName) })
 	require.Eventually(t, func() bool {
-		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+caddyAdmin+"/config/", http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+s.CaddyAdmin+"/config/", http.NoBody)
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
@@ -296,9 +334,23 @@ func startCaddy(t *testing.T, caddyfile string) string {
 	return file
 }
 
-func removeStack(t *testing.T) {
+func removeStack(t *testing.T, project string) {
 	t.Helper()
-	docker(t, "compose", "-p", "beatstash", "down", "-v", "--remove-orphans")
+	docker(t, "compose", "-p", project, "down", "-v", "--remove-orphans")
+}
+
+// Each scenario has its own host-network Caddy, with ports assigned by the OS.
+func freeAddress(t *testing.T) string {
+	t.Helper()
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	address := listener.Addr().String()
+	require.NoError(t, listener.Close())
+	return address
+}
+
+func (s *Setup) Container(service string) string {
+	return s.ProjectName + "-" + service + "-1"
 }
 
 func docker(t *testing.T, args ...string) string {

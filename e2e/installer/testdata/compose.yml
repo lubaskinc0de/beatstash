@@ -1,16 +1,22 @@
 # The deployment template with stand-ins where the real service needs Telegram.
+# Reuse local test images; pull only on the first run on a fresh machine.
 name: beatstash
 
 services:
   postgres:
     image: postgres:18-alpine
+    pull_policy: missing
     environment:
       POSTGRES_USER: beatstash
       POSTGRES_DB: beatstash
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      # Test databases do not need initdb's crash-durability syncs.
+      POSTGRES_INITDB_ARGS: --no-sync
     healthcheck:
       test: [CMD-SHELL, pg_isready -U beatstash -d beatstash]
       interval: 1s
+      start_period: 30s
+      start_interval: 100ms
       timeout: 5s
       retries: 30
     volumes:
@@ -19,12 +25,14 @@ services:
   # Answers every Bot API request with success.
   telegram-bot-api:
     image: caddy:2
+    pull_policy: missing
     command: [caddy, respond, --listen, ':8081', --body, '{"ok":true}']
     volumes:
       - telegram_bot_api_data:/var/lib/telegram-bot-api
 
   bot:
     image: alpine:3.24
+    pull_policy: missing
     init: true
     command: [sleep, '86400']
     depends_on:
@@ -37,6 +45,7 @@ services:
 
   navidrome:
     image: deluan/navidrome:0.64.2
+    pull_policy: missing
     profiles: [navidrome]
     ports:
       - '127.0.0.1::4533'
@@ -50,10 +59,11 @@ services:
 
   caddy:
     image: caddy:2
+    pull_policy: missing
     profiles: [proxy]
     ports:
-      - '80:80'
-      - '443:443'
+      - '127.0.0.1::80'
+      - '127.0.0.1::443'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

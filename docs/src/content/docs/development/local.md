@@ -75,9 +75,11 @@ just test
 
 Secret scanning covers all local Git history plus tracked and new files. Ignored local credentials and generated files are skipped, but a tracked file is scanned even if it matches `.gitignore`. Findings fail the check, with secret values redacted in the log. The only exception is the fixed test encryption key in the test harness.
 
-`just test` runs release-policy tests, unit tests, the installer scenarios, and the end-to-end business scenarios. Docker must be running and your user must be able to use it. CI also collects coverage from the end-to-end tests.
+`just test` runs release-policy tests and unit tests first, then runs the installer scenarios and end-to-end business scenarios concurrently. Docker must be running and your user must be able to use it. CI also collects coverage from the end-to-end tests.
 
-The installer scenarios in `e2e/installer` run the real installer against Docker with real Navidrome and [Caddy](https://caddyserver.com/docs/) containers and stand-ins for the bot and Telegram. They use the `beatstash` Compose project, host ports 80 and 443, and a test Caddy on host ports 18080, 18443 and 12019, so they run one at a time and need those ports free. Stop any other Caddy containers first: the installer would find them. To try the installer by hand, build it with a version, such as `go build -ldflags "-X main.version=0.0.1" ./cmd/beatstash-setup`.
+Local test recipes use [gotestsum](https://github.com/gotestyourself/gotestsum) for compact unit-test summaries, live scenario results and full failure details. The pinned version runs through `go run`, which downloads and caches it automatically on the first run.
+
+The installer scenarios in `e2e/installer` run the real installer against Docker with real Navidrome and [Caddy](https://caddyserver.com/docs/) containers and stand-ins for the bot and Telegram. Each scenario uses its own Compose project, volumes, Caddy container and dynamically assigned host ports. `just test` and `just test-setup` use Go's default test parallelism; CI limits it to four scenarios at a time. Tests reuse downloaded images and limit Caddy discovery to their own containers, so other installations and Caddy servers can keep running. Version checks use saved deployment files without starting a stack. To try the installer by hand, build it with a version, such as `go build -ldflags "-X main.version=0.0.1" ./cmd/beatstash-setup`.
 
 The small audio samples are committed to the repository, and tests generate additional audio as needed. You do not need to regenerate them before running tests. `ffmpeg` is still required.
 

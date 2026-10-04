@@ -50,7 +50,7 @@ func (s *setup) uninstall(ctx context.Context) error {
 
 	remove := func(path, question string) bool { return s.offerRemoval(ctx, path, question, strings.Fields(images)) }
 	removedAll := true
-	volumes, err := compose.Volumes(ctx)
+	volumes, err := compose.Volumes(ctx, s.ProjectName)
 	if err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func (s *setup) returnToCloud(ctx context.Context) {
 
 // removeCaddySite takes the beatstash site out of another program's Caddy.
 func (s *setup) removeCaddySite(ctx context.Context) {
-	servers, err := caddy.Find(ctx, s.HTTP)
+	servers, err := caddy.Find(ctx, s.HTTP, s.ProjectName, s.CaddyContainerFilter)
 	if err != nil {
 		s.t.Warn("Cannot look for Caddy: %v", err)
 		return

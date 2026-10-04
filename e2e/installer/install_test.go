@@ -9,6 +9,7 @@ import (
 )
 
 func TestInstall(t *testing.T) {
+	t.Parallel()
 	t.Run("new server runs the stack with its Navidrome administrator", func(t *testing.T) {
 		s := newSetup(t)
 
@@ -30,13 +31,13 @@ func TestInstall(t *testing.T) {
 		s := newSetup(t)
 		s.install("")
 		before := s.Read("config.toml")
-		started := startedAt(t, "beatstash-bot-1")
+		started := startedAt(t, s.Container("bot"))
 
 		out, err := s.Run(nil, "~/beatstash", "", "", "", "", "", "", "", "", "", "", "", "y")
 
 		require.NoError(t, err, out)
 		assert.Equal(t, before, s.Read("config.toml"))
-		assert.NotEqual(t, started, startedAt(t, "beatstash-bot-1"), "the bot rereads its settings")
+		assert.NotEqual(t, started, startedAt(t, s.Container("bot")), "the bot rereads its settings")
 		assert.Contains(t, out, "Navidrome already has the administrator admin")
 		assert.Len(t, s.Telegram.Calls(), 1, "the bot leaves the cloud API once")
 	})
@@ -60,7 +61,7 @@ func TestInstall(t *testing.T) {
 			"https://music.example.com", "", "", "", tricky, "y", "y")
 
 		require.NoError(t, err, out)
-		assert.Equal(t, tricky+"\n", docker(t, "exec", "beatstash-bot-1", "printenv", "NAVIDROME_PASSWORD"))
+		assert.Equal(t, tricky+"\n", docker(t, "exec", s.Container("bot"), "printenv", "NAVIDROME_PASSWORD"))
 	})
 
 	t.Run("blocked Telegram goes through the given proxy", func(t *testing.T) {
@@ -79,7 +80,7 @@ func TestInstall(t *testing.T) {
 		assert.Contains(t, s.Read(".env"), `TELEGRAM_PROXY="`+address+`"`)
 		assert.Contains(t, proxy.Paths(), "/bot"+token+"/logOut")
 		assert.Contains(t, s.Running(), "telegram-proxy")
-		assert.Contains(t, docker(t, "inspect", "-f", "{{.HostConfig.NetworkMode}}", "beatstash-telegram-bot-api-1"), "container:")
+		assert.Contains(t, docker(t, "inspect", "-f", "{{.HostConfig.NetworkMode}}", s.Container("telegram-bot-api")), "container:")
 	})
 
 	t.Run("existing Navidrome is connected without starting another", func(t *testing.T) {

@@ -131,11 +131,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
-      # The scenarios share one Compose project and the host ports of a
-      # server, so they run one at a time.
+      # Each scenario owns its Compose project, Caddy and host ports.
+      # Limit concurrency so the runner can handle the Docker stacks.
       - name: Run the setup scenarios with coverage
         run: |
-          go test -count=1 -timeout=25m -covermode=atomic -coverpkg=./internal/installer/... \
+          go test -count=1 -parallel=4 -timeout=25m -covermode=atomic -coverpkg=./internal/installer/... \
             -coverprofile=coverage-installer.out ./e2e/installer/
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

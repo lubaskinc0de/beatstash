@@ -84,9 +84,13 @@ type inspected struct {
 
 // Find lists the Caddy servers running on this host, except the one the
 // beatstash project itself may run.
-func Find(ctx context.Context, client *http.Client) ([]Server, error) {
+func Find(ctx context.Context, client *http.Client, projectName, containerFilter string) ([]Server, error) {
 	var servers []Server
-	ids, err := shell.Run(ctx, "", "docker", "ps", "-q")
+	args := []string{"ps", "-q"}
+	if containerFilter != "" {
+		args = append(args, "--filter", containerFilter)
+	}
+	ids, err := shell.Run(ctx, "", "docker", args...)
 	if err != nil {
 		return nil, err
 	}
@@ -100,19 +104,21 @@ func Find(ctx context.Context, client *http.Client) ([]Server, error) {
 			return nil, err
 		}
 		for _, c := range containers {
-			if isCaddy(c) {
+			if isCaddy(c, projectName) {
 				servers = append(servers, fromContainer(c, client))
 			}
 		}
 	}
-	if _, err := shell.Run(ctx, "", "systemctl", "is-active", "--quiet", "caddy"); err == nil {
-		servers = append(servers, Server{Kind: Service, Name: "caddy", File: "/etc/caddy/Caddyfile", config: "/etc/caddy/Caddyfile", client: client})
+	if containerFilter == "" {
+		if _, err := shell.Run(ctx, "", "systemctl", "is-active", "--quiet", "caddy"); err == nil {
+			servers = append(servers, Server{Kind: Service, Name: "caddy", File: "/etc/caddy/Caddyfile", config: "/etc/caddy/Caddyfile", client: client})
+		}
 	}
 	return servers, nil
 }
 
-func isCaddy(c inspected) bool {
-	if c.Config.Labels[compose.ProjectLabel] == compose.Name {
+func isCaddy(c inspected, projectName string) bool {
+	if c.Config.Labels[compose.ProjectLabel] == projectName {
 		return false
 	}
 	image := c.Config.Image

@@ -10,17 +10,18 @@ import (
 )
 
 func TestUninstall(t *testing.T) {
+	t.Parallel()
 	t.Run("defaults stop the stack, take the site out of Caddy and keep data", func(t *testing.T) {
 		s := newSetup(t)
-		caddyfile := startCaddy(t, caddyGlobals)
+		caddyfile := s.startCaddy(s.CaddyGlobals())
 		s.install("https://"+domain, "y", "y", "y")
 
 		out, err := s.Run([]string{"uninstall"}, "", "", "", "", "y", "y", "", "", "")
 
 		require.NoError(t, err, out)
-		assert.Equal(t, caddyGlobals, fileText(t, caddyfile))
+		assert.Equal(t, s.CaddyGlobals(), fileText(t, caddyfile))
 		assert.Empty(t, s.Running())
-		assert.Len(t, volumes(t), 2)
+		assert.Len(t, s.Volumes(), 2)
 		assert.FileExists(t, s.Deploy("config.toml"))
 	})
 
@@ -34,12 +35,13 @@ func TestUninstall(t *testing.T) {
 		assert.Contains(t, out, "The bot left the local Telegram API.")
 		assert.Contains(t, out, "beatstash is fully removed.")
 		assert.Empty(t, s.Running())
-		assert.Empty(t, volumes(t))
+		assert.Empty(t, s.Volumes())
 		assert.NoDirExists(t, filepath.Join(s.Home, "beatstash"))
 	})
 }
 
-func volumes(t *testing.T) []string {
+func (s *Setup) Volumes() []string {
+	t := s.t
 	t.Helper()
-	return strings.Fields(docker(t, "volume", "ls", "-q", "--filter", "label=com.docker.compose.project=beatstash"))
+	return strings.Fields(docker(t, "volume", "ls", "-q", "--filter", "label=com.docker.compose.project="+s.ProjectName))
 }

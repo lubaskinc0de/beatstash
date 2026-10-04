@@ -4,10 +4,13 @@ import (
 	"os"
 	"testing"
 
+	tclog "github.com/testcontainers/testcontainers-go/log"
+
 	"github.com/lubaskinc0de/beatstash/e2e/harness"
 )
 
 func TestMain(m *testing.M) {
+	tclog.SetDefault(tclog.NewNoopLogger())
 	os.Exit(harness.Run(m))
 }
 

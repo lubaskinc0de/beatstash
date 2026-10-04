@@ -78,7 +78,7 @@ func (s *setup) chooseInstallation(ctx context.Context, in *installation) error 
 	if err := os.MkdirAll(deploy, 0o755); err != nil { //nolint:gosec // G301: a native Navidrome reaches the music through it
 		return err
 	}
-	s.project = compose.Project{Dir: deploy, Out: s.Out}
+	s.project = compose.Project{Name: s.ProjectName, Dir: deploy, Out: s.Out}
 	s.t.Say("Installing v%s into %s", s.version, deploy)
 
 	saved := ""
@@ -92,7 +92,7 @@ func (s *setup) chooseInstallation(ctx context.Context, in *installation) error 
 	if saved != "" && in.mode != saved {
 		return errors.New("use another directory to change the installation mode")
 	}
-	owners, err := compose.Owners(ctx)
+	owners, err := compose.Owners(ctx, s.ProjectName)
 	if err != nil {
 		return err
 	}
@@ -233,11 +233,11 @@ func (s *setup) ensureSecret(ctx context.Context, name string, encode func([]byt
 	if s.project.Env().Get(name) != "" {
 		return nil
 	}
-	volumes, err := compose.Volumes(ctx)
+	volumes, err := compose.Volumes(ctx, s.ProjectName)
 	if err != nil {
 		return err
 	}
-	if slices.Contains(volumes, compose.Name+"_postgres_data") {
+	if slices.Contains(volumes, s.ProjectName+"_postgres_data") {
 		return fmt.Errorf("an existing database was found; restore its original .env before generating %s", name)
 	}
 	secret := make([]byte, 32)

@@ -35,6 +35,11 @@ type Options struct {
 	// Version is the release this tool installs, without the leading v.
 	Version    string
 	Repository string
+	// ProjectName is the Compose project to manage; defaults to beatstash.
+	ProjectName string
+	// CaddyContainerFilter limits discovery to Docker containers matching this
+	// filter. Empty also discovers the host's systemd Caddy service.
+	CaddyContainerFilter string
 	// ComposeTemplate and ConfigTemplate are the deployment files of the release.
 	ComposeTemplate string
 	ConfigTemplate  string
@@ -59,6 +64,9 @@ type setup struct {
 
 // Run performs the command in args, install when there is none.
 func Run(ctx context.Context, o Options, args []string) error {
+	if o.ProjectName == "" {
+		o.ProjectName = compose.Name
+	}
 	command := "install"
 	if len(args) > 0 {
 		command = args[0]
@@ -180,12 +188,12 @@ func (s *setup) remote() bool {
 
 // locate finds the installation an upgrade or uninstall works on.
 func (s *setup) locate(ctx context.Context) error {
-	owners, err := compose.Owners(ctx)
+	owners, err := compose.Owners(ctx, s.ProjectName)
 	if err != nil {
 		return err
 	}
 	if len(owners) == 1 && s.t.Confirm(fmt.Sprintf("Use the installation in %s?", owners[0]), true) {
-		s.project = compose.Project{Dir: owners[0], Out: s.Out}
+		s.project = compose.Project{Name: s.ProjectName, Dir: owners[0], Out: s.Out}
 		return nil
 	}
 	for {
@@ -196,7 +204,7 @@ func (s *setup) locate(ctx context.Context) error {
 				if err != nil {
 					return err
 				}
-				s.project = compose.Project{Dir: abs, Out: s.Out}
+				s.project = compose.Project{Name: s.ProjectName, Dir: abs, Out: s.Out}
 				return nil
 			}
 		}

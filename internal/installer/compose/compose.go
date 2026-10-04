@@ -23,8 +23,9 @@ const ProjectLabel = "com.docker.compose.project"
 
 // Project is a deployment directory: compose.yml, .env and config.toml.
 type Project struct {
-	Dir string
-	Out io.Writer
+	Name string
+	Dir  string
+	Out  io.Writer
 }
 
 func (p Project) Path(name string) string { return filepath.Join(p.Dir, name) }
@@ -60,6 +61,9 @@ func (p Project) command(ctx context.Context, args []string) *exec.Cmd {
 	// No -f: Compose then takes the files from COMPOSE_FILE in .env, as it
 	// does when a person runs it in the directory.
 	base := []string{"compose", "--project-directory", p.Dir, "--env-file", p.Path(".env")}
+	if p.Name != "" {
+		base = append(base, "--project-name", p.Name)
+	}
 	cmd := exec.CommandContext(ctx, "docker", append(base, args...)...) //nolint:gosec // G204: the installer drives the docker CLI
 	cmd.Dir = p.Dir
 	// A variable exported in the shell would override the one in .env.
@@ -100,14 +104,14 @@ func (p Project) Running(ctx context.Context) ([]string, error) {
 }
 
 // Volumes are the named volumes of the project, created or not.
-func Volumes(ctx context.Context) ([]string, error) {
-	out, err := shell.Run(ctx, "", "docker", "volume", "ls", "-q", "--filter", "label="+ProjectLabel+"="+Name)
+func Volumes(ctx context.Context, name string) ([]string, error) {
+	out, err := shell.Run(ctx, "", "docker", "volume", "ls", "-q", "--filter", "label="+ProjectLabel+"="+name)
 	return strings.Fields(out), err
 }
 
 // Owners are the directories that run containers of the project.
-func Owners(ctx context.Context) ([]string, error) {
-	ids, err := shell.Run(ctx, "", "docker", "ps", "-aq", "--filter", "label="+ProjectLabel+"="+Name)
+func Owners(ctx context.Context, name string) ([]string, error) {
+	ids, err := shell.Run(ctx, "", "docker", "ps", "-aq", "--filter", "label="+ProjectLabel+"="+name)
 	if err != nil || strings.TrimSpace(ids) == "" {
 		return nil, err
 	}

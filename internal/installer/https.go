@@ -56,7 +56,7 @@ func (s *setup) setUpHTTPS(ctx context.Context, in *installation) error {
 	if slices.Contains(profiles(s.project.Env()), "proxy") {
 		return s.bundledProxy(ctx, name, upstream)
 	}
-	servers, err := caddy.Find(ctx, s.HTTP)
+	servers, err := caddy.Find(ctx, s.HTTP, s.ProjectName, s.CaddyContainerFilter)
 	if err != nil {
 		return err
 	}

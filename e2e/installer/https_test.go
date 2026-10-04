@@ -12,18 +12,19 @@ import (
 )
 
 func TestHTTPS(t *testing.T) {
+	t.Parallel()
 	t.Run("shared Caddy serves Navidrome beside its other sites", func(t *testing.T) {
 		s := newSetup(t)
-		caddyfile := startCaddy(t, caddyGlobals)
+		caddyfile := s.startCaddy(s.CaddyGlobals())
 		inode := inodeOf(t, caddyfile)
 
 		out := s.install("https://"+domain, "y", "y", "y")
 
 		assert.Contains(t, out, "Navidrome answers at https://"+domain)
 		written := fileText(t, caddyfile)
-		assert.True(t, strings.HasPrefix(written, caddyGlobals), written)
+		assert.True(t, strings.HasPrefix(written, s.CaddyGlobals()), written)
 		assert.Equal(t, inode, inodeOf(t, caddyfile), "a single-file mount sees only the original inode")
-		assert.Equal(t, caddyGlobals, s.Read("Caddyfile.backup"))
+		assert.Equal(t, s.CaddyGlobals(), s.Read("Caddyfile.backup"))
 		status, body := s.Get("https://other.example.test/")
 		assert.Equal(t, http.StatusOK, status)
 		assert.Equal(t, "other site", body)
@@ -31,7 +32,7 @@ func TestHTTPS(t *testing.T) {
 
 	t.Run("rerun finds the site in place", func(t *testing.T) {
 		s := newSetup(t)
-		startCaddy(t, caddyGlobals)
+		s.startCaddy(s.CaddyGlobals())
 		s.install("https://"+domain, "y", "y", "y")
 
 		out, err := s.Run(nil, "~/beatstash", "", "", "", "", "", "", "", "", "", "", "", "y")
@@ -42,8 +43,8 @@ func TestHTTPS(t *testing.T) {
 
 	t.Run("site Caddy serves already is left alone", func(t *testing.T) {
 		s := newSetup(t)
-		own := caddyGlobals + "\n" + domain + " {\n\trespond \"mine\"\n}\n"
-		caddyfile := startCaddy(t, own)
+		own := s.CaddyGlobals() + "\n" + domain + " {\n\trespond \"mine\"\n}\n"
+		caddyfile := s.startCaddy(own)
 
 		out := s.install("https://" + domain)
 
@@ -54,24 +55,24 @@ func TestHTTPS(t *testing.T) {
 
 	t.Run("Caddy changed past its file is left alone", func(t *testing.T) {
 		s := newSetup(t)
-		caddyfile := startCaddy(t, caddyGlobals)
-		docker(t, "exec", caddyName, "sh", "-c",
+		caddyfile := s.startCaddy(s.CaddyGlobals())
+		docker(t, "exec", s.CaddyName, "sh", "-c",
 			`sed 's/other site/changed/' /etc/caddy/Caddyfile > /tmp/Caddyfile && caddy reload --config /tmp/Caddyfile --adapter caddyfile`)
 
 		out := s.install("https://"+domain, "y")
 
 		assert.Contains(t, out, "running Caddy config differs from its Caddyfile")
-		assert.Equal(t, caddyGlobals, fileText(t, caddyfile))
+		assert.Equal(t, s.CaddyGlobals(), fileText(t, caddyfile))
 	})
 
 	t.Run("declined change leaves Caddy as it was", func(t *testing.T) {
 		s := newSetup(t)
-		caddyfile := startCaddy(t, caddyGlobals)
+		caddyfile := s.startCaddy(s.CaddyGlobals())
 
 		out := s.install("https://"+domain, "y", "n")
 
 		assert.Contains(t, out, "+ "+domain+" {")
-		assert.Equal(t, caddyGlobals, fileText(t, caddyfile))
+		assert.Equal(t, s.CaddyGlobals(), fileText(t, caddyfile))
 	})
 
 	t.Run("without a proxy the stack runs its own Caddy", func(t *testing.T) {

@@ -1,15 +1,26 @@
 set dotenv-load := true
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
+gotestsum := "go run gotest.tools/gotestsum@v1.13.0 --format-hide-empty-pkg"
+
 up:
     docker compose up postgres navidrome -d
     go run cmd/beatstash/main.go
 
-test:
-    python3 -m unittest discover -s .github/scripts -p 'test_*.py'
-    go test -count=1 -v ./internal/... 2>&1 | grep -vE '^(\{|[0-9]{4}/|=== (RUN|PAUSE|CONT)|  [A-Z])'
-    go test -count=1 -v ./e2e/installer/ 2>&1 | grep -vE '^(\{|[0-9]{4}/|=== (RUN|PAUSE|CONT)|  [A-Z])'
-    go test -count=1 -v ./e2e/ 2>&1 | grep -vE '^(\{|[0-9]{4}/|=== (RUN|PAUSE|CONT)|  [A-Z])'
+test: test-unit test-e2e
+
+test-unit:
+    @printf '\nUnit tests\n'
+    @python3 -m unittest discover -q -s .github/scripts -p 'test_*.py'
+    @{{gotestsum}} --format pkgname -- -count=1 ./internal/...
+
+# Run both end-to-end packages concurrently and wait for both results.
+[parallel]
+test-e2e: test-setup test-main
+
+test-main:
+    @printf '\nApplication scenarios\n'
+    @{{gotestsum}} --format testname -- -count=1 -parallel=4 ./e2e/
 
 lint:
     #!/usr/bin/env bash
@@ -50,9 +61,10 @@ lint:
 fmt:
     "$(go env GOPATH)/bin/golangci-lint" fmt ./...
 
-# Setup tool scenarios alone; they run one at a time against real Docker.
+# Setup tool scenarios alone, with isolated Docker stacks in parallel.
 test-setup:
-    go test -count=1 -v ./e2e/installer/ 2>&1 | grep -E '^(ok|FAIL|---|    ---)|Error'
+    @printf '\nInstaller scenarios\n'
+    @{{gotestsum}} --format testname -- -count=1 ./e2e/installer/
 
 # The version picks the bot image it installs: `just setup-tool 0.0.1 arm64`.
 # Builds the setup tool for a server without a release.

@@ -13,12 +13,13 @@ import (
 )
 
 func TestUpgrade(t *testing.T) {
+	t.Parallel()
 	t.Run("new release updates files, backs up and restarts", func(t *testing.T) {
 		s := newSetup(t)
 		s.install("")
 		oldCompose, oldConfig := s.Read("compose.yml"), s.Read("config.toml")
 		s.Version = "1.1.0"
-		s.Compose = strings.Replace(composeTemplate, "command: [sleep, '86400']", "command: [sleep, '86401']", 1)
+		s.Compose = strings.Replace(s.Compose, "command: [sleep, '86400']", "command: [sleep, '86401']", 1)
 		s.Config = strings.Replace(s.Config, "[invites]\n", "[invites]\n# Added in 1.1.0.\nreminder = \"24h\"\n", 1)
 
 		out, err := s.Run([]string{"upgrade"}, "", "y", "y", "y", "y")
@@ -31,28 +32,30 @@ func TestUpgrade(t *testing.T) {
 		assert.Equal(t, []any{"telegram:42"}, s.Settings()["admins"])
 		assert.Contains(t, s.Read(".env"), `BEATSTASH_VERSION="1.1.0"`)
 		assert.Contains(t, dump(t, s.Deploy("backups")), "PostgreSQL database dump")
-		assert.Contains(t, docker(t, "ps", "--filter", "label=com.docker.compose.project=beatstash", "--filter", "label=com.docker.compose.service=bot", "--format", "{{.Command}}"), "86401")
+		assert.Contains(t, docker(t, "ps", "--filter", "label=com.docker.compose.project="+s.ProjectName, "--filter", "label=com.docker.compose.service=bot", "--format", "{{.Command}}"), "86401")
 	})
 
 	t.Run("same release has nothing to do", func(t *testing.T) {
-		s := newSetup(t)
-		s.install("")
+		s := savedInstallation(t)
 
-		out, err := s.Run([]string{"upgrade"}, "")
+		out, err := s.Run([]string{"upgrade"}, "~/beatstash")
 
 		require.NoError(t, err, out)
 		assert.Contains(t, out, "already runs beatstash v1.0.0")
+		assert.Equal(t, s.Compose, s.Read("compose.yml"))
+		assert.Equal(t, s.Config, s.Read("config.toml"))
+		assert.Empty(t, s.Running())
 	})
 
 	t.Run("older release is refused", func(t *testing.T) {
-		s := newSetup(t)
-		s.install("")
+		s := savedInstallation(t)
 		s.Version = "0.9.0"
 
-		out, err := s.Run([]string{"upgrade"}, "")
+		out, err := s.Run([]string{"upgrade"}, "~/beatstash")
 
 		require.ErrorContains(t, err, "downgrades are not supported", out)
 		assert.Contains(t, s.Read(".env"), `BEATSTASH_VERSION="1.0.0"`)
+		assert.Empty(t, s.Running())
 	})
 }
 
