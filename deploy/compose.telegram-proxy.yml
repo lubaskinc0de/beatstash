@@ -8,7 +8,7 @@ services:
   # Sends every connection of the containers sharing its network through
   # the proxy, since the Bot API's own --proxy covers webhooks only.
   telegram-proxy:
-    image: xjasonlyu/tun2socks:v2.6.0
+    image: xjasonlyu/tun2socks:v2.7.0
     restart: unless-stopped
     cap_add: [NET_ADMIN]
     devices: [/dev/net/tun]
