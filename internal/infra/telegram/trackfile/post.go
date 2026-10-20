@@ -18,6 +18,9 @@ type Post struct {
 	// their token.
 	ClaimedUntil *time.Time
 	RejectedSize *int64
+	// Unreachable marks a Track whose file the bot cannot read: it is not
+	// tried again.
+	Unreachable bool `gorm:"not null;default:false"`
 }
 
 func (Post) TableName() string {
@@ -105,6 +108,14 @@ func (f *Files) stored(ctx context.Context, track *library.Track) (*File, error)
 		return nil, err
 	}
 	return files[track.ID], nil
+}
+
+// MarkUnreachable keeps the Track out of the posts to come.
+func (f *Files) MarkUnreachable(ctx context.Context, trackID uint) error {
+	return f.DB.WithContext(ctx).Exec(`
+		INSERT INTO telegram_file_posts (track_id, unreachable) VALUES (?, true)
+		ON CONFLICT (track_id) DO UPDATE SET unreachable = true`, trackID,
+	).Error
 }
 
 // claim returns the lease on the Track's post, or nil if somebody else

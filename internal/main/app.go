@@ -441,17 +441,18 @@ func build(ctx context.Context, cfg Config, db *gorm.DB, opts []bot.Option) (*Ap
 	}
 	handler.Register()
 	telegramPoller := poller.New(poller.Config{
-		DB:              db,
-		Chats:           &tgbot.Chats{Telegram: tg, Imports: imports, Users: telegramUsers, IDs: telegramIDs},
-		Files:           telegramFiles,
-		IngestResults:   &add_track.GetIngestResults{IDs: ids, Queue: ingestQueue, Quotas: libraryQuotas},
-		ImportResults:   &import_collection.GetImportResults{IDs: ids, Queue: ingestQueue, Batches: batchRepo},
-		RejectedTokens:  &connect_provider.ListRejectedTokens{Accounts: providerAccountRepo},
-		StorageChatID:   cfg.StorageChatID,
-		FillStorageChat: cfg.FillStorageChat,
-		MusicDir:        cfg.MusicDir,
-		LeaseTTL:        cfg.TelegramLeaseTTL,
-		Interval:        cfg.TelegramPollInterval,
+		DB:                db,
+		Chats:             &tgbot.Chats{Telegram: tg, Imports: imports, Users: telegramUsers, IDs: telegramIDs},
+		Files:             telegramFiles,
+		IngestResults:     &add_track.GetIngestResults{IDs: ids, Queue: ingestQueue, Quotas: libraryQuotas},
+		ImportResults:     &import_collection.GetImportResults{IDs: ids, Queue: ingestQueue, Batches: batchRepo},
+		RejectedTokens:    &connect_provider.ListRejectedTokens{Accounts: providerAccountRepo},
+		StorageChatID:     cfg.StorageChatID,
+		FillStorageChat:   cfg.FillStorageChat,
+		MusicDir:          cfg.MusicDir,
+		NavidromeMusicDir: cfg.NavidromeMusicDir,
+		LeaseTTL:          cfg.TelegramLeaseTTL,
+		Interval:          cfg.TelegramPollInterval,
 	})
 	workers.Processed = telegramPoller.Wake
 	if err := tgbot.Describe(ctx, b, texts); err != nil {

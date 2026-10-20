@@ -52,8 +52,9 @@ type Config struct {
 	// StorageChatID gets the Tracks without a Telegram file; zero turns it off.
 	StorageChatID int64
 	// FillStorageChat uploads them there in the background.
-	FillStorageChat bool
-	MusicDir        string
+	FillStorageChat   bool
+	MusicDir          string
+	NavidromeMusicDir string
 
 	// LeaseTTL outlasts an answer: an older claim on one was left by an
 	// instance that died amid it.
@@ -95,7 +96,7 @@ func New(c Config) *Poller {
 	}
 	if p.fill {
 		p.steps = append(p.steps, namedStep{"fill_storage_chat", (&fillStorageChat{
-			files: c.Files, chatID: c.StorageChatID, musicDir: c.MusicDir,
+			files: c.Files, chatID: c.StorageChatID, musicDir: c.MusicDir, navidromeMusicDir: c.NavidromeMusicDir,
 		}).Run})
 	}
 	return p

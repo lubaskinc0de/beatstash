@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/go-telegram/bot/models"
@@ -8,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/lubaskinc0de/beatstash/e2e/harness"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/audiofile"
+	"github.com/lubaskinc0de/beatstash/e2e/harness/navidrome"
 	"github.com/lubaskinc0de/beatstash/e2e/harness/telegram"
 )
 
@@ -201,6 +204,55 @@ func TestStorageChat(t *testing.T) {
 		importZvukSong(s, alice, "Stored Song")
 
 		assert.Len(t, s.Telegram.CallsTo("sendAudio"), 1)
+	})
+
+	t.Run("track of an attached library inside music_dir goes to the storage chat", func(t *testing.T) {
+		var account navidrome.Account
+		var own harness.NavidromeLibrary
+		s := harness.NewOwnNavidrome(t, func(s *harness.Scenario) {
+			account = s.Navidrome.CreateAccount(t, "alice")
+			own = s.NewMusicDirLibrary("own", audiofile.Fixture("track.mp3"))
+			s.Navidrome.OpenLibrary(t, account, own.ID)
+			s.Navidrome.UntilSongs(t, own.ID, 1)
+		}, harness.WithStorageChat(storageChat))
+		s.WaitIngest()
+		s.Link(alice, account)
+		song := s.Navidrome.IndexedTrack(t, account, own.Path, audiofile.FixtureTitle)
+		s.Navidrome.StartPlaying(t, account, song.ID)
+		query := s.InlineQuery(alice, "np")
+
+		s.Send(query)
+
+		assert.Equal(t, []string{s.Telegram.UploadedFileID(0)}, telegram.AudioFileIDs(s.Telegram.InlineAnswerTo(t, query)))
+	})
+
+	t.Run("track of an attached library outside music_dir is not tried again", func(t *testing.T) {
+		s := harness.NewOwnNavidrome(t, func(s *harness.Scenario) {
+			own := s.NewNavidromeLibrary("own", audiofile.Fixture("track.mp3"))
+			s.Navidrome.UntilSongs(t, own.ID, 1)
+		}, harness.WithStorageChat(storageChat))
+
+		s.WaitIngest()
+
+		assert.Empty(t, s.Telegram.CallsTo("sendAudio"))
+	})
+
+	t.Run("tracks of an attached library outside music_dir do not hold back other tracks", func(t *testing.T) {
+		// A round takes ten Tracks, the oldest first.
+		const unreachable = 10
+		s := harness.NewOwnNavidrome(t, func(s *harness.Scenario) {
+			own := s.NewNavidromeLibrary("own")
+			for n := range unreachable {
+				s.AddToNavidromeLibrary(own, audiofile.Fixture("track.mp3"), fmt.Sprintf("track-%d.mp3", n))
+			}
+			s.Navidrome.UntilSongs(t, own.ID, unreachable)
+		}, harness.WithStorageChat(storageChat))
+
+		importZvukSong(s, alice, "Stored Song")
+
+		sent := s.Telegram.CallsTo("sendAudio")
+		require.Len(t, sent, 1)
+		assert.Equal(t, "Stored Song.mp3", sent[0].Params[telegram.UploadedFileParam])
 	})
 }
 

@@ -154,8 +154,8 @@ type Unfiled struct {
 
 // Unfiled lists Tracks without a current file of their own or of a copy.
 // It skips the Tracks whose file is a message a user sent and the bot has
-// yet to answer, the Tracks being posted now, and those Telegram would not
-// take under the current size limit.
+// yet to answer, the Tracks being posted now, those Telegram would not
+// take under the current size limit, and those the bot cannot read.
 func (f *Files) Unfiled(ctx context.Context, limit int) ([]Unfiled, error) {
 	var tracks []Unfiled
 	err := f.DB.WithContext(ctx).
@@ -172,7 +172,7 @@ func (f *Files) Unfiled(ctx context.Context, limit int) ([]Unfiled, error) {
 		)`).
 		Where(`NOT EXISTS (
 			SELECT 1 FROM telegram_file_posts posts
-			WHERE posts.track_id = tracks.id AND (posts.claimed_until > now() OR posts.rejected_size > ?)
+			WHERE posts.track_id = tracks.id AND (posts.claimed_until > now() OR posts.rejected_size > ? OR posts.unreachable)
 		)`, f.Sender.MaxPostSize).
 		Order("tracks.id").Limit(limit).Scan(&tracks).Error
 	return tracks, err

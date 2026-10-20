@@ -234,6 +234,12 @@ var migrations = []*gormigrate.Migration{
 			return tx.AutoMigrate(&library.Track{})
 		},
 	},
+	{
+		ID: "0023_telegram_file_post_unreachable",
+		Migrate: func(tx *gorm.DB) error {
+			return tx.AutoMigrate(&trackfile.Post{})
+		},
+	},
 }
 
 func Migrate(db *gorm.DB) error {
